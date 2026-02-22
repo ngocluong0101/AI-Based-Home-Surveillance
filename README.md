@@ -1,3 +1,4 @@
+# Updating !!!
 # AI-Based-Home-Surveillance
 
 Một hệ thống giám sát gia đình sử dụng mô hình nhận diện đối tượng (YOLOv8) để phát hiện xâm nhập, gửi cảnh báo và lưu trữ sự kiện. Dự án kết hợp xử lý ảnh thời gian thực, logic an ninh, và một API nhẹ để truy vấn sự kiện và hình ảnh.
