@@ -15,7 +15,7 @@ logger = Logger()
 event_logger = EventLogger()
 
 alert = TelegramAlert(
-    token="8501512619:AAH2o1K-ncYxKkdYPey15phuUqeXhKRG46U",
+    token="",
     chat_id="5349568679"
 )
 
