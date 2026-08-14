@@ -1,1 +1,1 @@
-# No external dependencies yet.
+opencv-python>=4.10.0

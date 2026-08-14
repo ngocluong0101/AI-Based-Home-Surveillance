@@ -15,6 +15,12 @@ Xây dựng một nền tảng sạch và tối giản cho các chức năng gi�
 - Telegram Notification
 - MP4/Webcam/RTSP input
 
+## Development Status
+
+- Project setup: hoàn thành
+- MP4 input: hoàn thành
+- Person Detection, Person Tracking, Person Alert, Fall Detection, Telegram Notification: chưa triển khai
+
 ## Cấu trúc thư mục
 
 ```text
@@ -48,7 +54,7 @@ AI-Based-Home-Surveillance/
 - Python 3.10 trở lên
 - `pip`
 
-Hiện tại project chưa dùng dependency ngoài nào.
+Project hiện dùng `opencv-python` cho video input.
 
 ## Hướng dẫn cài đặt
 
@@ -66,12 +72,16 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
+## Hướng dẫn video test
+
+Đặt file `.mp4` vào `data/videos/`, ví dụ `data/videos/test.mp4`.
+
 ## Hướng dẫn chạy
 
 ```bash
-python main.py
+python main.py --source data/videos/test.mp4
 ```
 
-## Development Status
+Nhấn `q` trong cửa sổ video để thoát.
 
-Hiện tại mới hoàn thành phần project setup và tổ chức cấu trúc thư mục. Các tính năng xử lý video, detection, tracking, alerting và notification sẽ được triển khai ở các bước tiếp theo.
+Nếu không truyền `--source`, ứng dụng chỉ in thông báo khởi động và thoát.
