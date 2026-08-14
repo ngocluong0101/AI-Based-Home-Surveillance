@@ -1,0 +1,1 @@
+"""Application package for AI-Based-Home-Surveillance."""
