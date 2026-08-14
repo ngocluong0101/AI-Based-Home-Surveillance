@@ -19,7 +19,9 @@ Xây dựng một nền tảng sạch và tối giản cho các chức năng gi�
 
 - Project setup: hoàn thành
 - MP4 input: hoàn thành
-- Person Detection, Person Tracking, Person Alert, Fall Detection, Telegram Notification: chưa triển khai
+- Webcam input: hoàn thành
+- Person Detection: hoàn thành
+- Person Tracking, Person Alert, Fall Detection, Telegram Notification: chưa triển khai
 
 ## Cấu trúc thư mục
 
@@ -54,7 +56,7 @@ AI-Based-Home-Surveillance/
 - Python 3.10 trở lên
 - `pip`
 
-Project hiện dùng `opencv-python` cho video input.
+Project hiện dùng `opencv-python` cho video input và `ultralytics` với model pretrained `yolov8n.pt` cho person detection.
 
 ## Hướng dẫn cài đặt
 
@@ -76,10 +78,28 @@ cp .env.example .env
 
 Đặt file `.mp4` vào `data/videos/`, ví dụ `data/videos/test.mp4`.
 
+## Hướng dẫn camera
+
+Webcam mặc định là thiết bị `0`, nhưng bạn có thể truyền `1`, `2`, ... nếu máy có nhiều camera.
+
 ## Hướng dẫn chạy
+
+MP4 file:
 
 ```bash
 python main.py --source data/videos/test.mp4
+```
+
+Webcam:
+
+```bash
+python main.py --source 0
+```
+
+Tùy chọn confidence threshold:
+
+```bash
+python main.py --source 0 --conf-threshold 0.5
 ```
 
 Nhấn `q` trong cửa sổ video để thoát.

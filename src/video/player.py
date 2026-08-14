@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 
 WINDOW_NAME = "AI-Based-Home-Surveillance"
+FrameProcessor = Callable[[Any], Any]
 
 
 def _resolve_source(source: str) -> str | int:
@@ -26,7 +27,7 @@ def _validate_local_file(source: str) -> Path | None:
     return None
 
 
-def play_video_source(source: str) -> int:
+def play_video_source(source: str, frame_processor: FrameProcessor | None = None) -> int:
     """Play a video source frame by frame until the user quits or it ends."""
     local_path = _validate_local_file(source)
     if local_path is None and not source.isdigit() and not source.startswith(("rtsp://", "rtsps://", "http://", "https://")):
@@ -56,6 +57,9 @@ def play_video_source(source: str) -> int:
             if not success:
                 print("Video ended or no more frames available.")
                 break
+
+            if frame_processor is not None:
+                frame = frame_processor(frame)
 
             cv2.imshow(WINDOW_NAME, frame)
             if cv2.waitKey(1) & 0xFF == ord("q"):
