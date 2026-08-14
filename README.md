@@ -21,7 +21,8 @@ Xây dựng một nền tảng sạch và tối giản cho các chức năng gi�
 - MP4 input: hoàn thành
 - Webcam input: hoàn thành
 - Person Detection: hoàn thành
-- Person Tracking, Person Alert, Fall Detection, Telegram Notification: chưa triển khai
+- Person Tracking: hoàn thành
+- Person Alert, Fall Detection, Telegram Notification: chưa triển khai
 - GPU/CUDA support: hoàn thành
 - FPS display: hoàn thành
 
@@ -58,7 +59,7 @@ AI-Based-Home-Surveillance/
 - Python 3.10 trở lên
 - `pip`
 
-Project hiện dùng `opencv-python` cho video input và `ultralytics` với model pretrained `yolov8n.pt` cho person detection. Ứng dụng tự chọn `cuda` nếu PyTorch/CUDA khả dụng, ngược lại dùng `cpu`.
+Project hiện dùng `opencv-python` cho video input và `ultralytics` với model pretrained `yolov8n.pt` cho person detection/tracking. Tracking dùng ByteTrack của Ultralytics. Ứng dụng tự chọn `cuda` nếu PyTorch/CUDA khả dụng, ngược lại dùng `cpu`.
 
 ## Hướng dẫn cài đặt
 
@@ -102,6 +103,12 @@ Tùy chọn confidence threshold:
 
 ```bash
 python main.py --source 0 --conf-threshold 0.5
+```
+
+Tracking bằng ByteTrack:
+
+```bash
+python main.py --source 0 --track
 ```
 
 Khi chạy, ứng dụng sẽ in device đang dùng và hiển thị FPS trực tiếp trên video.

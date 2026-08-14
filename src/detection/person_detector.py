@@ -37,17 +37,28 @@ class PersonDetector:
 
         self.model = YOLO(self.model_name)
 
-    def annotate_frame(self, frame: Any) -> Any:
-        """Detect persons in a frame and draw bounding boxes with labels."""
-        import cv2
+    def _run_inference(self, frame: Any, track: bool = False) -> Any:
+        """Run person-only inference on a frame."""
+        inference_kwargs = {
+            "conf": self.confidence_threshold,
+            "classes": [self.person_class_id],
+            "device": self.device,
+            "verbose": False,
+        }
 
-        results = self.model.predict(
-            frame,
-            conf=self.confidence_threshold,
-            classes=[self.person_class_id],
-            device=self.device,
-            verbose=False,
-        )
+        if track:
+            return self.model.track(
+                frame,
+                persist=True,
+                tracker="bytetrack.yaml",
+                **inference_kwargs,
+            )
+
+        return self.model.predict(frame, **inference_kwargs)
+
+    def _annotate_results(self, frame: Any, results: Any, include_track_id: bool = False) -> Any:
+        """Draw detection or tracking overlays on a frame."""
+        import cv2
 
         annotated_frame = frame.copy()
         for box in results[0].boxes:
@@ -56,9 +67,13 @@ class PersonDetector:
                 coordinates = coordinates.tolist()
 
             x1, y1, x2, y2 = map(int, coordinates)
-
             confidence = float(box.conf[0])
-            label = f"person {confidence:.2f}"
+
+            if include_track_id and getattr(box, "id", None) is not None:
+                track_id = int(box.id[0])
+                label = f"Person ID: {track_id} | {confidence:.2f}"
+            else:
+                label = f"person {confidence:.2f}"
 
             cv2.rectangle(annotated_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
             text_origin = (x1, max(25, y1 - 10))
@@ -74,3 +89,13 @@ class PersonDetector:
             )
 
         return annotated_frame
+
+    def annotate_frame(self, frame: Any) -> Any:
+        """Detect persons in a frame and draw bounding boxes with labels."""
+        results = self._run_inference(frame, track=False)
+        return self._annotate_results(frame, results, include_track_id=False)
+
+    def annotate_tracked_frame(self, frame: Any) -> Any:
+        """Track persons and draw persistent person IDs with confidence."""
+        results = self._run_inference(frame, track=True)
+        return self._annotate_results(frame, results, include_track_id=True)
