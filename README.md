@@ -22,6 +22,8 @@ Xây dựng một nền tảng sạch và tối giản cho các chức năng gi�
 - Webcam input: hoàn thành
 - Person Detection: hoàn thành
 - Person Tracking, Person Alert, Fall Detection, Telegram Notification: chưa triển khai
+- GPU/CUDA support: hoàn thành
+- FPS display: hoàn thành
 
 ## Cấu trúc thư mục
 
@@ -56,7 +58,7 @@ AI-Based-Home-Surveillance/
 - Python 3.10 trở lên
 - `pip`
 
-Project hiện dùng `opencv-python` cho video input và `ultralytics` với model pretrained `yolov8n.pt` cho person detection.
+Project hiện dùng `opencv-python` cho video input và `ultralytics` với model pretrained `yolov8n.pt` cho person detection. Ứng dụng tự chọn `cuda` nếu PyTorch/CUDA khả dụng, ngược lại dùng `cpu`.
 
 ## Hướng dẫn cài đặt
 
@@ -102,6 +104,18 @@ Tùy chọn confidence threshold:
 python main.py --source 0 --conf-threshold 0.5
 ```
 
+Khi chạy, ứng dụng sẽ in device đang dùng và hiển thị FPS trực tiếp trên video.
+
 Nhấn `q` trong cửa sổ video để thoát.
 
 Nếu không truyền `--source`, ứng dụng chỉ in thông báo khởi động và thoát.
+
+## Kiểm tra CUDA
+
+Bạn có thể kiểm tra PyTorch có nhận CUDA bằng lệnh sau:
+
+```bash
+python -c "import torch; print(torch.cuda.is_available())"
+```
+
+Nếu kết quả là `True`, ứng dụng sẽ tự động dùng `cuda:0` cho YOLO inference.

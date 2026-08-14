@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 from typing import Any, Callable
 
@@ -25,6 +26,26 @@ def _validate_local_file(source: str) -> Path | None:
         return path
 
     return None
+
+
+def _draw_fps(frame: Any, fps: float) -> Any:
+    """Overlay FPS information on the current frame."""
+    import cv2
+
+    label = f"FPS: {fps:.1f}"
+    origin = (10, 30)
+
+    cv2.putText(
+        frame,
+        label,
+        origin,
+        cv2.FONT_HERSHEY_SIMPLEX,
+        0.8,
+        (0, 255, 255),
+        2,
+        cv2.LINE_AA,
+    )
+    return frame
 
 
 def play_video_source(source: str, frame_processor: FrameProcessor | None = None) -> int:
@@ -52,6 +73,7 @@ def play_video_source(source: str, frame_processor: FrameProcessor | None = None
         return 1
 
     try:
+        last_frame_time = time.perf_counter()
         while True:
             success, frame = capture.read()
             if not success:
@@ -60,6 +82,13 @@ def play_video_source(source: str, frame_processor: FrameProcessor | None = None
 
             if frame_processor is not None:
                 frame = frame_processor(frame)
+
+            current_time = time.perf_counter()
+            elapsed = current_time - last_frame_time
+            last_frame_time = current_time
+            if elapsed > 0:
+                fps = 1.0 / elapsed
+                frame = _draw_fps(frame, fps)
 
             cv2.imshow(WINDOW_NAME, frame)
             if cv2.waitKey(1) & 0xFF == ord("q"):

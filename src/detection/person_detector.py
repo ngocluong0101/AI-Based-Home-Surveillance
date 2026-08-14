@@ -5,6 +5,16 @@ from __future__ import annotations
 from typing import Any
 
 
+def _resolve_device() -> str:
+    """Return the best available inference device."""
+    try:
+        import torch
+    except ImportError:
+        return "cpu"
+
+    return "cuda:0" if torch.cuda.is_available() else "cpu"
+
+
 class PersonDetector:
     """Detect and annotate people in video frames."""
 
@@ -16,6 +26,7 @@ class PersonDetector:
         self.confidence_threshold = confidence_threshold
         self.model_name = model_name
         self.person_class_id = 0
+        self.device = _resolve_device()
 
         try:
             from ultralytics import YOLO
@@ -34,6 +45,7 @@ class PersonDetector:
             frame,
             conf=self.confidence_threshold,
             classes=[self.person_class_id],
+            device=self.device,
             verbose=False,
         )
 

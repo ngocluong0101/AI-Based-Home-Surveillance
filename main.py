@@ -35,6 +35,7 @@ def main() -> int:
         return 0
 
     detector = PersonDetector(confidence_threshold=args.conf_threshold)
+    print(f"Using device: {detector.device}")
     return play_video_source(args.source, frame_processor=detector.annotate_frame)
 
 
