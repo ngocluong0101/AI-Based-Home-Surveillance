@@ -22,6 +22,7 @@ Xây dựng một nền tảng sạch và tối giản cho các chức năng gi�
 - Webcam input: hoàn thành
 - Person Detection: hoàn thành
 - Person Tracking: hoàn thành
+- PERSON_DETECTED event: hoàn thành
 - Person Alert, Fall Detection, Telegram Notification: chưa triển khai
 - GPU/CUDA support: hoàn thành
 - FPS display: hoàn thành
@@ -110,6 +111,12 @@ Tracking bằng ByteTrack:
 ```bash
 python main.py --source 0 --track
 ```
+
+Logic event `PERSON_DETECTED`:
+
+- Mỗi `track_id` chỉ tạo 1 event trong một lần xuất hiện.
+- Chỉ khi `track_id` biến mất khỏi camera, chờ quá `absence_timeout = 10s`, rồi xuất hiện lại mới tạo event mới.
+- Event chỉ được log ra terminal theo định dạng `[PERSON_DETECTED] ID=3 | confidence=0.91 | time=22:30:15`.
 
 Khi chạy, ứng dụng sẽ in device đang dùng và hiển thị FPS trực tiếp trên video.
 
