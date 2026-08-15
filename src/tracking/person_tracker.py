@@ -60,4 +60,21 @@ class PersonTracker:
                     cv2.imwrite(str(save_path), frame.copy())
                     print(f"[SNAPSHOT SAVED] {save_path}")
 
+                # Send Telegram notifications for newly emitted events.
+                try:
+                    from src.notifications.telegram_notifier import TelegramNotifier
+                except Exception:
+                    TelegramNotifier = None
+
+                if TelegramNotifier is not None:
+                    try:
+                        notifier = TelegramNotifier()
+                        for event in emitted_events:
+                            try:
+                                notifier.send_person_detected(event)
+                            except Exception as exc:
+                                print(f"[NOTIFICATION ERROR] {exc}")
+                    except Exception as exc:
+                        print(f"[NOTIFICATION ERROR] init failed: {exc}")
+
         return self.detector._annotate_results(frame, results, include_track_id=True)

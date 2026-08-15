@@ -1,3 +1,26 @@
+## Telegram notifications
+
+Project can send simple text notifications via Telegram when a `PERSON_DETECTED` event is emitted.
+
+Setup:
+
+1. Create a Telegram bot with BotFather and obtain the bot token. Do not commit this token.
+2. Get the target chat id (your user id or a group id) — you can use helper bots like `@get_id_bot` or inspect `getUpdates`.
+3. Copy `.env.example` to `.env` and set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`.
+
+Example `.env` entries (do not commit):
+
+```
+TELEGRAM_BOT_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
+TELEGRAM_CHAT_ID=987654321
+```
+
+Behavior:
+
+- When a `PERSON_DETECTED` event is emitted (one per appearance), the application sends a single text message to the configured chat.
+- Snapshot images are not sent in this step (planned later).
+- Notification failures are logged to the terminal and do not crash the video pipeline.
+
 # AI-Based-Home-Surveillance
 
 Project Python nền tảng cho hệ thống giám sát tại nhà, được tổ chức theo hướng module hóa để dễ mở rộng ở các giai đoạn sau.
@@ -23,7 +46,8 @@ Xây dựng một nền tảng sạch và tối giản cho các chức năng gi�
 - Person Detection: hoàn thành
 - Person Tracking: hoàn thành
 - PERSON_DETECTED event: hoàn thành
-- Person Alert, Fall Detection, Telegram Notification: chưa triển khai
+- Person Alert, Fall Detection: chưa triển khai
+- Telegram Notification: hoàn thành (text-only alerts)
 - GPU/CUDA support: hoàn thành
 - FPS display: hoàn thành
 
