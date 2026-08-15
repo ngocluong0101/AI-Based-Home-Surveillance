@@ -32,3 +32,11 @@ Thumbs.db
 
 # Runtime logs
 *.log
+
+# Runtime snapshots
+data/snapshots/*
+!data/snapshots/.gitkeep
+
+# Local test videos
+data/videos/*
+!data/videos/.gitkeep
