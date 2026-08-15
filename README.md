@@ -18,73 +18,39 @@ TELEGRAM_CHAT_ID=987654321
 Behavior:
 
 - When a `PERSON_DETECTED` event is emitted (one per appearance), the application sends a single text message to the configured chat.
-- Snapshot images are not sent in this step (planned later).
-- Notification failures are logged to the terminal and do not crash the video pipeline.
+- When a `PERSON_DETECTED` event is emitted the application saves a snapshot and sends it to the configured Telegram chat as a photo (`sendPhoto`) with a short caption.
 
-# AI-Based-Home-Surveillance
+### Running the AI pipeline (no web)
 
-Project Python nền tảng cho hệ thống giám sát tại nhà, được tổ chức theo hướng module hóa để dễ mở rộng ở các giai đoạn sau.
+This repository focuses on the AI pipeline: video input (MP4/Webcam/RTSP), YOLO person detection, ByteTrack tracking, event emission, snapshot saving, and Telegram notifications.
 
-## Mục tiêu
+Run the pipeline directly with:
 
-Xây dựng một nền tảng sạch và tối giản cho các chức năng giám sát video, thông báo và phân tích sự kiện trong tương lai. Ở giai đoạn hiện tại, repository chỉ hoàn thành phần khởi tạo project và cấu trúc thư mục.
-
-## Chức năng dự kiến
-
-- Person Detection
-- Person Tracking
-- Person Alert
-- Fall Detection
-- Telegram Notification
-- MP4/Webcam/RTSP input
-
-## Development Status
-
-- Project setup: hoàn thành
-- MP4 input: hoàn thành
-- Webcam input: hoàn thành
-- Person Detection: hoàn thành
-- Person Tracking: hoàn thành
-- PERSON_DETECTED event: hoàn thành
-- Person Alert, Fall Detection: chưa triển khai
-- Telegram Notification: hoàn thành (text-only alerts)
-- GPU/CUDA support: hoàn thành
-- FPS display: hoàn thành
-
-## Cấu trúc thư mục
-
-```text
-AI-Based-Home-Surveillance/
-├── main.py
-├── src/
-│   ├── __init__.py
-│   ├── video/
-│   │   └── __init__.py
-│   ├── detection/
-│   │   └── __init__.py
-│   ├── tracking/
-│   │   └── __init__.py
-│   ├── events/
-│   │   └── __init__.py
-│   └── notifications/
-│       └── __init__.py
-├── config/
-├── data/
-│   ├── videos/
-│   └── snapshots/
-├── tests/
-├── .env.example
-├── .gitignore
-├── requirements.txt
-└── README.md
+```bash
+python main.py --source 0 --track
 ```
 
-## Yêu cầu môi trường
+Examples:
 
-- Python 3.10 trở lên
-- `pip`
+- MP4 file:
 
-Project hiện dùng `opencv-python` cho video input và `ultralytics` với model pretrained `yolov8n.pt` cho person detection/tracking. Tracking dùng ByteTrack của Ultralytics. Ứng dụng tự chọn `cuda` nếu PyTorch/CUDA khả dụng, ngược lại dùng `cpu`.
+```bash
+python main.py --source data/videos/test.mp4
+```
+
+- Webcam:
+
+```bash
+python main.py --source 0 --track
+```
+
+- RTSP stream:
+
+```bash
+python main.py --source "rtsp://username:password@192.168.1.100:554/stream" --track
+```
+
+The application will log device selection, FPS overlay, and `PERSON_DETECTED` events to the terminal. Snapshots are saved to `data/snapshots/` when configured and Telegram notifications are sent if enabled in `.env`.
 
 ## Hướng dẫn cài đặt
 
@@ -109,6 +75,23 @@ cp .env.example .env
 ## Hướng dẫn camera
 
 Webcam mặc định là thiết bị `0`, nhưng bạn có thể truyền `1`, `2`, ... nếu máy có nhiều camera.
+
+RTSP / IP Camera:
+
+- You can provide an RTSP URL as the `--source` argument, for example:
+
+```
+python main.py --source "rtsp://username:password@192.168.1.100:554/stream"
+```
+
+- Alternatively, set `RTSP_URL` in your `.env` file and run without `--source` to use the configured RTSP stream by default.
+
+- The application will attempt to open the stream via OpenCV's `VideoCapture`. If it fails to connect, an error will be printed and the program will exit cleanly. Streams are always released on exit.
+- The application will attempt to open the stream via OpenCV's `VideoCapture`.
+- For RTSP streams the player will automatically attempt to reconnect when the connection drops.
+  - Retry delay: 5 seconds between attempts.
+  - Logs: `[CAMERA] Connection lost`, `[CAMERA] Reconnecting...`, `[CAMERA] Connected`.
+- If it fails to connect initially the program will retry (RTSP only). Streams are always released on exit.
 
 ## Hướng dẫn chạy
 

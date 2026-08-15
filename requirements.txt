@@ -2,3 +2,4 @@ opencv-python>=4.10.0
 ultralytics>=8.3.0
 requests>=2.30.0
 python-dotenv>=1.0.0
+# web frameworks removed; keep only AI/runtime dependencies

@@ -3,10 +3,16 @@
 from __future__ import annotations
 
 import argparse
+from typing import Optional
+
+from src.config import RTSP_URL, CONFIDENCE_THRESHOLD, ABSENCE_TIMEOUT
 
 from src.detection import PersonDetector
 from src.tracking import PersonTracker
 from src.video import play_video_source
+from src.logging_config import setup_logging
+import logging
+from src.config import LOG_LEVEL
 
 
 def parse_args() -> argparse.Namespace:
@@ -19,7 +25,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--conf-threshold",
         type=float,
-        default=0.5,
+        default=None,
         help="Confidence threshold for person detection",
     )
     parser.add_argument(
@@ -34,21 +40,31 @@ def main() -> int:
     """Start the application."""
     args = parse_args()
 
-    if not args.source:
+    source: Optional[str] = args.source or RTSP_URL
+
+    if not source:
         print("AI-Based-Home-Surveillance started successfully.")
         print("Use --source to play an MP4 file, webcam, or RTSP stream.")
+        print("You may also set RTSP_URL in .env to use an IP camera by default.")
         print("Use --conf-threshold to adjust person detection confidence.")
         print("Use --track to enable ByteTrack-based person tracking.")
         return 0
 
-    if args.track:
-        processor = PersonTracker(confidence_threshold=args.conf_threshold)
-    else:
-        processor = PersonDetector(confidence_threshold=args.conf_threshold)
+    # Determine confidence threshold (CLI overrides config)
+    conf = args.conf_threshold if args.conf_threshold is not None else CONFIDENCE_THRESHOLD
 
-    print(f"Using device: {processor.device}")
+    if args.track:
+        processor = PersonTracker(confidence_threshold=conf, absence_timeout=ABSENCE_TIMEOUT)
+    else:
+        processor = PersonDetector(confidence_threshold=conf)
+
+    # Configure logging once at startup
+    setup_logging(LOG_LEVEL)
+    logger = logging.getLogger(__name__)
+    logger.info("Application started")
+    logger.info("Using device: %s", processor.device)
     frame_processor = processor.annotate_frame
-    return play_video_source(args.source, frame_processor=frame_processor)
+    return play_video_source(source, frame_processor=frame_processor)
 
 
 if __name__ == "__main__":

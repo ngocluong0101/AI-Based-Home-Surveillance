@@ -7,6 +7,8 @@ from pathlib import Path
 
 from src.detection import PersonDetector
 from src.events import PersonDetectedEventManager
+from src.config import CONFIDENCE_THRESHOLD, ABSENCE_TIMEOUT, ENABLE_SNAPSHOT, ENABLE_TELEGRAM, SNAPSHOT_DIR
+import logging
 
 
 class PersonTracker:
@@ -14,15 +16,19 @@ class PersonTracker:
 
     def __init__(
         self,
-        confidence_threshold: float = 0.5,
+        confidence_threshold: float | None = None,
         model_name: str = "yolov8n.pt",
-        absence_timeout: float = 10.0,
+        absence_timeout: float | None = None,
     ) -> None:
+        # Use config defaults when None is provided
+        conf = confidence_threshold if confidence_threshold is not None else CONFIDENCE_THRESHOLD
+        absent = absence_timeout if absence_timeout is not None else ABSENCE_TIMEOUT
+
         self.detector = PersonDetector(
-            confidence_threshold=confidence_threshold,
+            confidence_threshold=conf,
             model_name=model_name,
         )
-        self.event_manager = PersonDetectedEventManager(absence_timeout=absence_timeout)
+        self.event_manager = PersonDetectedEventManager(absence_timeout=absent)
 
     @property
     def device(self) -> str:
@@ -44,37 +50,54 @@ class PersonTracker:
 
         emitted_events = self.event_manager.process(detections)
 
-        # Save a snapshot for each newly emitted PERSON_DETECTED event.
+        # keep pipeline-local person count logic; shared API state removed
+
+        # Save a snapshot for each newly emitted PERSON_DETECTED event (configurable).
         if emitted_events:
-            try:
-                import cv2
-            except Exception:
-                print("[SNAPSHOT] cv2 not available; skipping snapshot save")
-            else:
-                snapshots_dir = Path("data") / "snapshots"
-                snapshots_dir.mkdir(parents=True, exist_ok=True)
+            logger = logging.getLogger(__name__)
+            saved_paths: dict[int, Path] = {}
 
-                for event in emitted_events:
-                    filename = f"{event.event_type}_id{event.track_id}_{event.timestamp.strftime('%Y%m%d_%H%M%S')}.jpg"
-                    save_path = snapshots_dir / filename
-                    cv2.imwrite(str(save_path), frame.copy())
-                    print(f"[SNAPSHOT SAVED] {save_path}")
-
-                # Send Telegram notifications for newly emitted events.
+            if ENABLE_SNAPSHOT:
                 try:
-                    from src.notifications.telegram_notifier import TelegramNotifier
-                except Exception:
-                    TelegramNotifier = None
+                    import cv2
+                except ImportError:
+                    logger.warning("cv2 not available; skipping snapshot save")
+                else:
+                    snapshots_dir = Path(SNAPSHOT_DIR)
+                    snapshots_dir.mkdir(parents=True, exist_ok=True)
 
-                if TelegramNotifier is not None:
-                    try:
-                        notifier = TelegramNotifier()
-                        for event in emitted_events:
-                            try:
+                    for event in emitted_events:
+                        filename = f"{event.event_type}_id{event.track_id}_{event.timestamp.strftime('%Y%m%d_%H%M%S')}.jpg"
+                        save_path = snapshots_dir / filename
+                        try:
+                            cv2.imwrite(str(save_path), frame.copy())
+                            logger.info("Snapshot saved: %s", save_path)
+                            saved_paths[event.track_id] = save_path
+                        except Exception as exc:
+                            logger.error("Failed to save snapshot %s: %s", save_path, exc, exc_info=True)
+
+            # Send Telegram notifications for newly emitted events when enabled.
+            try:
+                from src.notifications.telegram_notifier import TelegramNotifier
+            except ImportError:
+                TelegramNotifier = None
+
+            if TelegramNotifier is not None and ENABLE_TELEGRAM:
+                try:
+                    notifier = TelegramNotifier()
+                    for event in emitted_events:
+                        try:
+                            photo_path = saved_paths.get(event.track_id)
+                            if photo_path is not None:
+                                notifier.send_person_detected_photo(event, str(photo_path))
+                            else:
+                                # fallback to text-only if photo not available
                                 notifier.send_person_detected(event)
-                            except Exception as exc:
-                                print(f"[NOTIFICATION ERROR] {exc}")
-                    except Exception as exc:
-                        print(f"[NOTIFICATION ERROR] init failed: {exc}")
+                        except Exception as exc:
+                            logger.error("Notification error for id %s: %s", event.track_id, exc, exc_info=True)
+                except Exception as exc:
+                    logger.error("Failed to initialize TelegramNotifier: %s", exc, exc_info=True)
+
+        # Persist emitted events to API event store removed (no in-process event store)
 
         return self.detector._annotate_results(frame, results, include_track_id=True)

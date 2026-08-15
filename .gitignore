@@ -34,8 +34,17 @@ Thumbs.db
 *.log
 
 # Runtime snapshots
+ # Runtime snapshots
 data/snapshots/*
 !data/snapshots/.gitkeep
+
+# Ignore local videos and snapshots by default
+data/videos/*
+!data/videos/.gitkeep
+
+# Environment files
+.env
+.env.*
 
 # Local test videos
 data/videos/*

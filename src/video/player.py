@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 from pathlib import Path
 from typing import Any, Callable
+from src.config import RECONNECT_DELAY
 
 
 WINDOW_NAME = "AI-Based-Home-Surveillance"
@@ -58,43 +59,135 @@ def play_video_source(source: str, frame_processor: FrameProcessor | None = None
     try:
         import cv2
     except ImportError:
-        print("Error: OpenCV is not installed. Run: pip install -r requirements.txt")
+        import logging
+
+        logging.getLogger(__name__).error("OpenCV is not installed. Run: pip install -r requirements.txt")
         return 1
 
     capture_source: str | int = _resolve_source(source)
     if local_path is not None:
         capture_source = str(local_path)
+    capture = None
 
-    capture = cv2.VideoCapture(capture_source)
-    if not capture.isOpened():
-        print(f"Error: could not open video source: {source}")
-        capture.release()
-        cv2.destroyAllWindows()
-        return 1
+    # Determine whether the source is an RTSP stream (we'll enable reconnects)
+    rtsp_protocols = ("rtsp://", "rtsps://")
+    is_rtsp = local_path is None and isinstance(capture_source, str) and capture_source.startswith(rtsp_protocols)
+
+    import logging
+    logger = logging.getLogger(__name__)
 
     try:
         last_frame_time = time.perf_counter()
-        while True:
-            success, frame = capture.read()
-            if not success:
-                print("Video ended or no more frames available.")
-                break
 
-            if frame_processor is not None:
-                frame = frame_processor(frame)
+        # RTSP sources: attempt to reconnect on failures with a delay.
+        if is_rtsp:
+            reconnect_delay = RECONNECT_DELAY
+            while True:
+                try:
+                    capture = cv2.VideoCapture(capture_source)
+                except Exception:
+                    capture = None
 
-            current_time = time.perf_counter()
-            elapsed = current_time - last_frame_time
-            last_frame_time = current_time
-            if elapsed > 0:
-                fps = 1.0 / elapsed
-                frame = _draw_fps(frame, fps)
+                if capture is None or not capture.isOpened():
+                    logger.warning("Could not open RTSP stream: %s", source)
+                    logger.info("[CAMERA] Reconnecting...")
+                    try:
+                        time.sleep(reconnect_delay)
+                    except KeyboardInterrupt:
+                        break
+                    continue
 
-            cv2.imshow(WINDOW_NAME, frame)
-            if cv2.waitKey(1) & 0xFF == ord("q"):
-                break
+                logger.info("[CAMERA] Connected")
+
+                failure_count = 0
+                while True:
+                    success, frame = capture.read()
+                    if not success or frame is None:
+                        failure_count += 1
+                        # treat several consecutive failures as a lost connection
+                        if failure_count >= 5:
+                            logger.warning("[CAMERA] Connection lost")
+                            try:
+                                capture.release()
+                            except Exception:
+                                logger.debug("Error releasing capture after loss", exc_info=True)
+                            logger.info("[CAMERA] Reconnecting...")
+                            break
+                        # avoid tight spin, allow Ctrl+C
+                        try:
+                            time.sleep(0.2)
+                        except KeyboardInterrupt:
+                            raise
+                        continue
+
+                    # reset failure counter on successful read
+                    failure_count = 0
+
+                    # update fps (no shared status)
+
+                    if frame_processor is not None:
+                        frame = frame_processor(frame)
+
+                    # no MJPEG frame publishing (web removed)
+
+                    current_time = time.perf_counter()
+                    elapsed = current_time - last_frame_time
+                    last_frame_time = current_time
+                    if elapsed > 0:
+                        fps = 1.0 / elapsed
+                        frame = _draw_fps(frame, fps)
+                        # no shared status update
+
+                    cv2.imshow(WINDOW_NAME, frame)
+                    if cv2.waitKey(1) & 0xFF == ord("q"):
+                        return 0
+
+        else:
+            # Local files and webcams: no RTSP-style reconnect
+            capture = cv2.VideoCapture(capture_source)
+            if not capture.isOpened():
+                logger.error("Could not open video source: %s", source)
+                return 1
+
+            while True:
+                success, frame = capture.read()
+                if not success or frame is None:
+                    # If it's a file, assume end of video; if webcam, exit gracefully.
+                    logger.info("Video ended or no more frames available.")
+                    break
+
+                if frame_processor is not None:
+                    frame = frame_processor(frame)
+
+                    # no MJPEG frame publishing (web removed)
+
+                    current_time = time.perf_counter()
+                    elapsed = current_time - last_frame_time
+                    last_frame_time = current_time
+                    if elapsed > 0:
+                        fps = 1.0 / elapsed
+                        frame = _draw_fps(frame, fps)
+                        # no shared status update
+
+                cv2.imshow(WINDOW_NAME, frame)
+                if cv2.waitKey(1) & 0xFF == ord("q"):
+                    return 0
+
+    except KeyboardInterrupt:
+        # allow clean exit with Ctrl+C
+        logger.info("Interrupted by user, shutting down")
+        return 0
     finally:
-        capture.release()
-        cv2.destroyAllWindows()
+        if capture is not None:
+            try:
+                capture.release()
+            except Exception:
+                logger.debug("Error releasing capture on shutdown", exc_info=True)
+        try:
+            cv2.destroyAllWindows()
+        except Exception:
+            logger.debug("Error destroying OpenCV windows", exc_info=True)
+
+    # mark camera offline on normal exit
 
     return 0

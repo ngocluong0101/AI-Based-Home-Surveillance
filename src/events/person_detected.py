@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Iterable
+import logging
 
 
 @dataclass(frozen=True)
@@ -71,6 +72,11 @@ class PersonDetectedEventManager:
 
     def _log_event(self, event: PersonDetectedEvent) -> None:
         """Log the event in the requested terminal format."""
-        print(
-            f"[{event.event_type}] ID={event.track_id} | confidence={event.confidence:.2f} | time={event.timestamp.strftime('%H:%M:%S')}"
+        logger = logging.getLogger(__name__)
+        logger.info(
+            "%s ID=%s | confidence=%.2f | time=%s",
+            event.event_type,
+            event.track_id,
+            event.confidence,
+            event.timestamp.strftime("%H:%M:%S"),
         )
