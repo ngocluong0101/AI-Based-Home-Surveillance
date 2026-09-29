@@ -33,6 +33,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Enable ByteTrack-based person tracking",
     )
+    parser.add_argument(
+        "--headless",
+        action="store_true",
+        help="Run without opening a video window (for servers/NAS with no display)",
+    )
     return parser.parse_args()
 
 
@@ -48,6 +53,7 @@ def main() -> int:
         print("You may also set RTSP_URL in .env to use an IP camera by default.")
         print("Use --conf-threshold to adjust person detection confidence.")
         print("Use --track to enable ByteTrack-based person tracking.")
+        print("Use --headless to run without opening a video window.")
         return 0
 
     # Determine confidence threshold (CLI overrides config)
@@ -63,8 +69,10 @@ def main() -> int:
     logger = logging.getLogger(__name__)
     logger.info("Application started")
     logger.info("Using device: %s", processor.device)
+    if args.headless:
+        logger.info("Running in headless mode (no video window)")
     frame_processor = processor.annotate_frame
-    return play_video_source(source, frame_processor=frame_processor)
+    return play_video_source(source, frame_processor=frame_processor, display=not args.headless)
 
 
 if __name__ == "__main__":

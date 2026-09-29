@@ -49,8 +49,13 @@ def _draw_fps(frame: Any, fps: float) -> Any:
     return frame
 
 
-def play_video_source(source: str, frame_processor: FrameProcessor | None = None) -> int:
-    """Play a video source frame by frame until the user quits or it ends."""
+def play_video_source(source: str, frame_processor: FrameProcessor | None = None, display: bool = True) -> int:
+    """Play a video source frame by frame until the user quits or it ends.
+
+    When `display` is False, no OpenCV window is created (headless mode for
+    running on a server/NAS with no screen); quitting then relies on the
+    source ending (local file) or Ctrl+C / SIGTERM (webcam/RTSP).
+    """
     local_path = _validate_local_file(source)
     if local_path is None and not source.isdigit() and not source.startswith(("rtsp://", "rtsps://", "http://", "https://")):
         print(f"Error: video file not found: {source}")
@@ -138,9 +143,10 @@ def play_video_source(source: str, frame_processor: FrameProcessor | None = None
                         frame = _draw_fps(frame, fps)
                         # no shared status update
 
-                    cv2.imshow(WINDOW_NAME, frame)
-                    if cv2.waitKey(1) & 0xFF == ord("q"):
-                        return 0
+                    if display:
+                        cv2.imshow(WINDOW_NAME, frame)
+                        if cv2.waitKey(1) & 0xFF == ord("q"):
+                            return 0
 
         else:
             # Local files and webcams: no RTSP-style reconnect
@@ -169,9 +175,10 @@ def play_video_source(source: str, frame_processor: FrameProcessor | None = None
                         frame = _draw_fps(frame, fps)
                         # no shared status update
 
-                cv2.imshow(WINDOW_NAME, frame)
-                if cv2.waitKey(1) & 0xFF == ord("q"):
-                    return 0
+                if display:
+                    cv2.imshow(WINDOW_NAME, frame)
+                    if cv2.waitKey(1) & 0xFF == ord("q"):
+                        return 0
 
     except KeyboardInterrupt:
         # allow clean exit with Ctrl+C
@@ -183,10 +190,11 @@ def play_video_source(source: str, frame_processor: FrameProcessor | None = None
                 capture.release()
             except Exception:
                 logger.debug("Error releasing capture on shutdown", exc_info=True)
-        try:
-            cv2.destroyAllWindows()
-        except Exception:
-            logger.debug("Error destroying OpenCV windows", exc_info=True)
+        if display:
+            try:
+                cv2.destroyAllWindows()
+            except Exception:
+                logger.debug("Error destroying OpenCV windows", exc_info=True)
 
     # mark camera offline on normal exit
 

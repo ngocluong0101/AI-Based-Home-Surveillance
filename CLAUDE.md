@@ -24,6 +24,7 @@ python main.py --source data/videos/test.mp4      # file MP4
 python main.py --source 0 --track                 # webcam, index 0, kèm tracking ByteTrack
 python main.py --source "rtsp://user:pass@host:554/stream" --track   # luồng RTSP
 python main.py --source 0 --conf-threshold 0.5     # ghi đè ngưỡng confidence
+python main.py --source 0 --track --headless        # chạy không mở cửa sổ video (server/NAS không có màn hình)
 python main.py                                     # không truyền --source: dùng RTSP_URL từ .env nếu có, ngược lại in hướng dẫn sử dụng rồi thoát
 ```
 Nhấn `q` trong cửa sổ video để thoát. Hiện repo chưa có test suite (`tests/` chỉ có file `.gitkeep`);
@@ -45,7 +46,10 @@ hoặc `PersonDetector` (chỉ phát hiện) hoặc `PersonTracker` (phát hiệ
 từng frame.
 
 Luồng xử lý: `src/video/player.py` (`play_video_source`) đảm nhiệm vòng lặp capture của OpenCV, hiển thị
-FPS, và xử lý cửa sổ/thoát. Nó gọi `frame_processor` được inject vào cho mỗi frame, và tự xử lý việc kết
+FPS, và xử lý cửa sổ/thoát. Tham số `display` (mặc định `True`) điều khiển việc có mở cửa sổ `cv2.imshow`
+hay không — đặt `False` (qua flag `--headless` của `main.py`) để chạy nền không cần màn hình; khi đó chỉ
+có thể thoát bằng Ctrl+C, hết luồng video, hoặc tín hiệu dừng tiến trình. Nó gọi `frame_processor` được
+inject vào cho mỗi frame, và tự xử lý việc kết
 nối lại RTSP (thử lại mỗi `RECONNECT_DELAY` giây, log `[CAMERA] Connection lost` /
 `Reconnecting...` / `Connected`); với file cục bộ/webcam thì không có logic kết nối lại — hết luồng là
 dừng vòng lặp.

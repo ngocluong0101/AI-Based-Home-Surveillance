@@ -50,6 +50,12 @@ python main.py --source 0 --track
 python main.py --source "rtsp://username:password@192.168.1.100:554/stream" --track
 ```
 
+- Headless (no video window, for running on a server/NAS with no display):
+
+```bash
+python main.py --source "rtsp://username:password@192.168.1.100:554/stream" --track --headless
+```
+
 The application will log device selection, FPS overlay, and `PERSON_DETECTED` events to the terminal. Snapshots are saved to `data/snapshots/` when configured and Telegram notifications are sent if enabled in `.env`.
 
 ## Hướng dẫn cài đặt
