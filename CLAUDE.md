@@ -81,13 +81,19 @@ dừng vòng lặp.
 - `src/config/__init__.py` — nguồn cấu hình duy nhất (single source of truth) lấy từ biến môi trường. Tải
   `.env` qua `python-dotenv` nếu có, cung cấp các hằng số cấp module đã được định kiểu (`RTSP_URL`,
   `CONFIDENCE_THRESHOLD`, `ABSENCE_TIMEOUT`, `ENABLE_TELEGRAM`, `ENABLE_SNAPSHOT`, `SNAPSHOT_DIR`,
-  `LOG_LEVEL`, `LOG_FILE`, `LOG_MAX_BYTES`, `LOG_BACKUP_COUNT`, token/chat id của Telegram). Mọi module
-  khác import giá trị config từ đây thay vì đọc trực tiếp `os.environ`.
+  `SNAPSHOT_RETENTION_DAYS`, `SNAPSHOT_CLEANUP_INTERVAL`, `LOG_LEVEL`, `LOG_FILE`, `LOG_MAX_BYTES`,
+  `LOG_BACKUP_COUNT`, token/chat id của Telegram). Mọi module khác import giá trị config từ đây thay vì
+  đọc trực tiếp `os.environ`.
 - `src/logging_config.py` — `setup_logging()` cấu hình root logger một lần duy nhất (tránh thêm handler
   trùng lặp); `main.py` là nơi duy nhất gọi hàm này. Gắn cả `StreamHandler` (terminal) và
   `RotatingFileHandler` (file `LOG_FILE`, mặc định `logs/app.log`, xoay vòng theo `LOG_MAX_BYTES`/
   `LOG_BACKUP_COUNT`) — nếu tạo file log thất bại (vd. không có quyền ghi) thì fallback về chỉ log ra
   terminal, không làm crash ứng dụng. Các module khác chỉ dùng `logging.getLogger(__name__)`.
+- `src/snapshot_management.py` — `SnapshotCleaner` quản lý dung lượng snapshot để tránh tràn đĩa: quét
+  `SNAPSHOT_DIR` cho các file `.jpg` cũ hơn `SNAPSHOT_RETENTION_DAYS` (mặc định 7 ngày) và xoá chúng.
+  `PersonTracker` khởi tạo một instance, gọi `cleanup()` mỗi lần N snapshot được lưu (thông qua
+  `SNAPSHOT_CLEANUP_INTERVAL`, mặc định 100) để tránh quét đĩa quá thường xuyên. Lỗi xoá file được bắt
+  và log; không bao giờ interrupt video pipeline.
 
 `src/backend/` (stub FastAPI rỗng, trước đây bị loại bỏ theo ghi chú "web frameworks removed" trong
 `requirements.txt`) và `src/state/` (chỉ còn `__pycache__` cũ, không có mã nguồn) đã được xoá hẳn khỏi

@@ -7,7 +7,16 @@ from pathlib import Path
 
 from src.detection import PersonDetector
 from src.events import PersonDetectedEventManager
-from src.config import CONFIDENCE_THRESHOLD, ABSENCE_TIMEOUT, ENABLE_SNAPSHOT, ENABLE_TELEGRAM, SNAPSHOT_DIR
+from src.config import (
+    CONFIDENCE_THRESHOLD,
+    ABSENCE_TIMEOUT,
+    ENABLE_SNAPSHOT,
+    ENABLE_TELEGRAM,
+    SNAPSHOT_DIR,
+    SNAPSHOT_RETENTION_DAYS,
+    SNAPSHOT_CLEANUP_INTERVAL,
+)
+from src.snapshot_management import SnapshotCleaner
 import logging
 
 
@@ -29,6 +38,8 @@ class PersonTracker:
             model_name=model_name,
         )
         self.event_manager = PersonDetectedEventManager(absence_timeout=absent)
+        self.snapshot_cleaner = SnapshotCleaner(retention_days=SNAPSHOT_RETENTION_DAYS)
+        self._cleanup_counter = 0
 
     @property
     def device(self) -> str:
@@ -73,6 +84,13 @@ class PersonTracker:
                             cv2.imwrite(str(save_path), frame.copy())
                             logger.info("Snapshot saved: %s", save_path)
                             saved_paths[event.track_id] = save_path
+                            self._cleanup_counter += 1
+                            if self._cleanup_counter >= SNAPSHOT_CLEANUP_INTERVAL:
+                                self._cleanup_counter = 0
+                                try:
+                                    self.snapshot_cleaner.cleanup(snapshots_dir)
+                                except Exception as exc:
+                                    logger.error("Snapshot cleanup failed: %s", exc, exc_info=True)
                         except Exception as exc:
                             logger.error("Failed to save snapshot %s: %s", save_path, exc, exc_info=True)
 

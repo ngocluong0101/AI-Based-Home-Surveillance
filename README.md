@@ -60,6 +60,15 @@ The application will log device selection, FPS overlay, and `PERSON_DETECTED` ev
 
 The app shuts down gracefully (releases the camera, closes any window) on both Ctrl+C and `SIGTERM`, so it can be run as a systemd service or Docker container and stopped with `systemctl stop` / `docker stop` without a hard kill.
 
+### Snapshot storage management
+
+When snapshots are enabled (`ENABLE_SNAPSHOT=true`), the application automatically deletes old snapshots to prevent disk exhaustion. Configuration:
+
+- `SNAPSHOT_RETENTION_DAYS` (default: 7) — keep snapshots newer than this many days; delete older ones.
+- `SNAPSHOT_CLEANUP_INTERVAL` (default: 100) — run cleanup scan every N newly saved snapshots (avoids excessive disk scans during high activity).
+
+Cleanup is non-blocking: if deletion fails (e.g., file already deleted by external process), errors are logged and the pipeline continues unaffected.
+
 ## Hướng dẫn cài đặt
 
 1. Clone repository về máy.

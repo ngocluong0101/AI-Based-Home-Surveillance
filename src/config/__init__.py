@@ -70,6 +70,10 @@ LOG_BACKUP_COUNT: int = _parse_int(os.getenv("LOG_BACKUP_COUNT"), 3)
 # Paths
 SNAPSHOT_DIR: str = os.getenv("SNAPSHOT_DIR") or "data/snapshots"
 
+# Snapshot cleanup
+SNAPSHOT_RETENTION_DAYS: int = _parse_int(os.getenv("SNAPSHOT_RETENTION_DAYS"), 7)
+SNAPSHOT_CLEANUP_INTERVAL: int = _parse_int(os.getenv("SNAPSHOT_CLEANUP_INTERVAL"), 100)
+
 # Lightweight exports for convenience
 __all__ = [
     "RTSP_URL",
@@ -83,4 +87,7 @@ __all__ = [
     "LOG_FILE",
     "LOG_MAX_BYTES",
     "LOG_BACKUP_COUNT",
+    "SNAPSHOT_DIR",
+    "SNAPSHOT_RETENTION_DAYS",
+    "SNAPSHOT_CLEANUP_INTERVAL",
 ]
