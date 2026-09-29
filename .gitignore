@@ -49,3 +49,6 @@ data/videos/*
 # Local test videos
 data/videos/*
 !data/videos/.gitkeep
+
+# YOLO model weights (auto-downloaded by ultralytics on first run if missing)
+*.pt
