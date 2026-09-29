@@ -131,13 +131,27 @@ Logic event `PERSON_DETECTED`:
 
 - Mỗi `track_id` chỉ tạo 1 event trong một lần xuất hiện.
 - Chỉ khi `track_id` biến mất khỏi camera, chờ quá `absence_timeout = 10s`, rồi xuất hiện lại mới tạo event mới.
-- Event chỉ được log ra terminal theo định dạng `[PERSON_DETECTED] ID=3 | confidence=0.91 | time=22:30:15`.
+- Event được log ra terminal và vào file (xem phần "Ghi log") theo định dạng `[PERSON_DETECTED] ID=3 | confidence=0.91 | time=22:30:15`.
 
 Khi chạy, ứng dụng sẽ in device đang dùng và hiển thị FPS trực tiếp trên video.
 
 Nhấn `q` trong cửa sổ video để thoát.
 
 Nếu không truyền `--source`, ứng dụng chỉ in thông báo khởi động và thoát.
+
+## Ghi log
+
+Log được ghi ra terminal và đồng thời ra file xoay vòng (`RotatingFileHandler`), mặc định tại
+`logs/app.log` — cần thiết khi chạy headless/như service vì terminal không còn ai xem trực tiếp.
+
+Cấu hình qua `.env`:
+
+```
+LOG_LEVEL=INFO           # DEBUG, INFO, WARNING, ERROR
+LOG_FILE=logs/app.log    # đường dẫn file log
+LOG_MAX_BYTES=5242880    # dung lượng tối đa trước khi xoay vòng (mặc định 5MB)
+LOG_BACKUP_COUNT=3       # số file log cũ giữ lại
+```
 
 ## Kiểm tra CUDA
 

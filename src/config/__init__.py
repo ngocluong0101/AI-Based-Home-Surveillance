@@ -63,6 +63,9 @@ ENABLE_SNAPSHOT: bool = _parse_bool(os.getenv("ENABLE_SNAPSHOT"), True)
 
 # Logging
 LOG_LEVEL: str = _parse_log_level(os.getenv("LOG_LEVEL"), "INFO")
+LOG_FILE: str = os.getenv("LOG_FILE") or "logs/app.log"
+LOG_MAX_BYTES: int = _parse_int(os.getenv("LOG_MAX_BYTES"), 5 * 1024 * 1024)
+LOG_BACKUP_COUNT: int = _parse_int(os.getenv("LOG_BACKUP_COUNT"), 3)
 
 # Paths
 SNAPSHOT_DIR: str = os.getenv("SNAPSHOT_DIR") or "data/snapshots"
@@ -77,4 +80,7 @@ __all__ = [
     "ABSENCE_TIMEOUT",
     "ENABLE_TELEGRAM",
     "ENABLE_SNAPSHOT",
+    "LOG_FILE",
+    "LOG_MAX_BYTES",
+    "LOG_BACKUP_COUNT",
 ]

@@ -30,8 +30,10 @@ Thumbs.db
 .env.*
 !.env.example
 
-# Runtime logs
+# Runtime logs (rotated backups are named app.log.1, app.log.2, ... so ignore the whole dir)
 *.log
+logs/*
+!logs/.gitkeep
 
 # Runtime snapshots
  # Runtime snapshots
