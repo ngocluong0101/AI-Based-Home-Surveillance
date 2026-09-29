@@ -181,8 +181,8 @@ def play_video_source(source: str, frame_processor: FrameProcessor | None = None
                         return 0
 
     except KeyboardInterrupt:
-        # allow clean exit with Ctrl+C
-        logger.info("Interrupted by user, shutting down")
+        # allow clean exit on Ctrl+C or SIGTERM (main.py maps SIGTERM to this)
+        logger.info("Shutdown requested, releasing camera and exiting")
         return 0
     finally:
         if capture is not None:

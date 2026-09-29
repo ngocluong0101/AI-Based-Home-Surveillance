@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import signal
 from typing import Optional
 
 from src.config import RTSP_URL, CONFIDENCE_THRESHOLD, ABSENCE_TIMEOUT
@@ -41,8 +42,19 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _handle_termination_signal(signum: int, frame: object) -> None:
+    """Translate SIGTERM into a KeyboardInterrupt so shutdown stays graceful.
+
+    Lets systemd/Docker `stop` (which sends SIGTERM) release the camera and
+    close windows the same way Ctrl+C already does, instead of killing the
+    process mid-frame.
+    """
+    raise KeyboardInterrupt()
+
+
 def main() -> int:
     """Start the application."""
+    signal.signal(signal.SIGTERM, _handle_termination_signal)
     args = parse_args()
 
     source: Optional[str] = args.source or RTSP_URL

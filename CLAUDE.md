@@ -43,7 +43,10 @@ python -c "import torch; print(torch.cuda.is_available())"
 `main.py` là entry point duy nhất: nó parse các tham số dòng lệnh, lấy config từ `src/config`, khởi tạo
 hoặc `PersonDetector` (chỉ phát hiện) hoặc `PersonTracker` (phát hiện + tracking + sự kiện, dùng khi có
 `--track`), rồi truyền phương thức `annotate_frame` của nó cho `play_video_source` làm callback xử lý
-từng frame.
+từng frame. Trước khi chạy, nó đăng ký handler cho `SIGTERM` (`_handle_termination_signal`) để chuyển
+tín hiệu này thành `KeyboardInterrupt` — nhờ vậy `python main.py ... &` chạy như service (systemd/Docker)
+khi bị `stop`/`kill` (không phải `kill -9`) sẽ tắt sạch giống hệt lúc nhấn Ctrl+C, thay vì bị giết giữa
+chừng.
 
 Luồng xử lý: `src/video/player.py` (`play_video_source`) đảm nhiệm vòng lặp capture của OpenCV, hiển thị
 FPS, và xử lý cửa sổ/thoát. Tham số `display` (mặc định `True`) điều khiển việc có mở cửa sổ `cv2.imshow`

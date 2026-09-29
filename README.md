@@ -58,6 +58,8 @@ python main.py --source "rtsp://username:password@192.168.1.100:554/stream" --tr
 
 The application will log device selection, FPS overlay, and `PERSON_DETECTED` events to the terminal. Snapshots are saved to `data/snapshots/` when configured and Telegram notifications are sent if enabled in `.env`.
 
+The app shuts down gracefully (releases the camera, closes any window) on both Ctrl+C and `SIGTERM`, so it can be run as a systemd service or Docker container and stopped with `systemctl stop` / `docker stop` without a hard kill.
+
 ## Hướng dẫn cài đặt
 
 1. Clone repository về máy.
