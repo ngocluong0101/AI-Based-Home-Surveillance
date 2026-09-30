@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Callable
 from pathlib import Path
 
 from src.detection import PersonDetector
-from src.events import PersonDetectedEventManager
+from src.events import PersonDetectedEvent, PersonDetectedEventManager
 from src.config import (
     CONFIDENCE_THRESHOLD,
     ABSENCE_TIMEOUT,
@@ -19,6 +19,9 @@ from src.config import (
 from src.snapshot_management import SnapshotCleaner
 import logging
 
+# Called once per emitted event with the saved snapshot path (None if not saved).
+EventCallback = Callable[[PersonDetectedEvent, Path | None], None]
+
 
 class PersonTracker:
     """Track people across frames with ByteTrack."""
@@ -28,7 +31,9 @@ class PersonTracker:
         confidence_threshold: float | None = None,
         model_name: str = "yolov8n.pt",
         absence_timeout: float | None = None,
+        event_callback: EventCallback | None = None,
     ) -> None:
+        self.event_callback = event_callback
         # Use config defaults when None is provided
         conf = confidence_threshold if confidence_threshold is not None else CONFIDENCE_THRESHOLD
         absent = absence_timeout if absence_timeout is not None else ABSENCE_TIMEOUT
@@ -93,6 +98,14 @@ class PersonTracker:
                                     logger.error("Snapshot cleanup failed: %s", exc, exc_info=True)
                         except Exception as exc:
                             logger.error("Failed to save snapshot %s: %s", save_path, exc, exc_info=True)
+
+            # Notify listeners (the GUI event panel) before the slower network call below.
+            if self.event_callback is not None:
+                for event in emitted_events:
+                    try:
+                        self.event_callback(event, saved_paths.get(event.track_id))
+                    except Exception as exc:
+                        logger.error("Event callback failed for id %s: %s", event.track_id, exc, exc_info=True)
 
             # Send Telegram notifications for newly emitted events when enabled.
             try:

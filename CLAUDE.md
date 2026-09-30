@@ -37,7 +37,8 @@ pytest                                                    # chạy toàn bộ te
 pytest tests/test_person_detected_event_manager.py -v     # chỉ test của event manager
 ```
 Test hiện có: `PersonDetectedEventManager`, `play_video_source` (tham số `stop_event`/`on_frame`), các hàm
-thuần của GUI (`src/gui/helpers.py`) và `PipelineWorker`. Tất cả chạy bằng video tổng hợp do fixture
+thuần của GUI (`src/gui/helpers.py`), `PipelineWorker` và `event_callback` của `PersonTracker` (thay
+`PersonDetector` bằng bản giả nên không nạp YOLO). Tất cả chạy bằng video tổng hợp do fixture
 `sample_video` (`tests/conftest.py`) tạo ra — không cần camera/YOLO/mạng/màn hình; riêng lớp Tk
 (`src/gui/app.py`) không có unit test, kiểm tra bằng cách chạy thật `python main.py --gui`. Ngoài ra có
 một script kiểm tra thủ công:
@@ -83,14 +84,19 @@ tkinter/màn hình vẫn chạy CLI bình thường), gọi `setup_logging` rồ
   stopped`), `error`, `exit_code`; mọi lỗi (nạp model, mở nguồn, pipeline crash) được bắt và lưu vào `error`,
   không raise. `set_confidence()` đổi ngưỡng ngay từ frame kế tiếp (gán `confidence_threshold` của detector —
   hoặc `tracker.detector`); nguồn video và bật/tắt tracking chỉ có hiệu lực lúc Start (khóa control khi chạy).
-  `processor_factory` được inject để test không cần YOLO.
+  `processor_factory` được inject để test không cần YOLO. Sự kiện: nếu processor có thuộc tính
+  `event_callback` (chỉ `PersonTracker`), worker gắn `_publish_event` vào đó; mỗi event `PERSON_DETECTED` +
+  đường dẫn snapshot (hoặc `None`) được đẩy vào `worker.events` (`queue.Queue` không giới hạn, không bỏ sự kiện
+  nào — khác với `frames`).
 - `src/gui/app.py` — `SurveillanceApp` (cửa sổ chính: combobox loại nguồn Webcam/File/RTSP + ô nhập + nút chọn
-  file, checkbox tracking, thanh confidence, Start/Stop, canvas video, status bar) và `run_gui`. Poll `worker`
-  mỗi 30 ms bằng `root.after`; khi worker `stopped` thì bật lại control, hiện hộp thoại nếu có `error`.
+  file, checkbox tracking, thanh confidence, Start/Stop, canvas video, panel sự kiện bên phải, status bar) và
+  `run_gui`. Poll `worker` mỗi 30 ms bằng `root.after`: hiển thị frame, rút cạn `worker.events` vào `ttk.Treeview`
+  (cột Giờ/Người/Conf/Snapshot, mới nhất ở trên, tối đa `MAX_EVENT_ROWS=200` dòng, nút "Xóa danh sách"; bảng
+  giữ nguyên sau khi Stop/hết video). Khi worker `stopped` thì bật lại control, hiện hộp thoại nếu có `error`.
   Đóng cửa sổ sẽ dừng worker (join tối đa 3 giây). `report_callback_exception` được ghi đè để
   `KeyboardInterrupt` (SIGTERM) trong callback vẫn dẫn tới tắt sạch thay vì bị Tk nuốt.
 - `src/gui/helpers.py` — hàm thuần không phụ thuộc màn hình: `classify_source`, `validate_source` (thông báo lỗi
-  tiếng Việt cho người dùng), `frame_to_ppm` (resize giữ tỉ lệ + encode PPM để `tk.PhotoImage` đọc trực tiếp,
+  tiếng Việt cho người dùng), `format_event_row` (event → các ô của bảng sự kiện), `frame_to_ppm` (resize giữ tỉ lệ + encode PPM để `tk.PhotoImage` đọc trực tiếp,
   không cần Pillow).
 
 - `src/detection/person_detector.py` — `PersonDetector` bọc một model Ultralytics `YOLO` chỉ giới hạn ở
@@ -100,8 +106,10 @@ tkinter/màn hình vẫn chạy CLI bình thường), gọi `setup_logging` rồ
 - `src/tracking/person_tracker.py` — `PersonTracker` kết hợp một `PersonDetector` (luôn chạy inference với
   `track=True`) cùng với `PersonDetectedEventManager`. Mỗi frame nó trích xuất các cặp `(track_id,
   confidence)` từ các box đã tracking, đưa cho event manager xử lý, và với mỗi sự kiện mới phát sinh sẽ
-  tùy chọn ghi snapshot JPEG vào `SNAPSHOT_DIR` và/hoặc gửi ảnh qua Telegram bằng `TelegramNotifier`. Lỗi
-  khi lưu snapshot/gửi Telegram đều được bắt và log lại, không bao giờ raise ra ngoài — lỗi thông báo hay
+  tùy chọn ghi snapshot JPEG vào `SNAPSHOT_DIR`, gọi `event_callback(event, snapshot_path)` nếu được cung cấp
+  (GUI dùng để cập nhật panel; gọi trước Telegram vì Telegram chặn mạng; `snapshot_path` là `None` khi tắt
+  snapshot hoặc lưu lỗi), rồi tùy chọn gửi ảnh qua Telegram bằng `TelegramNotifier`. Lỗi khi lưu snapshot/
+  gọi callback/gửi Telegram đều được bắt và log lại, không bao giờ raise ra ngoài — lỗi thông báo hay
   lỗi ghi đĩa không được phép làm gián đoạn vòng lặp video.
 - `src/events/person_detected.py` — `PersonDetectedEventManager` là state machine chống trùng lặp sự
   kiện: nó lưu `last_seen` theo từng `track_id` và chỉ phát sự kiện `PersonDetectedEvent` mới khi một

@@ -44,6 +44,17 @@ def validate_source(source_type: str, value: str) -> str:
     return value
 
 
+def format_event_row(event: Any, snapshot_path: Path | None) -> tuple[str, str, str, str]:
+    """Turn a PERSON_DETECTED event into the (time, person, confidence, snapshot) table cells."""
+    snapshot = snapshot_path.name if snapshot_path is not None else "—"
+    return (
+        event.timestamp.strftime("%H:%M:%S"),
+        f"ID {event.track_id}",
+        f"{event.confidence:.2f}",
+        snapshot,
+    )
+
+
 def frame_to_ppm(frame: Any, max_width: int, max_height: int) -> bytes:
     """Fit a BGR frame inside the given box (keeping aspect ratio) and encode it as PPM.
 

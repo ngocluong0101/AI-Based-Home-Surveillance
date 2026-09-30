@@ -170,6 +170,9 @@ Cửa sổ Tkinter gồm:
 - **Confidence**: thanh trượt 0.10–0.95, đổi được ngay khi đang chạy.
 - **Bắt đầu / Dừng**: nguồn và tracking bị khóa trong lúc chạy; muốn đổi thì nhấn Dừng trước. Lần đầu nhấn
   Bắt đầu, thanh trạng thái hiện "Đang tải model YOLO…" — cửa sổ vẫn thao tác được.
+- **Panel sự kiện** (bên phải): mỗi khi có người mới xuất hiện (`PERSON_DETECTED`) sẽ thêm một dòng
+  gồm giờ, ID, confidence và tên file snapshot; dòng mới nhất nằm trên cùng, giữ tối đa 200 dòng, nút
+  "Xóa danh sách" để dọn. Chỉ có sự kiện khi bật tracking. Bảng vẫn giữ nguyên sau khi Dừng.
 - Lỗi mở nguồn / nạp model hiện thành hộp thoại thay vì làm thoát ứng dụng; video kết thúc thì tự về trạng thái sẵn sàng.
 
 Yêu cầu máy có màn hình và `tkinter` (`sudo apt install python3-tk` trên Debian/Ubuntu; đã kèm sẵn với Python
@@ -201,7 +204,8 @@ Bộ test gồm:
 
 - `tests/test_person_detected_event_manager.py` — logic chống trùng lặp sự kiện `PERSON_DETECTED`.
 - `tests/test_player.py` — vòng lặp video (`stop_event`, `on_frame`).
-- `tests/test_gui_helpers.py`, `tests/test_gui_worker.py` — phần logic của GUI (kiểm tra nguồn, chuyển frame, thread nền).
+- `tests/test_gui_helpers.py`, `tests/test_gui_worker.py` — phần logic của GUI (kiểm tra nguồn, chuyển frame, dòng sự kiện, thread nền).
+- `tests/test_person_tracker_events.py` — callback sự kiện của `PersonTracker` (dùng detector giả, không nạp YOLO).
 
 Tất cả dùng video tổng hợp do fixture tạo ra, không cần camera, model YOLO, mạng hay màn hình.
 

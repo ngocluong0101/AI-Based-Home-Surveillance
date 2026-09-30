@@ -5,8 +5,10 @@ from __future__ import annotations
 import logging
 import queue
 import threading
+from pathlib import Path
 from typing import Any, Callable
 
+from src.events import PersonDetectedEvent
 from src.video import play_video_source
 
 logger = logging.getLogger(__name__)
@@ -34,7 +36,8 @@ class PipelineWorker:
     """Run `play_video_source` on a daemon thread and expose the latest frame.
 
     The Tk main thread polls `frames` (a size-1 queue holding only the newest
-    frame, so a slow UI never builds a backlog) and `state`/`error`.
+    frame, so a slow UI never builds a backlog), `events` (every emitted
+    PERSON_DETECTED event with its snapshot path, none dropped) and `state`/`error`.
     """
 
     def __init__(
@@ -47,6 +50,7 @@ class PipelineWorker:
         self.source = source
         self.track = track
         self.frames: queue.Queue[Any] = queue.Queue(maxsize=1)
+        self.events: queue.Queue[tuple[PersonDetectedEvent, Path | None]] = queue.Queue()
         self.state = STATE_IDLE
         self.error: str | None = None
         self.exit_code: int | None = None
@@ -87,6 +91,9 @@ class PipelineWorker:
         except queue.Full:
             pass
 
+    def _publish_event(self, event: PersonDetectedEvent, snapshot_path: Path | None) -> None:
+        self.events.put_nowait((event, snapshot_path))
+
     def _run(self) -> None:
         try:
             processor = self._processor_factory(self._confidence, self.track)
@@ -98,6 +105,8 @@ class PipelineWorker:
 
         logger.info("GUI pipeline started (device=%s, track=%s)", getattr(processor, "device", "?"), self.track)
         detector = getattr(processor, "detector", processor)
+        if hasattr(processor, "event_callback"):  # only PersonTracker emits events
+            processor.event_callback = self._publish_event
 
         def process(frame: Any) -> Any:
             detector.confidence_threshold = self._confidence

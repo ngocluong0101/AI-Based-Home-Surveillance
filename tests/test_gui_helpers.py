@@ -1,11 +1,16 @@
+from datetime import datetime
+from pathlib import Path
+
 import numpy as np
 import pytest
 
+from src.events import PersonDetectedEvent
 from src.gui.helpers import (
     SOURCE_FILE,
     SOURCE_STREAM,
     SOURCE_WEBCAM,
     classify_source,
+    format_event_row,
     frame_to_ppm,
     validate_source,
 )
@@ -97,3 +102,17 @@ def test_frame_to_ppm_converts_bgr_to_rgb():
     pixels = data.split(b"\n", 3)[3]
 
     assert pixels[:3] == bytes((0, 0, 255))
+
+
+def test_format_event_row_with_snapshot():
+    event = PersonDetectedEvent("PERSON_DETECTED", 3, 0.913, datetime(2026, 1, 1, 22, 30, 15))
+
+    row = format_event_row(event, Path("data/snapshots/PERSON_DETECTED_id3_20260101_223015.jpg"))
+
+    assert row == ("22:30:15", "ID 3", "0.91", "PERSON_DETECTED_id3_20260101_223015.jpg")
+
+
+def test_format_event_row_without_snapshot_shows_dash():
+    event = PersonDetectedEvent("PERSON_DETECTED", 12, 0.5, datetime(2026, 1, 1, 7, 5, 9))
+
+    assert format_event_row(event, None) == ("07:05:09", "ID 12", "0.50", "—")

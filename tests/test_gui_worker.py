@@ -1,9 +1,12 @@
 import threading
 import time
+from datetime import datetime
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 
+from src.events import PersonDetectedEvent
 from src.gui.worker import (
     STATE_IDLE,
     STATE_LOADING,
@@ -161,6 +164,43 @@ def test_worker_cannot_be_started_twice(sample_video):
     with pytest.raises(RuntimeError):
         worker.start()
     wait_until_finished(worker)
+
+
+class EventEmittingProcessor(FakeProcessor):
+    """Mimics PersonTracker: exposes `event_callback` and fires it on the first frame."""
+
+    def __init__(self):
+        super().__init__()
+        self.event_callback = None
+
+    def annotate_frame(self, frame):
+        if self.calls == 0 and self.event_callback is not None:
+            event = PersonDetectedEvent("PERSON_DETECTED", 3, 0.91, datetime(2026, 1, 1, 12, 0, 0))
+            self.event_callback(event, Path("data/snapshots/a.jpg"))
+        return super().annotate_frame(frame)
+
+
+def test_worker_wires_processor_events_into_its_queue(sample_video):
+    worker = make_worker(str(sample_video), EventEmittingProcessor())
+
+    worker.start()
+    wait_until_finished(worker)
+
+    event, snapshot = worker.events.get_nowait()
+    assert (event.track_id, event.confidence) == (3, 0.91)
+    assert snapshot == Path("data/snapshots/a.jpg")
+    assert worker.events.empty()
+
+
+def test_processor_without_event_callback_is_left_alone(sample_video):
+    processor = FakeProcessor()
+    worker = make_worker(str(sample_video), processor)
+
+    worker.start()
+    wait_until_finished(worker)
+
+    assert not hasattr(processor, "event_callback")
+    assert worker.events.empty()
 
 
 def test_state_is_loading_right_after_start():

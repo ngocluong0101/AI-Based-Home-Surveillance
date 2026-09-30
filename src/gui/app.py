@@ -15,6 +15,7 @@ from src.gui.helpers import (
     SOURCE_TYPES,
     SOURCE_WEBCAM,
     classify_source,
+    format_event_row,
     frame_to_ppm,
     validate_source,
 )
@@ -28,6 +29,9 @@ DEFAULT_CANVAS_SIZE = (800, 450)
 CONFIDENCE_RANGE = (0.1, 0.95)
 CLOSE_JOIN_TIMEOUT = 3.0
 PLACEHOLDER_TEXT = "Chưa có video — chọn nguồn rồi nhấn “Bắt đầu”"
+MAX_EVENT_ROWS = 200
+# (column id, heading, width in px)
+EVENT_COLUMNS = (("time", "Giờ", 70), ("person", "Người", 60), ("conf", "Conf", 50), ("snapshot", "Snapshot", 170))
 
 WorkerFactory = Callable[[str, float, bool], PipelineWorker]
 
@@ -118,6 +122,24 @@ class SurveillanceApp:
         self.start_button = ttk.Button(options, text="Bắt đầu", command=self.start)
         self.start_button.pack(side="right", padx=(0, 6))
 
+        # Packed before the canvas so it keeps its width when the window is resized.
+        events_frame = ttk.LabelFrame(self.root, text="Sự kiện PERSON_DETECTED", padding=4)
+        events_frame.pack(side="right", fill="y", padx=(0, 8), pady=4)
+        ttk.Label(events_frame, text="Cần bật tracking để ghi nhận sự kiện", foreground="#777777").pack(
+            side="top", anchor="w", pady=(0, 4)
+        )
+        ttk.Button(events_frame, text="Xóa danh sách", command=self._clear_events).pack(side="bottom", fill="x", pady=(4, 0))
+        self.event_tree = ttk.Treeview(
+            events_frame, columns=[c[0] for c in EVENT_COLUMNS], show="headings", height=12, selectmode="browse"
+        )
+        for column_id, heading, width in EVENT_COLUMNS:
+            self.event_tree.heading(column_id, text=heading)
+            self.event_tree.column(column_id, width=width, anchor="w", stretch=False)
+        event_scroll = ttk.Scrollbar(events_frame, orient="vertical", command=self.event_tree.yview)
+        self.event_tree.configure(yscrollcommand=event_scroll.set)
+        event_scroll.pack(side="right", fill="y")
+        self.event_tree.pack(side="left", fill="both", expand=True)
+
         self.canvas = tk.Canvas(
             self.root, width=DEFAULT_CANVAS_SIZE[0], height=DEFAULT_CANVAS_SIZE[1], bg="black", highlightthickness=0
         )
@@ -206,6 +228,7 @@ class SurveillanceApp:
                 frame = None
             if frame is not None and worker.state == STATE_RUNNING:
                 self._show_frame(frame)
+            self._drain_events(worker)
 
             if worker.state == STATE_LOADING:
                 self._set_status("Đang tải model YOLO…")
@@ -216,6 +239,21 @@ class SurveillanceApp:
                 self._on_worker_finished(worker)
 
         self._poll_id = self.root.after(POLL_INTERVAL_MS, self._poll)
+
+    def _drain_events(self, worker: PipelineWorker) -> None:
+        """Move every queued PERSON_DETECTED event into the table (newest on top)."""
+        while True:
+            try:
+                event, snapshot_path = worker.events.get_nowait()
+            except queue.Empty:
+                return
+            self.event_tree.insert("", 0, values=format_event_row(event, snapshot_path))
+            rows = self.event_tree.get_children()
+            if len(rows) > MAX_EVENT_ROWS:
+                self.event_tree.delete(rows[-1])
+
+    def _clear_events(self) -> None:
+        self.event_tree.delete(*self.event_tree.get_children())
 
     def _on_worker_finished(self, worker: PipelineWorker) -> None:
         self._worker = None
