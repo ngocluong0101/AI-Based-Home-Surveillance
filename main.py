@@ -39,7 +39,15 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Run without opening a video window (for servers/NAS with no display)",
     )
-    return parser.parse_args()
+    parser.add_argument(
+        "--gui",
+        action="store_true",
+        help="Open the Tkinter desktop window (--source/--track/--conf-threshold pre-fill its controls)",
+    )
+    args = parser.parse_args()
+    if args.gui and args.headless:
+        parser.error("--gui and --headless cannot be used together")
+    return args
 
 
 def _handle_termination_signal(signum: int, frame: object) -> None:
@@ -59,6 +67,14 @@ def main() -> int:
 
     source: Optional[str] = args.source or RTSP_URL
 
+    if args.gui:
+        # Imported lazily so servers without tkinter/a display can still run the CLI.
+        from src.gui.app import run_gui
+
+        setup_logging(LOG_LEVEL)
+        logging.getLogger(__name__).info("Application started (GUI mode)")
+        return run_gui(source=source, track=args.track, confidence=args.conf_threshold)
+
     if not source:
         print("AI-Based-Home-Surveillance started successfully.")
         print("Use --source to play an MP4 file, webcam, or RTSP stream.")
@@ -66,6 +82,7 @@ def main() -> int:
         print("Use --conf-threshold to adjust person detection confidence.")
         print("Use --track to enable ByteTrack-based person tracking.")
         print("Use --headless to run without opening a video window.")
+        print("Use --gui to open the desktop window.")
         return 0
 
     # Determine confidence threshold (CLI overrides config)

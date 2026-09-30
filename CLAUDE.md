@@ -26,9 +26,21 @@ python main.py --source "rtsp://user:pass@host:554/stream" --track   # luồng R
 python main.py --source 0 --conf-threshold 0.5     # ghi đè ngưỡng confidence
 python main.py --source 0 --track --headless        # chạy không mở cửa sổ video (server/NAS không có màn hình)
 python main.py                                     # không truyền --source: dùng RTSP_URL từ .env nếu có, ngược lại in hướng dẫn sử dụng rồi thoát
+python main.py --gui                               # mở cửa sổ desktop Tkinter (chọn nguồn, tracking, confidence, Start/Stop trong GUI)
+python main.py --gui --source 0 --track            # như trên, nhưng điền sẵn nguồn/tracking/confidence vào các control
 ```
-Nhấn `q` trong cửa sổ video để thoát. Hiện repo chưa có test suite (`tests/` chỉ có file `.gitkeep`);
-thay vào đó có một script kiểm tra thủ công:
+Nhấn `q` trong cửa sổ video để thoát (chế độ CLI). `--gui` không dùng chung được với `--headless`.
+
+Chạy unit test (pytest, cấu hình trong `pytest.ini` với `pythonpath = .`):
+```bash
+pytest                                                    # chạy toàn bộ test trong tests/
+pytest tests/test_person_detected_event_manager.py -v     # chỉ test của event manager
+```
+Test hiện có: `PersonDetectedEventManager`, `play_video_source` (tham số `stop_event`/`on_frame`), các hàm
+thuần của GUI (`src/gui/helpers.py`) và `PipelineWorker`. Tất cả chạy bằng video tổng hợp do fixture
+`sample_video` (`tests/conftest.py`) tạo ra — không cần camera/YOLO/mạng/màn hình; riêng lớp Tk
+(`src/gui/app.py`) không có unit test, kiểm tra bằng cách chạy thật `python main.py --gui`. Ngoài ra có
+một script kiểm tra thủ công:
 ```bash
 python scripts/test_telegram_snapshot.py   # ghi một snapshot giả và thử gửi qua Telegram
 ```
@@ -58,7 +70,28 @@ có thể thoát bằng Ctrl+C, hết luồng video, hoặc tín hiệu dừng t
 inject vào cho mỗi frame, và tự xử lý việc kết
 nối lại RTSP (thử lại mỗi `RECONNECT_DELAY` giây, log `[CAMERA] Connection lost` /
 `Reconnecting...` / `Connected`); với file cục bộ/webcam thì không có logic kết nối lại — hết luồng là
-dừng vòng lặp.
+dừng vòng lặp. Hai tham số tùy chọn dành cho GUI (mặc định `None`, CLI không dùng): `stop_event`
+(`threading.Event`; khi được set, mọi vòng lặp — kể cả chờ kết nối lại RTSP — thoát sạch và trả `0`) và
+`on_frame` (callback nhận từng frame đã xử lý, sau lớp phủ FPS).
+
+Chế độ GUI (`python main.py --gui`): `main.py` import lười `src.gui.app.run_gui` (máy server không có
+tkinter/màn hình vẫn chạy CLI bình thường), gọi `setup_logging` rồi mở cửa sổ; `--source/--track/
+--conf-threshold` chỉ điền sẵn vào các control. Toàn bộ pipeline chạy ở thread nền, Tk chỉ chạy ở main thread:
+- `src/gui/worker.py` — `PipelineWorker` chạy `play_video_source(display=False, stop_event=..., on_frame=...)`
+  trên daemon thread. Model YOLO được nạp trong thread (không đơ UI). Frame mới nhất nằm trong
+  `queue.Queue(maxsize=1)` (frame cũ bị bỏ, UI chậm không tạo backlog). Expose `state` (`idle/loading/running/
+  stopped`), `error`, `exit_code`; mọi lỗi (nạp model, mở nguồn, pipeline crash) được bắt và lưu vào `error`,
+  không raise. `set_confidence()` đổi ngưỡng ngay từ frame kế tiếp (gán `confidence_threshold` của detector —
+  hoặc `tracker.detector`); nguồn video và bật/tắt tracking chỉ có hiệu lực lúc Start (khóa control khi chạy).
+  `processor_factory` được inject để test không cần YOLO.
+- `src/gui/app.py` — `SurveillanceApp` (cửa sổ chính: combobox loại nguồn Webcam/File/RTSP + ô nhập + nút chọn
+  file, checkbox tracking, thanh confidence, Start/Stop, canvas video, status bar) và `run_gui`. Poll `worker`
+  mỗi 30 ms bằng `root.after`; khi worker `stopped` thì bật lại control, hiện hộp thoại nếu có `error`.
+  Đóng cửa sổ sẽ dừng worker (join tối đa 3 giây). `report_callback_exception` được ghi đè để
+  `KeyboardInterrupt` (SIGTERM) trong callback vẫn dẫn tới tắt sạch thay vì bị Tk nuốt.
+- `src/gui/helpers.py` — hàm thuần không phụ thuộc màn hình: `classify_source`, `validate_source` (thông báo lỗi
+  tiếng Việt cho người dùng), `frame_to_ppm` (resize giữ tỉ lệ + encode PPM để `tk.PhotoImage` đọc trực tiếp,
+  không cần Pillow).
 
 - `src/detection/person_detector.py` — `PersonDetector` bọc một model Ultralytics `YOLO` chỉ giới hạn ở
   lớp `person` (`person_class_id = 0`). `_run_inference` gọi `model.predict`, hoặc khi `track=True` thì

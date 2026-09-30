@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 import time
 from pathlib import Path
 from typing import Any, Callable
@@ -10,6 +11,7 @@ from src.config import RECONNECT_DELAY
 
 WINDOW_NAME = "AI-Based-Home-Surveillance"
 FrameProcessor = Callable[[Any], Any]
+FrameCallback = Callable[[Any], None]
 
 
 def _resolve_source(source: str) -> str | int:
@@ -49,13 +51,33 @@ def _draw_fps(frame: Any, fps: float) -> Any:
     return frame
 
 
-def play_video_source(source: str, frame_processor: FrameProcessor | None = None, display: bool = True) -> int:
+def play_video_source(
+    source: str,
+    frame_processor: FrameProcessor | None = None,
+    display: bool = True,
+    stop_event: threading.Event | None = None,
+    on_frame: FrameCallback | None = None,
+) -> int:
     """Play a video source frame by frame until the user quits or it ends.
 
     When `display` is False, no OpenCV window is created (headless mode for
     running on a server/NAS with no screen); quitting then relies on the
     source ending (local file) or Ctrl+C / SIGTERM (webcam/RTSP).
+
+    `stop_event` and `on_frame` let another component (the Tkinter GUI) drive
+    the loop from a worker thread: the loop exits cleanly once `stop_event` is
+    set, and `on_frame` receives every processed frame (after the FPS overlay).
     """
+    def stopped() -> bool:
+        return stop_event is not None and stop_event.is_set()
+
+    def wait(seconds: float) -> None:
+        # Interruptible sleep so a stop request doesn't wait out a full delay.
+        if stop_event is not None:
+            stop_event.wait(seconds)
+        else:
+            time.sleep(seconds)
+
     local_path = _validate_local_file(source)
     if local_path is None and not source.isdigit() and not source.startswith(("rtsp://", "rtsps://", "http://", "https://")):
         print(f"Error: video file not found: {source}")
@@ -87,7 +109,7 @@ def play_video_source(source: str, frame_processor: FrameProcessor | None = None
         # RTSP sources: attempt to reconnect on failures with a delay.
         if is_rtsp:
             reconnect_delay = RECONNECT_DELAY
-            while True:
+            while not stopped():
                 try:
                     capture = cv2.VideoCapture(capture_source)
                 except Exception:
@@ -97,7 +119,7 @@ def play_video_source(source: str, frame_processor: FrameProcessor | None = None
                     logger.warning("Could not open RTSP stream: %s", source)
                     logger.info("[CAMERA] Reconnecting...")
                     try:
-                        time.sleep(reconnect_delay)
+                        wait(reconnect_delay)
                     except KeyboardInterrupt:
                         break
                     continue
@@ -105,7 +127,7 @@ def play_video_source(source: str, frame_processor: FrameProcessor | None = None
                 logger.info("[CAMERA] Connected")
 
                 failure_count = 0
-                while True:
+                while not stopped():
                     success, frame = capture.read()
                     if not success or frame is None:
                         failure_count += 1
@@ -119,10 +141,7 @@ def play_video_source(source: str, frame_processor: FrameProcessor | None = None
                             logger.info("[CAMERA] Reconnecting...")
                             break
                         # avoid tight spin, allow Ctrl+C
-                        try:
-                            time.sleep(0.2)
-                        except KeyboardInterrupt:
-                            raise
+                        wait(0.2)
                         continue
 
                     # reset failure counter on successful read
@@ -143,6 +162,9 @@ def play_video_source(source: str, frame_processor: FrameProcessor | None = None
                         frame = _draw_fps(frame, fps)
                         # no shared status update
 
+                    if on_frame is not None:
+                        on_frame(frame)
+
                     if display:
                         cv2.imshow(WINDOW_NAME, frame)
                         if cv2.waitKey(1) & 0xFF == ord("q"):
@@ -155,7 +177,7 @@ def play_video_source(source: str, frame_processor: FrameProcessor | None = None
                 logger.error("Could not open video source: %s", source)
                 return 1
 
-            while True:
+            while not stopped():
                 success, frame = capture.read()
                 if not success or frame is None:
                     # If it's a file, assume end of video; if webcam, exit gracefully.
@@ -174,6 +196,9 @@ def play_video_source(source: str, frame_processor: FrameProcessor | None = None
                         fps = 1.0 / elapsed
                         frame = _draw_fps(frame, fps)
                         # no shared status update
+
+                if on_frame is not None:
+                    on_frame(frame)
 
                 if display:
                     cv2.imshow(WINDOW_NAME, frame)

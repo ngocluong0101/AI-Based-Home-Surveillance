@@ -56,6 +56,13 @@ python main.py --source "rtsp://username:password@192.168.1.100:554/stream" --tr
 python main.py --source "rtsp://username:password@192.168.1.100:554/stream" --track --headless
 ```
 
+- Desktop window (Tkinter):
+
+```bash
+python main.py --gui
+python main.py --gui --source 0 --track     # điền sẵn nguồn / tracking / confidence
+```
+
 The application will log device selection, FPS overlay, and `PERSON_DETECTED` events to the terminal. Snapshots are saved to `data/snapshots/` when configured and Telegram notifications are sent if enabled in `.env`.
 
 The app shuts down gracefully (releases the camera, closes any window) on both Ctrl+C and `SIGTERM`, so it can be run as a systemd service or Docker container and stopped with `systemctl stop` / `docker stop` without a hard kill.
@@ -148,6 +155,26 @@ Nhấn `q` trong cửa sổ video để thoát.
 
 Nếu không truyền `--source`, ứng dụng chỉ in thông báo khởi động và thoát.
 
+## Giao diện desktop (GUI)
+
+```bash
+python main.py --gui
+```
+
+Cửa sổ Tkinter gồm:
+
+- **Nguồn**: chọn `Webcam` (nhập chỉ số, mặc định `0`), `File video` (nút "Chọn file…") hoặc `RTSP / IP camera`
+  (nhập URL; nếu đã đặt `RTSP_URL` trong `.env` thì được điền sẵn).
+- **Bật tracking (ByteTrack)**: bật để có ID cho từng người và sự kiện `PERSON_DETECTED` (snapshot/Telegram
+  hoạt động như chế độ CLI).
+- **Confidence**: thanh trượt 0.10–0.95, đổi được ngay khi đang chạy.
+- **Bắt đầu / Dừng**: nguồn và tracking bị khóa trong lúc chạy; muốn đổi thì nhấn Dừng trước. Lần đầu nhấn
+  Bắt đầu, thanh trạng thái hiện "Đang tải model YOLO…" — cửa sổ vẫn thao tác được.
+- Lỗi mở nguồn / nạp model hiện thành hộp thoại thay vì làm thoát ứng dụng; video kết thúc thì tự về trạng thái sẵn sàng.
+
+Yêu cầu máy có màn hình và `tkinter` (`sudo apt install python3-tk` trên Debian/Ubuntu; đã kèm sẵn với Python
+trên Windows/macOS). `--gui` không dùng chung với `--headless`. Đóng cửa sổ, Ctrl+C hoặc `SIGTERM` đều tắt sạch.
+
 ## Ghi log
 
 Log được ghi ra terminal và đồng thời ra file xoay vòng (`RotatingFileHandler`), mặc định tại
@@ -161,6 +188,22 @@ LOG_FILE=logs/app.log    # đường dẫn file log
 LOG_MAX_BYTES=5242880    # dung lượng tối đa trước khi xoay vòng (mặc định 5MB)
 LOG_BACKUP_COUNT=3       # số file log cũ giữ lại
 ```
+
+## Chạy unit test
+
+Repo dùng `pytest` (đã có trong `requirements.txt`). Từ thư mục gốc dự án:
+
+```bash
+pytest
+```
+
+Bộ test gồm:
+
+- `tests/test_person_detected_event_manager.py` — logic chống trùng lặp sự kiện `PERSON_DETECTED`.
+- `tests/test_player.py` — vòng lặp video (`stop_event`, `on_frame`).
+- `tests/test_gui_helpers.py`, `tests/test_gui_worker.py` — phần logic của GUI (kiểm tra nguồn, chuyển frame, thread nền).
+
+Tất cả dùng video tổng hợp do fixture tạo ra, không cần camera, model YOLO, mạng hay màn hình.
 
 ## Kiểm tra CUDA
 
