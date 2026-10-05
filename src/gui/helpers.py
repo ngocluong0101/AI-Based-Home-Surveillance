@@ -31,15 +31,15 @@ def validate_source(source_type: str, value: str) -> str:
 
     if source_type == SOURCE_WEBCAM:
         if not value.isdigit():
-            raise ValueError("Chỉ số webcam phải là số nguyên không âm (ví dụ: 0).")
+            raise ValueError("Webcam index must be a non-negative integer (e.g. 0).")
     elif source_type == SOURCE_FILE:
         if not value or not Path(value).expanduser().is_file():
-            raise ValueError(f"Không tìm thấy file video: {value or '(để trống)'}")
+            raise ValueError(f"Video file not found: {value or '(empty)'}")
     elif source_type == SOURCE_STREAM:
         if not value.lower().startswith(STREAM_PREFIXES):
-            raise ValueError("URL luồng video phải bắt đầu bằng rtsp://, rtsps://, http:// hoặc https://.")
+            raise ValueError("Stream URL must start with rtsp://, rtsps://, http:// or https://.")
     else:
-        raise ValueError(f"Loại nguồn không hợp lệ: {source_type}")
+        raise ValueError(f"Invalid source type: {source_type}")
 
     return value
 

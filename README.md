@@ -161,19 +161,19 @@ Nếu không truyền `--source`, ứng dụng chỉ in thông báo khởi độ
 python main.py --gui
 ```
 
-Cửa sổ Tkinter gồm:
+Giao diện (toàn bộ nhãn, thông báo và hộp thoại trong cửa sổ đều bằng tiếng Anh) gồm:
 
-- **Nguồn**: chọn `Webcam` (nhập chỉ số, mặc định `0`), `File video` (nút "Chọn file…") hoặc `RTSP / IP camera`
+- **Source**: chọn `Webcam` (nhập chỉ số, mặc định `0`), `File video` (nút "Browse…") hoặc `RTSP / IP camera`
   (nhập URL; nếu đã đặt `RTSP_URL` trong `.env` thì được điền sẵn).
-- **Bật tracking (ByteTrack)**: bật để có ID cho từng người và sự kiện `PERSON_DETECTED` (snapshot/Telegram
+- **Enable tracking (ByteTrack)**: bật để có ID cho từng người và sự kiện `PERSON_DETECTED` (snapshot/Telegram
   hoạt động như chế độ CLI).
 - **Confidence**: thanh trượt 0.10–0.95, đổi được ngay khi đang chạy.
-- **Bắt đầu / Dừng**: nguồn và tracking bị khóa trong lúc chạy; muốn đổi thì nhấn Dừng trước. Lần đầu nhấn
-  Bắt đầu, thanh trạng thái hiện "Đang tải model YOLO…" — cửa sổ vẫn thao tác được.
-- **Panel sự kiện** (bên phải): mỗi khi có người mới xuất hiện (`PERSON_DETECTED`) sẽ thêm một dòng
-  gồm giờ, ID, confidence và tên file snapshot; dòng mới nhất nằm trên cùng, giữ tối đa 200 dòng, nút
-  "Xóa danh sách" để dọn. Chỉ có sự kiện khi bật tracking. Bảng vẫn giữ nguyên sau khi Dừng.
-- Lỗi mở nguồn / nạp model hiện thành hộp thoại thay vì làm thoát ứng dụng; video kết thúc thì tự về trạng thái sẵn sàng.
+- **Start / Stop**: nguồn và tracking bị khóa trong lúc chạy; muốn đổi thì nhấn Stop trước. Lần đầu nhấn
+  Start, thanh trạng thái hiện "Loading YOLO model…" — cửa sổ vẫn thao tác được.
+- **Panel "PERSON_DETECTED events"** (bên phải): mỗi khi có người mới xuất hiện sẽ thêm một dòng
+  gồm giờ (Time), ID (Person), confidence (Conf) và tên file snapshot (Snapshot); dòng mới nhất nằm trên cùng,
+  giữ tối đa 200 dòng, nút "Clear list" để dọn. Chỉ có sự kiện khi bật tracking. Bảng vẫn giữ nguyên sau khi Stop.
+- Lỗi mở nguồn / nạp model hiện thành hộp thoại thay vì làm thoát ứng dụng; video kết thúc thì thanh trạng thái hiện "Video finished" và các control được bật lại.
 
 Yêu cầu máy có màn hình và `tkinter` (`sudo apt install python3-tk` trên Debian/Ubuntu; đã kèm sẵn với Python
 trên Windows/macOS). `--gui` không dùng chung với `--headless`. Đóng cửa sổ, Ctrl+C hoặc `SIGTERM` đều tắt sạch.

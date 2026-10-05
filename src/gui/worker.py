@@ -99,7 +99,7 @@ class PipelineWorker:
             processor = self._processor_factory(self._confidence, self.track)
         except Exception as exc:
             logger.error("Failed to load detection model: %s", exc, exc_info=True)
-            self.error = f"Không tải được model: {exc}"
+            self.error = f"Could not load the model: {exc}"
             self.state = STATE_STOPPED
             return
 
@@ -122,10 +122,10 @@ class PipelineWorker:
                 on_frame=self._publish,
             )
             if self.exit_code != 0 and not self._stop_event.is_set():
-                self.error = f"Không mở được nguồn video: {self.source}"
+                self.error = f"Could not open the video source: {self.source}"
         except Exception as exc:
             logger.error("Pipeline crashed: %s", exc, exc_info=True)
-            self.error = f"Pipeline gặp lỗi: {exc}"
+            self.error = f"Pipeline error: {exc}"
         finally:
             self.state = STATE_STOPPED
             logger.info("GUI pipeline stopped")

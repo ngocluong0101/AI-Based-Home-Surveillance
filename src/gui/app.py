@@ -28,10 +28,10 @@ POLL_INTERVAL_MS = 30
 DEFAULT_CANVAS_SIZE = (800, 450)
 CONFIDENCE_RANGE = (0.1, 0.95)
 CLOSE_JOIN_TIMEOUT = 3.0
-PLACEHOLDER_TEXT = "Chưa có video — chọn nguồn rồi nhấn “Bắt đầu”"
+PLACEHOLDER_TEXT = "No video — choose a source and press “Start”"
 MAX_EVENT_ROWS = 200
 # (column id, heading, width in px)
-EVENT_COLUMNS = (("time", "Giờ", 70), ("person", "Người", 60), ("conf", "Conf", 50), ("snapshot", "Snapshot", 170))
+EVENT_COLUMNS = (("time", "Time", 70), ("person", "Person", 60), ("conf", "Conf", 50), ("snapshot", "Snapshot", 170))
 
 WorkerFactory = Callable[[str, float, bool], PipelineWorker]
 
@@ -63,7 +63,7 @@ class SurveillanceApp:
         self.track = tk.BooleanVar(value=track)
         initial_conf = confidence if confidence is not None else CONFIDENCE_THRESHOLD
         self.confidence = tk.DoubleVar(value=min(max(initial_conf, CONFIDENCE_RANGE[0]), CONFIDENCE_RANGE[1]))
-        self.status = tk.StringVar(value="Sẵn sàng")
+        self.status = tk.StringVar(value="Ready")
 
         root.title(WINDOW_TITLE)
         root.minsize(640, 420)
@@ -81,7 +81,7 @@ class SurveillanceApp:
         controls.pack(fill="x")
         controls.columnconfigure(1, weight=1)
 
-        ttk.Label(controls, text="Nguồn:").grid(row=0, column=0, sticky="w")
+        ttk.Label(controls, text="Source:").grid(row=0, column=0, sticky="w")
         source_row = ttk.Frame(controls)
         source_row.grid(row=0, column=1, sticky="ew", padx=(6, 0))
         source_row.columnconfigure(1, weight=1)
@@ -95,13 +95,13 @@ class SurveillanceApp:
         self.source_entry = ttk.Entry(source_row, textvariable=self.source_value)
         self.source_entry.grid(row=0, column=1, sticky="ew", padx=6)
 
-        self.browse_button = ttk.Button(source_row, text="Chọn file…", command=self._browse_file)
+        self.browse_button = ttk.Button(source_row, text="Browse…", command=self._browse_file)
         self.browse_button.grid(row=0, column=2)
 
         options = ttk.Frame(controls)
         options.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(6, 0))
 
-        self.track_check = ttk.Checkbutton(options, text="Bật tracking (ByteTrack)", variable=self.track)
+        self.track_check = ttk.Checkbutton(options, text="Enable tracking (ByteTrack)", variable=self.track)
         self.track_check.pack(side="left")
 
         ttk.Label(options, text="Confidence:").pack(side="left", padx=(16, 4))
@@ -117,18 +117,18 @@ class SurveillanceApp:
         self.confidence_label = ttk.Label(options, text=f"{self.confidence.get():.2f}", width=5)
         self.confidence_label.pack(side="left", padx=(4, 0))
 
-        self.stop_button = ttk.Button(options, text="Dừng", command=self.stop, state="disabled")
+        self.stop_button = ttk.Button(options, text="Stop", command=self.stop, state="disabled")
         self.stop_button.pack(side="right")
-        self.start_button = ttk.Button(options, text="Bắt đầu", command=self.start)
+        self.start_button = ttk.Button(options, text="Start", command=self.start)
         self.start_button.pack(side="right", padx=(0, 6))
 
         # Packed before the canvas so it keeps its width when the window is resized.
-        events_frame = ttk.LabelFrame(self.root, text="Sự kiện PERSON_DETECTED", padding=4)
+        events_frame = ttk.LabelFrame(self.root, text="PERSON_DETECTED events", padding=4)
         events_frame.pack(side="right", fill="y", padx=(0, 8), pady=4)
-        ttk.Label(events_frame, text="Cần bật tracking để ghi nhận sự kiện", foreground="#777777").pack(
+        ttk.Label(events_frame, text="Enable tracking to record events", foreground="#777777").pack(
             side="top", anchor="w", pady=(0, 4)
         )
-        ttk.Button(events_frame, text="Xóa danh sách", command=self._clear_events).pack(side="bottom", fill="x", pady=(4, 0))
+        ttk.Button(events_frame, text="Clear list", command=self._clear_events).pack(side="bottom", fill="x", pady=(4, 0))
         self.event_tree = ttk.Treeview(
             events_frame, columns=[c[0] for c in EVENT_COLUMNS], show="headings", height=12, selectmode="browse"
         )
@@ -160,8 +160,8 @@ class SurveillanceApp:
 
     def _browse_file(self) -> None:
         path = filedialog.askopenfilename(
-            title="Chọn file video",
-            filetypes=[("Video", "*.mp4 *.avi *.mkv *.mov"), ("Tất cả", "*.*")],
+            title="Select a video file",
+            filetypes=[("Video", "*.mp4 *.avi *.mkv *.mov"), ("All files", "*.*")],
         )
         if path:
             self.source_value.set(path)
@@ -191,14 +191,14 @@ class SurveillanceApp:
         try:
             source = validate_source(self.source_type.get(), self.source_value.get())
         except ValueError as exc:
-            messagebox.showwarning("Nguồn video không hợp lệ", str(exc), parent=self.root)
+            messagebox.showwarning("Invalid video source", str(exc), parent=self.root)
             return
 
         self._stop_requested = False
         self._worker = self._worker_factory(source, self.confidence.get(), self.track.get())
         self._worker.start()
         self._set_controls_running(True)
-        self._set_status("Đang tải model YOLO…")
+        self._set_status("Loading YOLO model…")
 
     def stop(self) -> None:
         if self._worker is None or self._stop_requested:
@@ -206,7 +206,7 @@ class SurveillanceApp:
         self._stop_requested = True
         self._worker.stop()
         self.stop_button.configure(state="disabled")
-        self._set_status("Đang dừng…")
+        self._set_status("Stopping…")
 
     def close(self) -> None:
         if self._poll_id is not None:
@@ -231,10 +231,10 @@ class SurveillanceApp:
             self._drain_events(worker)
 
             if worker.state == STATE_LOADING:
-                self._set_status("Đang tải model YOLO…")
+                self._set_status("Loading YOLO model…")
             elif worker.state == STATE_RUNNING and not self._stop_requested:
-                mode = "tracking" if worker.track else "phát hiện"
-                self._set_status(f"Đang chạy ({mode}) — {worker.source}")
+                mode = "tracking" if worker.track else "detection"
+                self._set_status(f"Running ({mode}) — {worker.source}")
             elif worker.state == STATE_STOPPED and not worker.is_running:
                 self._on_worker_finished(worker)
 
@@ -261,12 +261,12 @@ class SurveillanceApp:
         self._show_placeholder()
 
         if worker.error and not self._stop_requested:
-            self._set_status("Lỗi")
-            messagebox.showerror("Lỗi pipeline", worker.error, parent=self.root)
+            self._set_status("Error")
+            messagebox.showerror("Pipeline error", worker.error, parent=self.root)
         elif self._stop_requested:
-            self._set_status("Đã dừng")
+            self._set_status("Stopped")
         else:
-            self._set_status("Video đã kết thúc")
+            self._set_status("Video finished")
         self._stop_requested = False
 
     # ---------------------------------------------------------------- display

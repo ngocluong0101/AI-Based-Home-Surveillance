@@ -91,12 +91,12 @@ tkinter/màn hình vẫn chạy CLI bình thường), gọi `setup_logging` rồ
 - `src/gui/app.py` — `SurveillanceApp` (cửa sổ chính: combobox loại nguồn Webcam/File/RTSP + ô nhập + nút chọn
   file, checkbox tracking, thanh confidence, Start/Stop, canvas video, panel sự kiện bên phải, status bar) và
   `run_gui`. Poll `worker` mỗi 30 ms bằng `root.after`: hiển thị frame, rút cạn `worker.events` vào `ttk.Treeview`
-  (cột Giờ/Người/Conf/Snapshot, mới nhất ở trên, tối đa `MAX_EVENT_ROWS=200` dòng, nút "Xóa danh sách"; bảng
+  (cột Time/Person/Conf/Snapshot, mới nhất ở trên, tối đa `MAX_EVENT_ROWS=200` dòng, nút "Clear list"; bảng
   giữ nguyên sau khi Stop/hết video). Khi worker `stopped` thì bật lại control, hiện hộp thoại nếu có `error`.
   Đóng cửa sổ sẽ dừng worker (join tối đa 3 giây). `report_callback_exception` được ghi đè để
   `KeyboardInterrupt` (SIGTERM) trong callback vẫn dẫn tới tắt sạch thay vì bị Tk nuốt.
 - `src/gui/helpers.py` — hàm thuần không phụ thuộc màn hình: `classify_source`, `validate_source` (thông báo lỗi
-  tiếng Việt cho người dùng), `format_event_row` (event → các ô của bảng sự kiện), `frame_to_ppm` (resize giữ tỉ lệ + encode PPM để `tk.PhotoImage` đọc trực tiếp,
+  tiếng Anh cho người dùng), `format_event_row` (event → các ô của bảng sự kiện), `frame_to_ppm` (resize giữ tỉ lệ + encode PPM để `tk.PhotoImage` đọc trực tiếp,
   không cần Pillow).
 
 - `src/detection/person_detector.py` — `PersonDetector` bọc một model Ultralytics `YOLO` chỉ giới hạn ở
