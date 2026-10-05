@@ -26,8 +26,8 @@ python main.py --source "rtsp://user:pass@host:554/stream" --track   # luồng R
 python main.py --source 0 --conf-threshold 0.5     # ghi đè ngưỡng confidence
 python main.py --source 0 --track --headless        # chạy không mở cửa sổ video (server/NAS không có màn hình)
 python main.py                                     # không truyền --source: dùng RTSP_URL từ .env nếu có, ngược lại in hướng dẫn sử dụng rồi thoát
-python main.py --gui                               # mở cửa sổ desktop Tkinter (chọn nguồn, tracking, confidence, Start/Stop trong GUI)
-python main.py --gui --source 0 --track            # như trên, nhưng điền sẵn nguồn/tracking/confidence vào các control
+python gui.py                                     # mở cửa sổ desktop Tkinter (điểm vào GUI, tương đương `main.py --gui`)
+python gui.py --source 0 --track                   # như trên, nhưng điền sẵn nguồn/tracking/confidence vào các control
 ```
 Nhấn `q` trong cửa sổ video để thoát (chế độ CLI). `--gui` không dùng chung được với `--headless`.
 
@@ -37,10 +37,11 @@ pytest                                                    # chạy toàn bộ te
 pytest tests/test_person_detected_event_manager.py -v     # chỉ test của event manager
 ```
 Test hiện có: `PersonDetectedEventManager`, `play_video_source` (tham số `stop_event`/`on_frame`), các hàm
-thuần của GUI (`src/gui/helpers.py`), `PipelineWorker` và `event_callback` của `PersonTracker` (thay
+thuần của GUI (`src/gui/helpers.py`), `src/config/env_file.py` (test chỉ dùng file `.env` tạm, không đụng `.env`
+thật), `PipelineWorker` và `event_callback` của `PersonTracker` (thay
 `PersonDetector` bằng bản giả nên không nạp YOLO). Tất cả chạy bằng video tổng hợp do fixture
 `sample_video` (`tests/conftest.py`) tạo ra — không cần camera/YOLO/mạng/màn hình; riêng lớp Tk
-(`src/gui/app.py`) không có unit test, kiểm tra bằng cách chạy thật `python main.py --gui`. Ngoài ra có
+(`src/gui/app.py`) không có unit test, kiểm tra bằng cách chạy thật `python gui.py`. Ngoài ra có
 một script kiểm tra thủ công:
 ```bash
 python scripts/test_telegram_snapshot.py   # ghi một snapshot giả và thử gửi qua Telegram
@@ -56,7 +57,8 @@ Log được ghi cả ra terminal và ra file xoay vòng tại `logs/app.log` (c
 
 ## Kiến trúc
 
-`main.py` là entry point duy nhất: nó parse các tham số dòng lệnh, lấy config từ `src/config`, khởi tạo
+Có hai điểm vào: `main.py` (CLI, có cửa sổ OpenCV hoặc `--headless`) và `gui.py` (GUI Tkinter, là `main.py --gui`
+với các tham số được truyền nguyên vẹn). Phần dưới mô tả `main.py`: nó parse các tham số dòng lệnh, lấy config từ `src/config`, khởi tạo
 hoặc `PersonDetector` (chỉ phát hiện) hoặc `PersonTracker` (phát hiện + tracking + sự kiện, dùng khi có
 `--track`), rồi truyền phương thức `annotate_frame` của nó cho `play_video_source` làm callback xử lý
 từng frame. Trước khi chạy, nó đăng ký handler cho `SIGTERM` (`_handle_termination_signal`) để chuyển
@@ -75,7 +77,7 @@ dừng vòng lặp. Hai tham số tùy chọn dành cho GUI (mặc định `None
 (`threading.Event`; khi được set, mọi vòng lặp — kể cả chờ kết nối lại RTSP — thoát sạch và trả `0`) và
 `on_frame` (callback nhận từng frame đã xử lý, sau lớp phủ FPS).
 
-Chế độ GUI (`python main.py --gui`): `main.py` import lười `src.gui.app.run_gui` (máy server không có
+Chế độ GUI (`python gui.py`, hoặc `python main.py --gui`): `main.py` import lười `src.gui.app.run_gui` (máy server không có
 tkinter/màn hình vẫn chạy CLI bình thường), gọi `setup_logging` rồi mở cửa sổ; `--source/--track/
 --conf-threshold` chỉ điền sẵn vào các control. Toàn bộ pipeline chạy ở thread nền, Tk chỉ chạy ở main thread:
 - `src/gui/worker.py` — `PipelineWorker` chạy `play_video_source(display=False, stop_event=..., on_frame=...)`
@@ -99,7 +101,15 @@ tkinter/màn hình vẫn chạy CLI bình thường), gọi `setup_logging` rồ
   giữ nguyên sau khi Stop/hết video). Khi worker `stopped` thì bật lại control, hiện hộp thoại nếu có `error`.
   Đóng cửa sổ sẽ dừng worker (join tối đa 3 giây). `report_callback_exception` được ghi đè để
   `KeyboardInterrupt` (SIGTERM) trong callback vẫn dẫn tới tắt sạch thay vì bị Tk nuốt.
-- `src/gui/helpers.py` — hàm thuần không phụ thuộc màn hình: `classify_source`, `validate_source` (thông báo lỗi
+- Tab **Settings** (cùng `app.py`): bật/tắt Telegram, nhập bot token (mặc định che, có nút Show) và chat ID; Save
+  ghi vào `.env` qua `src/config/env_file.py`, Reload đọc lại từ `.env`. Không áp dụng trực tiếp: config và
+  `PersonTracker`/`TelegramNotifier` đọc giá trị một lần lúc khởi động, nên cần khởi động lại app sau khi lưu.
+  `env_file` là tham số của `SurveillanceApp` (mặc định `ENV_FILE_PATH` = `<project>/.env`).
+- `src/config/env_file.py` — `read_env_values` / `write_env_values` / `is_truthy`: đọc và sửa `.env` in-place
+  (giữ comment và key khác, key mới thêm vào cuối, ghi qua file tạm với quyền 0600 vì `.env` chứa token). Không
+  dùng `python-dotenv` để ghi vì nó không giữ format file.
+- `src/gui/helpers.py` — hàm thuần không phụ thuộc màn hình: `validate_telegram_settings` (kiểm tra hình dạng token
+  và chat ID, bắt buộc đủ hai giá trị khi bật), `classify_source`, ... `classify_source`, `validate_source` (thông báo lỗi
   tiếng Anh cho người dùng), `format_event_row` (event → các ô của bảng sự kiện), `list_snapshots` /
   `format_snapshot_row` / `load_image_ppm` (gallery), `frame_to_ppm` (resize giữ tỉ lệ + encode PPM để `tk.PhotoImage` đọc trực tiếp,
   không cần Pillow).

@@ -59,8 +59,8 @@ python main.py --source "rtsp://username:password@192.168.1.100:554/stream" --tr
 - Desktop window (Tkinter):
 
 ```bash
-python main.py --gui
-python main.py --gui --source 0 --track     # điền sẵn nguồn / tracking / confidence
+python gui.py
+python gui.py --source 0 --track     # điền sẵn nguồn / tracking / confidence
 ```
 
 The application will log device selection, FPS overlay, and `PERSON_DETECTED` events to the terminal. Snapshots are saved to `data/snapshots/` when configured and Telegram notifications are sent if enabled in `.env`.
@@ -157,9 +157,16 @@ Nếu không truyền `--source`, ứng dụng chỉ in thông báo khởi độ
 
 ## Giao diện desktop (GUI)
 
+Chạy GUI bằng:
+
 ```bash
-python main.py --gui
+python gui.py                          # mở cửa sổ
+python gui.py --source 0 --track       # điền sẵn nguồn, bật tracking
+python gui.py --conf-threshold 0.6     # điền sẵn ngưỡng confidence
 ```
+
+`gui.py` là điểm vào dành riêng cho GUI, tương đương `python main.py --gui`. Các tham số dòng lệnh khác được
+truyền nguyên vẹn. `main.py` vẫn dùng cho chế độ CLI (không cửa sổ hoặc `--headless`).
 
 Giao diện (toàn bộ nhãn, thông báo và hộp thoại trong cửa sổ đều bằng tiếng Anh) gồm:
 
@@ -177,6 +184,10 @@ Giao diện (toàn bộ nhãn, thông báo và hộp thoại trong cửa sổ đ
   nhất ở trên, kèm thời gian lưu và dung lượng. Chọn một dòng để xem ảnh to ngay trong cửa sổ; nút "Refresh"
   quét lại thư mục (tab cũng tự quét khi được mở). Ảnh được co vừa khung xem, không mở cửa sổ riêng. Nếu snapshot
   đã bị dọn tự động thì hiện thông báo và danh sách được làm mới.
+- **Tab "Settings"**: bật/tắt Telegram và nhập `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` ngay trong app, không
+  cần sửa `.env` bằng tay. Token được che mặc định (có ô "Show"). "Save to .env" ghi giá trị vào `.env` và giữ
+  nguyên các dòng/comment khác; "Reload from .env" đọc lại. Khi bật Telegram phải có đủ token và chat ID.
+  **Lưu ý:** thay đổi chỉ có hiệu lực sau khi khởi động lại app. File `.env` được ghi với quyền `0600` vì chứa token.
 - Lỗi mở nguồn / nạp model hiện thành hộp thoại thay vì làm thoát ứng dụng; video kết thúc thì thanh trạng thái hiện "Video finished" và các control được bật lại.
 
 Yêu cầu máy có màn hình và `tkinter` (`sudo apt install python3-tk` trên Debian/Ubuntu; đã kèm sẵn với Python
@@ -210,6 +221,7 @@ Bộ test gồm:
 - `tests/test_player.py` — vòng lặp video (`stop_event`, `on_frame`).
 - `tests/test_gui_helpers.py`, `tests/test_gui_worker.py` — phần logic của GUI (kiểm tra nguồn, chuyển frame, dòng sự kiện, liệt kê snapshot, thread nền).
 - `tests/test_person_tracker_events.py` — callback sự kiện của `PersonTracker` (dùng detector giả, không nạp YOLO).
+- `tests/test_env_file.py` — đọc/ghi `.env` (chỉ dùng file tạm).
 
 Tất cả dùng video tổng hợp do fixture tạo ra, không cần camera, model YOLO, mạng hay màn hình.
 
