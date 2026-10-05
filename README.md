@@ -173,6 +173,10 @@ Giao diện (toàn bộ nhãn, thông báo và hộp thoại trong cửa sổ đ
 - **Panel "PERSON_DETECTED events"** (bên phải): mỗi khi có người mới xuất hiện sẽ thêm một dòng
   gồm giờ (Time), ID (Person), confidence (Conf) và tên file snapshot (Snapshot); dòng mới nhất nằm trên cùng,
   giữ tối đa 200 dòng, nút "Clear list" để dọn. Chỉ có sự kiện khi bật tracking. Bảng vẫn giữ nguyên sau khi Stop.
+- **Tab "Snapshots"**: danh sách ảnh trong thư mục snapshot (`SNAPSHOT_DIR`, mặc định `data/snapshots/`), mới
+  nhất ở trên, kèm thời gian lưu và dung lượng. Chọn một dòng để xem ảnh to ngay trong cửa sổ; nút "Refresh"
+  quét lại thư mục (tab cũng tự quét khi được mở). Ảnh được co vừa khung xem, không mở cửa sổ riêng. Nếu snapshot
+  đã bị dọn tự động thì hiện thông báo và danh sách được làm mới.
 - Lỗi mở nguồn / nạp model hiện thành hộp thoại thay vì làm thoát ứng dụng; video kết thúc thì thanh trạng thái hiện "Video finished" và các control được bật lại.
 
 Yêu cầu máy có màn hình và `tkinter` (`sudo apt install python3-tk` trên Debian/Ubuntu; đã kèm sẵn với Python
@@ -204,7 +208,7 @@ Bộ test gồm:
 
 - `tests/test_person_detected_event_manager.py` — logic chống trùng lặp sự kiện `PERSON_DETECTED`.
 - `tests/test_player.py` — vòng lặp video (`stop_event`, `on_frame`).
-- `tests/test_gui_helpers.py`, `tests/test_gui_worker.py` — phần logic của GUI (kiểm tra nguồn, chuyển frame, dòng sự kiện, thread nền).
+- `tests/test_gui_helpers.py`, `tests/test_gui_worker.py` — phần logic của GUI (kiểm tra nguồn, chuyển frame, dòng sự kiện, liệt kê snapshot, thread nền).
 - `tests/test_person_tracker_events.py` — callback sự kiện của `PersonTracker` (dùng detector giả, không nạp YOLO).
 
 Tất cả dùng video tổng hợp do fixture tạo ra, không cần camera, model YOLO, mạng hay màn hình.

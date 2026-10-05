@@ -8,7 +8,9 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 from typing import Any, Callable
 
-from src.config import CONFIDENCE_THRESHOLD, RTSP_URL
+from pathlib import Path
+
+from src.config import CONFIDENCE_THRESHOLD, RTSP_URL, SNAPSHOT_DIR
 from src.gui.helpers import (
     SOURCE_FILE,
     SOURCE_STREAM,
@@ -16,7 +18,10 @@ from src.gui.helpers import (
     SOURCE_WEBCAM,
     classify_source,
     format_event_row,
+    format_snapshot_row,
     frame_to_ppm,
+    list_snapshots,
+    load_image_ppm,
     validate_source,
 )
 from src.gui.worker import STATE_LOADING, STATE_RUNNING, STATE_STOPPED, PipelineWorker
@@ -32,6 +37,8 @@ PLACEHOLDER_TEXT = "No video — choose a source and press “Start”"
 MAX_EVENT_ROWS = 200
 # (column id, heading, width in px)
 EVENT_COLUMNS = (("time", "Time", 70), ("person", "Person", 60), ("conf", "Conf", 50), ("snapshot", "Snapshot", 170))
+SNAPSHOT_COLUMNS = (("name", "File", 230), ("saved", "Saved at", 150), ("size", "Size", 70))
+GALLERY_PREVIEW_PLACEHOLDER = "Select a snapshot on the left to view it"
 
 WorkerFactory = Callable[[str, float, bool], PipelineWorker]
 
@@ -46,6 +53,7 @@ class SurveillanceApp:
         track: bool = False,
         confidence: float | None = None,
         worker_factory: WorkerFactory = PipelineWorker,
+        snapshot_dir: str | Path = SNAPSHOT_DIR,
     ) -> None:
         self.root = root
         self._worker_factory = worker_factory
@@ -56,6 +64,9 @@ class SurveillanceApp:
         self._image_id: int | None = None
         self._placeholder_id: int | None = None
         self._last_status = ""
+        self.snapshot_dir = Path(snapshot_dir)
+        self._gallery_photo: tk.PhotoImage | None = None
+        self._gallery_image_id: int | None = None
 
         initial_type, initial_value = classify_source(source or RTSP_URL)
         self.source_type = tk.StringVar(value=initial_type)
@@ -122,9 +133,25 @@ class SurveillanceApp:
         self.start_button = ttk.Button(options, text="Start", command=self.start)
         self.start_button.pack(side="right", padx=(0, 6))
 
+        # The status bar is packed before the notebook so it stays visible when the window shrinks.
+        ttk.Label(self.root, textvariable=self.status, relief="sunken", anchor="w", padding=(6, 2)).pack(
+            fill="x", side="bottom"
+        )
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(fill="both", expand=True, padx=8, pady=4)
+        live_tab = ttk.Frame(self.notebook)
+        self.notebook.add(live_tab, text="Live")
+        gallery_tab = ttk.Frame(self.notebook)
+        self.notebook.add(gallery_tab, text="Snapshots")
+        self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
+        self._gallery_tab = gallery_tab
+        self._build_live_tab(live_tab)
+        self._build_gallery_tab(gallery_tab)
+
+    def _build_live_tab(self, parent: ttk.Frame) -> None:
         # Packed before the canvas so it keeps its width when the window is resized.
-        events_frame = ttk.LabelFrame(self.root, text="PERSON_DETECTED events", padding=4)
-        events_frame.pack(side="right", fill="y", padx=(0, 8), pady=4)
+        events_frame = ttk.LabelFrame(parent, text="PERSON_DETECTED events", padding=4)
+        events_frame.pack(side="right", fill="y", padx=(0, 4), pady=4)
         ttk.Label(events_frame, text="Enable tracking to record events", foreground="#777777").pack(
             side="top", anchor="w", pady=(0, 4)
         )
@@ -141,14 +168,49 @@ class SurveillanceApp:
         self.event_tree.pack(side="left", fill="both", expand=True)
 
         self.canvas = tk.Canvas(
-            self.root, width=DEFAULT_CANVAS_SIZE[0], height=DEFAULT_CANVAS_SIZE[1], bg="black", highlightthickness=0
+            parent, width=DEFAULT_CANVAS_SIZE[0], height=DEFAULT_CANVAS_SIZE[1], bg="black", highlightthickness=0
         )
-        self.canvas.pack(fill="both", expand=True, padx=8, pady=4)
+        self.canvas.pack(fill="both", expand=True, padx=4, pady=4)
         self.canvas.bind("<Configure>", lambda _e: self._recenter())
 
-        ttk.Label(self.root, textvariable=self.status, relief="sunken", anchor="w", padding=(6, 2)).pack(
-            fill="x", side="bottom"
+    def _build_gallery_tab(self, parent: ttk.Frame) -> None:
+        toolbar = ttk.Frame(parent, padding=(4, 4, 4, 0))
+        toolbar.pack(fill="x")
+        ttk.Button(toolbar, text="Refresh", command=self._refresh_gallery).pack(side="left")
+        self.gallery_count = tk.StringVar(value="")
+        ttk.Label(toolbar, textvariable=self.gallery_count).pack(side="left", padx=(8, 0))
+        ttk.Label(toolbar, text=f"Folder: {self.snapshot_dir}", foreground="#777777").pack(side="right")
+
+        body = ttk.Frame(parent, padding=4)
+        body.pack(fill="both", expand=True)
+        body.columnconfigure(1, weight=1)
+        body.rowconfigure(0, weight=1)
+
+        table_frame = ttk.Frame(body)
+        table_frame.grid(row=0, column=0, sticky="ns", padx=(0, 6))
+        self.snapshot_tree = ttk.Treeview(
+            table_frame, columns=[c[0] for c in SNAPSHOT_COLUMNS], show="headings", selectmode="browse", height=20
         )
+        for column_id, heading, width in SNAPSHOT_COLUMNS:
+            self.snapshot_tree.heading(column_id, text=heading)
+            self.snapshot_tree.column(column_id, width=width, anchor="w", stretch=False)
+        snapshot_scroll = ttk.Scrollbar(table_frame, orient="vertical", command=self.snapshot_tree.yview)
+        self.snapshot_tree.configure(yscrollcommand=snapshot_scroll.set)
+        snapshot_scroll.pack(side="right", fill="y")
+        self.snapshot_tree.pack(side="left", fill="both", expand=True)
+        self.snapshot_tree.bind("<<TreeviewSelect>>", lambda _e: self._on_snapshot_selected())
+
+        preview_frame = ttk.Frame(body)
+        preview_frame.grid(row=0, column=1, sticky="nsew")
+        self.gallery_canvas = tk.Canvas(preview_frame, bg="black", highlightthickness=0)
+        self.gallery_canvas.pack(fill="both", expand=True)
+        self.gallery_canvas.bind("<Configure>", lambda _e: self._redraw_gallery())
+        self.gallery_caption = tk.StringVar(value="")
+        ttk.Label(preview_frame, textvariable=self.gallery_caption, anchor="w").pack(fill="x", pady=(2, 0))
+
+        self._gallery_selected: Path | None = None
+        self._gallery_message = ""
+        self._show_gallery_message(GALLERY_PREVIEW_PLACEHOLDER)
 
     # ------------------------------------------------------------- controls
     def _on_source_type_changed(self, reset_value: bool = True) -> None:
@@ -268,6 +330,84 @@ class SurveillanceApp:
         else:
             self._set_status("Video finished")
         self._stop_requested = False
+
+    # --------------------------------------------------------------- gallery
+    def _on_tab_changed(self, _event: Any) -> None:
+        # Rescan only when the tab is shown, so the folder is not read while nobody looks at it.
+        if self.notebook.select() == str(self._gallery_tab):
+            self._refresh_gallery()
+
+    def _refresh_gallery(self) -> None:
+        selected_before = self._gallery_selected
+        self.snapshot_tree.delete(*self.snapshot_tree.get_children())
+        infos = list_snapshots(self.snapshot_dir)
+        for info in infos:
+            self.snapshot_tree.insert("", "end", iid=str(info.path), values=format_snapshot_row(info))
+        self.gallery_count.set(f"{len(infos)} snapshot(s)")
+
+        if selected_before is not None and str(selected_before) in self.snapshot_tree.get_children():
+            self.snapshot_tree.selection_set(str(selected_before))
+        else:
+            self._gallery_selected = None
+            self._show_gallery_message(GALLERY_PREVIEW_PLACEHOLDER if infos else "No snapshots saved yet")
+
+    def _on_snapshot_selected(self) -> None:
+        selection = self.snapshot_tree.selection()
+        if not selection:
+            return
+        self._gallery_selected = Path(selection[0])
+        self._render_selected_snapshot()
+
+    def _render_selected_snapshot(self) -> None:
+        path = self._gallery_selected
+        if path is None:
+            return
+        width, height = self._gallery_canvas_size()
+        try:
+            data = load_image_ppm(path, width, height)
+        except ValueError:
+            # Usually the cleanup job removed the file after the list was built; not an error.
+            logger.info("Snapshot %s is no longer readable (deleted?)", path)
+            self._gallery_selected = None
+            self._show_gallery_message(f"Could not open {path.name} — it may have been deleted.")
+            self._refresh_gallery()
+            return
+
+        self._gallery_photo = tk.PhotoImage(data=data, format="PPM")
+        self.gallery_canvas.delete("all")
+        self._gallery_image_id = self.gallery_canvas.create_image(
+            width // 2, height // 2, image=self._gallery_photo, anchor="center"
+        )
+        self.gallery_caption.set(path.name)
+
+    def _show_gallery_message(self, text: str) -> None:
+        self._gallery_message = text
+        self._gallery_photo = None
+        self._gallery_image_id = None
+        self.gallery_canvas.delete("all")
+        self.gallery_caption.set("")
+        self._draw_gallery_message()
+
+    def _draw_gallery_message(self) -> None:
+        width, height = self._gallery_canvas_size()
+        self.gallery_canvas.create_text(
+            width // 2, height // 2, text=self._gallery_message, fill="#9aa0a6", font=("TkDefaultFont", 12),
+            width=max(200, width - 40),
+        )
+
+    def _redraw_gallery(self) -> None:
+        """Re-fit the preview after the canvas is resized."""
+        if self._gallery_selected is not None:
+            self._render_selected_snapshot()
+        elif self._gallery_message:
+            self.gallery_canvas.delete("all")
+            self._draw_gallery_message()
+
+    def _gallery_canvas_size(self) -> tuple[int, int]:
+        width, height = self.gallery_canvas.winfo_width(), self.gallery_canvas.winfo_height()
+        if width <= 1 or height <= 1:
+            return DEFAULT_CANVAS_SIZE
+        return width, height
 
     # ---------------------------------------------------------------- display
     def _canvas_size(self) -> tuple[int, int]:

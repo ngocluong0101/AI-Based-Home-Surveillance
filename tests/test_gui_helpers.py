@@ -9,9 +9,13 @@ from src.gui.helpers import (
     SOURCE_FILE,
     SOURCE_STREAM,
     SOURCE_WEBCAM,
+    SnapshotInfo,
     classify_source,
     format_event_row,
+    format_snapshot_row,
     frame_to_ppm,
+    list_snapshots,
+    load_image_ppm,
     validate_source,
 )
 
@@ -116,3 +120,63 @@ def test_format_event_row_without_snapshot_shows_dash():
     event = PersonDetectedEvent("PERSON_DETECTED", 12, 0.5, datetime(2026, 1, 1, 7, 5, 9))
 
     assert format_event_row(event, None) == ("07:05:09", "ID 12", "0.50", "—")
+
+
+def test_list_snapshots_missing_directory_is_empty(tmp_path):
+    assert list_snapshots(tmp_path / "does-not-exist") == []
+
+
+def test_list_snapshots_keeps_only_images_newest_first(tmp_path):
+    import os
+
+    old = tmp_path / "old.jpg"
+    new = tmp_path / "new.JPG"
+    notes = tmp_path / "notes.txt"
+    for path in (old, new, notes):
+        path.write_bytes(b"x")
+    os.utime(old, (1_000_000, 1_000_000))
+    os.utime(new, (2_000_000, 2_000_000))
+    (tmp_path / "subdir.jpg").mkdir()
+
+    names = [info.path.name for info in list_snapshots(tmp_path)]
+
+    assert names == ["new.JPG", "old.jpg"]
+
+
+def test_list_snapshots_reports_size_and_mtime(tmp_path):
+    path = tmp_path / "a.jpg"
+    path.write_bytes(b"12345")
+
+    (info,) = list_snapshots(tmp_path)
+
+    assert info.size_bytes == 5
+    assert info.saved_at.timestamp() == pytest.approx(path.stat().st_mtime)
+
+
+@pytest.mark.parametrize(
+    "size, expected_size",
+    [(0, "1 KB"), (2048, "2 KB"), (3 * 1024 * 1024 + 512 * 1024, "3.5 MB")],
+)
+def test_format_snapshot_row(tmp_path, size, expected_size):
+    info = SnapshotInfo(tmp_path / "PERSON_DETECTED_id3.jpg", datetime(2026, 1, 1, 9, 5, 0), size)
+
+    assert format_snapshot_row(info) == ("PERSON_DETECTED_id3.jpg", "2026-01-01 09:05:00", expected_size)
+
+
+def test_load_image_ppm_fits_the_box(tmp_path):
+    import cv2
+
+    path = tmp_path / "shot.jpg"
+    cv2.imwrite(str(path), np.zeros((100, 200, 3), dtype=np.uint8))
+
+    assert _ppm_size(load_image_ppm(path, 400, 400)) == (400, 200)
+
+
+def test_load_image_ppm_rejects_missing_or_corrupt_file(tmp_path):
+    with pytest.raises(ValueError):
+        load_image_ppm(tmp_path / "gone.jpg", 100, 100)
+
+    broken = tmp_path / "broken.jpg"
+    broken.write_bytes(b"not an image")
+    with pytest.raises(ValueError):
+        load_image_ppm(broken, 100, 100)

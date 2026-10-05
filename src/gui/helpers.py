@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+SNAPSHOT_EXTENSIONS = (".jpg", ".jpeg", ".png")
 
 SOURCE_WEBCAM = "Webcam"
 SOURCE_FILE = "File video"
@@ -53,6 +57,55 @@ def format_event_row(event: Any, snapshot_path: Path | None) -> tuple[str, str, 
         f"{event.confidence:.2f}",
         snapshot,
     )
+
+
+@dataclass(frozen=True)
+class SnapshotInfo:
+    path: Path
+    saved_at: datetime
+    size_bytes: int
+
+
+def list_snapshots(directory: str | Path) -> list[SnapshotInfo]:
+    """Return the image files in `directory`, newest first. A missing directory gives an empty list."""
+    folder = Path(directory)
+    if not folder.is_dir():
+        return []
+
+    infos = []
+    for path in folder.iterdir():
+        if not path.is_file() or path.suffix.lower() not in SNAPSHOT_EXTENSIONS:
+            continue
+        try:
+            stat = path.stat()
+        except OSError:
+            continue  # deleted by the cleanup job between listing and stat
+        infos.append(SnapshotInfo(path, datetime.fromtimestamp(stat.st_mtime), stat.st_size))
+
+    infos.sort(key=lambda info: (info.saved_at, info.path.name), reverse=True)
+    return infos
+
+
+def format_snapshot_row(info: SnapshotInfo) -> tuple[str, str, str]:
+    """Turn a snapshot into the (name, saved time, size) table cells."""
+    if info.size_bytes >= 1024 * 1024:
+        size = f"{info.size_bytes / (1024 * 1024):.1f} MB"
+    else:
+        size = f"{max(1, round(info.size_bytes / 1024))} KB"
+    return info.path.name, info.saved_at.strftime("%Y-%m-%d %H:%M:%S"), size
+
+
+def load_image_ppm(path: str | Path, max_width: int, max_height: int) -> bytes:
+    """Read an image from disk and return it fitted into the box as PPM bytes.
+
+    Raises ValueError if the file is missing or is not a readable image.
+    """
+    import cv2
+
+    image = cv2.imread(str(path))
+    if image is None:
+        raise ValueError(f"Could not read image: {path}")
+    return frame_to_ppm(image, max_width, max_height)
 
 
 def frame_to_ppm(frame: Any, max_width: int, max_height: int) -> bytes:
