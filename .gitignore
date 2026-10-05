@@ -54,3 +54,7 @@ data/videos/*
 
 # YOLO model weights (auto-downloaded by ultralytics on first run if missing)
 *.pt
+
+# Personal files: CV and interview prep (keep local, never push)
+myCV/
+interview/
