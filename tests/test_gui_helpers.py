@@ -17,6 +17,7 @@ from src.gui.helpers import (
     list_snapshots,
     load_image_ppm,
     validate_source,
+    validate_telegram_settings,
 )
 
 
@@ -180,3 +181,35 @@ def test_load_image_ppm_rejects_missing_or_corrupt_file(tmp_path):
     broken.write_bytes(b"not an image")
     with pytest.raises(ValueError):
         load_image_ppm(broken, 100, 100)
+
+
+def test_telegram_settings_accept_valid_values_and_strip_them():
+    token, chat_id = validate_telegram_settings(True, " 123456:ABC-def_1 ", " -100123 ")
+
+    assert (token, chat_id) == ("123456:ABC-def_1", "-100123")
+
+
+def test_telegram_settings_disabled_may_be_left_blank():
+    assert validate_telegram_settings(False, "", "") == ("", "")
+
+
+@pytest.mark.parametrize(
+    "token",
+    ["abc", "123456", "123456:", "12x:ABC", "123456:AB C"],
+)
+def test_telegram_token_shape_is_checked(token):
+    with pytest.raises(ValueError, match="bot token"):
+        validate_telegram_settings(False, token, "")
+
+
+@pytest.mark.parametrize("chat_id", ["@mychannel", "12.5", "--1", "1 2"])
+def test_telegram_chat_id_must_be_a_number(chat_id):
+    with pytest.raises(ValueError, match="chat ID"):
+        validate_telegram_settings(False, "", chat_id)
+
+
+def test_enabling_telegram_requires_token_and_chat_id():
+    with pytest.raises(ValueError, match="fill in both"):
+        validate_telegram_settings(True, "123:abc", "")
+    with pytest.raises(ValueError, match="fill in both"):
+        validate_telegram_settings(True, "", "123")

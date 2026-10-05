@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -57,6 +58,28 @@ def format_event_row(event: Any, snapshot_path: Path | None) -> tuple[str, str, 
         f"{event.confidence:.2f}",
         snapshot,
     )
+
+
+TELEGRAM_TOKEN_PATTERN = re.compile(r"^\d+:[A-Za-z0-9_-]+$")
+TELEGRAM_CHAT_ID_PATTERN = re.compile(r"^-?\d+$")
+
+
+def validate_telegram_settings(enabled: bool, token: str, chat_id: str) -> tuple[str, str]:
+    """Return the cleaned (token, chat id), or raise ValueError with a user-facing message.
+
+    Only checks the shape of the values; it does not call Telegram.
+    """
+    token = token.strip()
+    chat_id = chat_id.strip()
+
+    if token and not TELEGRAM_TOKEN_PATTERN.match(token):
+        raise ValueError("The bot token looks wrong. It should look like 123456:ABC-DEF… (from @BotFather).")
+    if chat_id and not TELEGRAM_CHAT_ID_PATTERN.match(chat_id):
+        raise ValueError("The chat ID must be a number, e.g. 987654321 (or -100… for a group).")
+    if enabled and not (token and chat_id):
+        raise ValueError("To enable Telegram, fill in both the bot token and the chat ID.")
+
+    return token, chat_id
 
 
 @dataclass(frozen=True)

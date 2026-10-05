@@ -11,6 +11,7 @@ from typing import Any, Callable
 from pathlib import Path
 
 from src.config import CONFIDENCE_THRESHOLD, RTSP_URL, SNAPSHOT_DIR
+from src.config.env_file import ENV_FILE_PATH, is_truthy, read_env_values, write_env_values
 from src.gui.helpers import (
     SOURCE_FILE,
     SOURCE_STREAM,
@@ -23,6 +24,7 @@ from src.gui.helpers import (
     list_snapshots,
     load_image_ppm,
     validate_source,
+    validate_telegram_settings,
 )
 from src.gui.worker import STATE_LOADING, STATE_RUNNING, STATE_STOPPED, PipelineWorker
 
@@ -54,8 +56,10 @@ class SurveillanceApp:
         confidence: float | None = None,
         worker_factory: WorkerFactory = PipelineWorker,
         snapshot_dir: str | Path = SNAPSHOT_DIR,
+        env_file: str | Path = ENV_FILE_PATH,
     ) -> None:
         self.root = root
+        self.env_file = Path(env_file)
         self._worker_factory = worker_factory
         self._worker: PipelineWorker | None = None
         self._stop_requested = False
@@ -143,10 +147,13 @@ class SurveillanceApp:
         self.notebook.add(live_tab, text="Live")
         gallery_tab = ttk.Frame(self.notebook)
         self.notebook.add(gallery_tab, text="Snapshots")
+        settings_tab = ttk.Frame(self.notebook)
+        self.notebook.add(settings_tab, text="Settings")
         self.notebook.bind("<<NotebookTabChanged>>", self._on_tab_changed)
         self._gallery_tab = gallery_tab
         self._build_live_tab(live_tab)
         self._build_gallery_tab(gallery_tab)
+        self._build_settings_tab(settings_tab)
 
     def _build_live_tab(self, parent: ttk.Frame) -> None:
         # Packed before the canvas so it keeps its width when the window is resized.
@@ -330,6 +337,78 @@ class SurveillanceApp:
         else:
             self._set_status("Video finished")
         self._stop_requested = False
+
+    # -------------------------------------------------------------- settings
+    def _build_settings_tab(self, parent: ttk.Frame) -> None:
+        section = ttk.LabelFrame(parent, text="Telegram notifications", padding=12)
+        section.pack(fill="x", padx=12, pady=12, anchor="n")
+        section.columnconfigure(1, weight=1)
+
+        self.tg_enabled = tk.BooleanVar(value=False)
+        ttk.Checkbutton(section, text="Enable Telegram notifications", variable=self.tg_enabled).grid(
+            row=0, column=0, columnspan=3, sticky="w"
+        )
+
+        self.tg_token = tk.StringVar(value="")
+        self.tg_show_token = tk.BooleanVar(value=False)
+        ttk.Label(section, text="Bot token:").grid(row=1, column=0, sticky="w", pady=(10, 0))
+        self._token_entry = ttk.Entry(section, textvariable=self.tg_token, show="•", width=52)
+        self._token_entry.grid(row=1, column=1, sticky="ew", padx=6, pady=(10, 0))
+        ttk.Checkbutton(section, text="Show", variable=self.tg_show_token, command=self._toggle_token_visibility).grid(
+            row=1, column=2, sticky="w", pady=(10, 0)
+        )
+
+        self.tg_chat_id = tk.StringVar(value="")
+        ttk.Label(section, text="Chat ID:").grid(row=2, column=0, sticky="w", pady=(6, 0))
+        ttk.Entry(section, textvariable=self.tg_chat_id, width=52).grid(row=2, column=1, sticky="ew", padx=6, pady=(6, 0))
+
+        ttk.Label(
+            section,
+            text="Get the token from @BotFather. Get the chat ID from getUpdates or @get_id_bot.",
+            foreground="#777777",
+        ).grid(row=3, column=0, columnspan=3, sticky="w", pady=(10, 0))
+
+        buttons = ttk.Frame(section)
+        buttons.grid(row=4, column=0, columnspan=3, sticky="e", pady=(12, 0))
+        ttk.Button(buttons, text="Reload from .env", command=self._load_telegram_settings).pack(side="left")
+        ttk.Button(buttons, text="Save to .env", command=self._save_telegram_settings).pack(side="left", padx=(6, 0))
+
+        self.settings_status = tk.StringVar(value="")
+        ttk.Label(parent, textvariable=self.settings_status, foreground="#555555").pack(anchor="w", padx=12)
+
+        self._load_telegram_settings()
+
+    def _toggle_token_visibility(self) -> None:
+        self._token_entry.configure(show="" if self.tg_show_token.get() else "•")
+
+    def _load_telegram_settings(self) -> None:
+        values = read_env_values(self.env_file)
+        self.tg_enabled.set(is_truthy(values.get("ENABLE_TELEGRAM")))
+        self.tg_token.set(values.get("TELEGRAM_BOT_TOKEN", ""))
+        self.tg_chat_id.set(values.get("TELEGRAM_CHAT_ID", ""))
+        self.settings_status.set(f"Loaded from {self.env_file}")
+
+    def _save_telegram_settings(self) -> None:
+        enabled = self.tg_enabled.get()
+        try:
+            token, chat_id = validate_telegram_settings(enabled, self.tg_token.get(), self.tg_chat_id.get())
+        except ValueError as exc:
+            messagebox.showwarning("Invalid Telegram settings", str(exc), parent=self.root)
+            return
+
+        updates = {
+            "ENABLE_TELEGRAM": "true" if enabled else "false",
+            "TELEGRAM_BOT_TOKEN": token,
+            "TELEGRAM_CHAT_ID": chat_id,
+        }
+        try:
+            write_env_values(self.env_file, updates)
+        except (OSError, ValueError) as exc:
+            messagebox.showerror("Could not save settings", str(exc), parent=self.root)
+            return
+        # Never log the token itself; the status line only names the file.
+        logger.info("Telegram settings saved to %s (enabled=%s)", self.env_file, enabled)
+        self.settings_status.set(f"Saved to {self.env_file}. Restart the app to apply the changes.")
 
     # --------------------------------------------------------------- gallery
     def _on_tab_changed(self, _event: Any) -> None:
