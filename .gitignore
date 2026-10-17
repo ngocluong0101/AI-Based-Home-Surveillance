@@ -58,3 +58,6 @@ data/videos/*
 # Personal files: CV and interview prep (keep local, never push)
 myCV/
 interview/
+
+# Claude project instructions (keep local, never push)
+CLAUDE.md
