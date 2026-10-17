@@ -1,7 +1,7 @@
 """Read and update the local `.env` file without losing its comments or unrelated keys.
 
-Used by the GUI settings panel. `src/config` still reads `.env` once at startup, so
-values written here take effect the next time the application starts.
+`src/config` still reads `.env` once at startup, so values written here take effect
+the next time the application starts.
 """
 
 from __future__ import annotations

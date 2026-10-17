@@ -64,9 +64,9 @@ def play_video_source(
     running on a server/NAS with no screen); quitting then relies on the
     source ending (local file) or Ctrl+C / SIGTERM (webcam/RTSP).
 
-    `stop_event` and `on_frame` let another component (the Tkinter GUI) drive
-    the loop from a worker thread: the loop exits cleanly once `stop_event` is
-    set, and `on_frame` receives every processed frame (after the FPS overlay).
+    `stop_event` and `on_frame` let another component drive the loop from a
+    worker thread: the loop exits cleanly once `stop_event` is set, and
+    `on_frame` receives every processed frame (after the FPS overlay).
     """
     def stopped() -> bool:
         return stop_event is not None and stop_event.is_set()

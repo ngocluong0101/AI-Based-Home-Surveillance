@@ -2,7 +2,7 @@
 
 Hệ thống giám sát nhà thông minh dùng AI. Ứng dụng đọc video từ file MP4, webcam hoặc camera RTSP/IP, dùng YOLOv8
 để phát hiện người (kèm ByteTrack để theo dõi từng người). Khi có người mới xuất hiện, ứng dụng lưu snapshot và
-gửi cảnh báo qua Telegram. Có hai cách chạy: dòng lệnh (CLI) và giao diện desktop (GUI).
+gửi cảnh báo qua Telegram. Chạy bằng dòng lệnh (CLI).
 
 ## Hướng dẫn cài đặt
 
@@ -19,8 +19,6 @@ pip install -r requirements.txt
 ```bash
 cp .env.example .env
 ```
-
-5. Trên Debian/Ubuntu, nếu muốn dùng GUI: `sudo apt install python3-tk`. Trên Windows và macOS, Tkinter đã có sẵn cùng Python.
 
 Lần chạy đầu tiên, Ultralytics sẽ tự tải model `yolov8n.pt`, nên cần có mạng.
 
@@ -80,46 +78,6 @@ Không truyền `--source`: ứng dụng dùng `RTSP_URL` trong `.env` nếu có
 
 Nhấn `q` trong cửa sổ video để thoát. Trong khi chạy, terminal hiển thị thiết bị đang dùng, FPS trên video, và các sự kiện `PERSON_DETECTED`.
 
-## Giao diện desktop (GUI)
-
-```bash
-python gui.py                          # mở cửa sổ
-python gui.py --source 0 --track       # điền sẵn nguồn và bật tracking
-python gui.py --conf-threshold 0.6     # điền sẵn ngưỡng confidence
-```
-
-`gui.py` là điểm vào dành riêng cho GUI, tương đương `python main.py --gui`. Các tham số khác được truyền nguyên vẹn.
-Không dùng `--gui` cùng `--headless`.
-
-Các nhãn, thông báo và hộp thoại trong cửa sổ hiển thị bằng tiếng Anh. Cửa sổ có ba tab:
-
-- **Thanh điều khiển (phía trên)**
-  - **Source**: chọn `Webcam` (nhập chỉ số, mặc định `0`), `File video` (nút "Browse…" để chọn file) hoặc `RTSP / IP camera` (nhập URL). Nếu đã đặt `RTSP_URL` trong `.env` thì URL được điền sẵn.
-  - **Enable tracking (ByteTrack)**: bật để mỗi người có một ID và để có sự kiện `PERSON_DETECTED`. Tắt thì chỉ phát hiện người.
-  - **Confidence**: thanh trượt từ 0.10 đến 0.95. Đổi được ngay khi đang chạy.
-  - **Start / Stop**: khi đang chạy, Source và tracking bị khóa. Muốn đổi thì nhấn Stop trước. Lần đầu nhấn Start, thanh trạng thái hiện "Loading YOLO model…", cửa sổ vẫn thao tác được.
-
-- **Tab Live**
-  - Khung video ở giữa, có khung và ID cho từng người.
-  - Bảng "PERSON_DETECTED events" bên phải: mỗi lần có người mới xuất hiện sẽ thêm một dòng gồm giờ (Time), ID (Person), confidence (Conf) và tên file snapshot (Snapshot). Dòng mới nhất nằm trên cùng, tối đa 200 dòng. Nút "Clear list" xóa bảng. Bảng vẫn giữ nội dung sau khi Stop. Chỉ có sự kiện khi bật tracking.
-
-- **Tab Snapshots**
-  - Danh sách ảnh trong `SNAPSHOT_DIR` (mặc định `data/snapshots/`), mới nhất ở trên, kèm thời gian lưu và dung lượng.
-  - Chọn một dòng để xem ảnh lớn ngay trong cửa sổ. Ảnh được co vừa khung xem, không mở cửa sổ riêng.
-  - Nút "Refresh" quét lại thư mục. Tab cũng tự quét khi được mở.
-  - Nếu snapshot đã bị dọn tự động, ứng dụng hiện thông báo và làm mới danh sách.
-
-- **Tab Settings**
-  - Bật/tắt Telegram, nhập `TELEGRAM_BOT_TOKEN` và `TELEGRAM_CHAT_ID` ngay trong app, không cần sửa `.env` bằng tay.
-  - Token được che mặc định. Tick "Show" để xem.
-  - "Save to .env" ghi giá trị vào `.env` và giữ nguyên các dòng và comment khác. "Reload from .env" đọc lại từ file.
-  - Khi bật Telegram, phải có đủ token và chat ID.
-  - **Lưu ý:** thay đổi chỉ có hiệu lực sau khi khởi động lại app. File `.env` được ghi với quyền `0600` vì chứa token.
-
-- **Thanh trạng thái (dưới cùng)**: hiển thị `Ready`, `Loading YOLO model…`, `Running (tracking) — ...`, `Stopping…`, `Stopped`, `Video finished` hoặc `Error`.
-
-Lỗi khi mở nguồn hoặc nạp model sẽ hiện thành hộp thoại, không làm thoát ứng dụng.
-
 ## Logic sự kiện PERSON_DETECTED
 
 - Mỗi `track_id` chỉ tạo một sự kiện trong một lần xuất hiện.
@@ -137,8 +95,6 @@ Lỗi khi mở nguồn hoặc nạp model sẽ hiện thành hộp thoại, khô
    TELEGRAM_BOT_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
    TELEGRAM_CHAT_ID=987654321
    ```
-
-   Hoặc điền trong tab Settings của GUI rồi khởi động lại app.
 
 Mỗi lần có sự kiện mới, ứng dụng gửi một ảnh kèm chú thích đến chat đã cấu hình. Nếu gửi lỗi, lỗi được ghi log và video vẫn tiếp tục chạy.
 
@@ -178,7 +134,6 @@ Bộ test gồm:
 
 - `tests/test_person_detected_event_manager.py`: logic chống trùng lặp sự kiện `PERSON_DETECTED`.
 - `tests/test_player.py`: vòng lặp video (`stop_event`, `on_frame`).
-- `tests/test_gui_helpers.py`, `tests/test_gui_worker.py`: logic của GUI (kiểm tra nguồn, chuyển frame, bảng sự kiện, liệt kê snapshot, thread nền).
 - `tests/test_person_tracker_events.py`: callback sự kiện của `PersonTracker`, dùng detector giả nên không nạp YOLO.
 - `tests/test_env_file.py`: đọc và ghi `.env`, chỉ dùng file tạm.
 

@@ -99,7 +99,7 @@ class PersonTracker:
                         except Exception as exc:
                             logger.error("Failed to save snapshot %s: %s", save_path, exc, exc_info=True)
 
-            # Notify listeners (the GUI event panel) before the slower network call below.
+            # Notify listeners before the slower network call below.
             if self.event_callback is not None:
                 for event in emitted_events:
                     try:
