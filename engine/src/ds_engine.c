@@ -1,10 +1,10 @@
 /*
  * ds_engine.c - DeepStream engine: N video sources in one batched pipeline.
  *
- * This is the STARTING SKELETON (ROADMAP Phase 1.0/1.1). Already here: CLI parsing
- * (--camera ID=URI), the SourceCtx[N] table, bus handling (ERROR/WARNING/EOS) and exit codes.
- * Not here yet: building the pipeline (build_pipeline) and a real pad probe. Things still to do
- * are marked TODO(roadmap item).
+ * ROADMAP Phase 1.1: CLI parsing (--camera ID=URI, --cameras-file), the SourceCtx[N] table,
+ * the pipeline N sources -> nvstreammux -> nvinfer -> fakesink, bus handling (ERROR/WARNING/EOS),
+ * exit codes, and a probe that counts frames/objects per source_id. Things still to do are
+ * marked TODO(roadmap item).
  *
  * Conventions (see CLAUDE.md / ROADMAP.md):
  *  - All per-source state lives in SourceCtx[N]; no single global per-source variables.
@@ -13,20 +13,33 @@
  *  - The DeepStream part is a single file; split it only when the repo owner asks for it.
  */
 #include <glib.h>
+#include <glib/gstdio.h>
 #include <gst/gst.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #include "gstnvdsmeta.h"
 
 #define EXIT_BAD_ARGS 2
-#define EXIT_NOT_IMPLEMENTED 3
+#define EXIT_BUILD_FAILED 3
 
-/* State of one source. source_id = declaration order of --camera. */
+/* nvstreammux output size and how long it waits to fill a batch (microseconds). */
+#define MUXER_WIDTH 1920
+#define MUXER_HEIGHT 1080
+#define MUXER_BATCH_TIMEOUT_USEC 40000
+
+/* State of one source. source_id = declaration order of --camera, then of --cameras-file. */
 typedef struct {
     guint source_id;
     gint camera_id;
     gchar *uri;
+    GstElement *bin;     /* nvurisrcbin, owned by the pipeline */
+    GstPad *mux_sinkpad; /* request pad "sink_<source_id>" of nvstreammux; we hold one ref */
+    /* Written by the streaming thread (probe), read by the main thread after the pipeline
+     * stopped, so no lock is needed. */
+    guint64 frame_count;
+    guint64 object_count;
     /* TODO(2.1): this source's EventManager.
      * TODO(3.6): fps, last-frame time, state (RUNNING / RECONNECTING). */
 } SourceCtx;
@@ -40,14 +53,18 @@ typedef struct {
 } AppCtx;
 
 static gchar **opt_cameras = NULL;
+static gchar *opt_cameras_file = NULL;
 static gchar *opt_config = NULL;
 
 static GOptionEntry option_entries[] = {
     { "camera", 'c', 0, G_OPTION_ARG_STRING_ARRAY, &opt_cameras,
       "Video source as ID=URI, repeat for each camera "
       "(e.g. --camera 1=file:///a.mp4 --camera 2=rtsp://...)", "ID=URI" },
+    { "cameras-file", 0, 0, G_OPTION_ARG_FILENAME, &opt_cameras_file,
+      "File (mode 600) with sources whose URI holds a password, so it stays out of argv. "
+      "One group per camera: [camera.<ID>] with uri=...", "FILE" },
     { "config", 0, 0, G_OPTION_ARG_FILENAME, &opt_config,
-      "nvinfer config file (TODO 1.2)", "FILE" },
+      "nvinfer config file (required)", "FILE" },
     { NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, NULL },
 };
 
@@ -71,19 +88,65 @@ static gboolean parse_camera_arg(const gchar *arg, gint *camera_id, gchar **uri)
     return TRUE;
 }
 
-/* Build SourceCtx[N] from the --camera options. Returns FALSE (and prints why) on error. */
-static gboolean init_sources(AppCtx *app)
+/*
+ * Append "ID=URI" specs read from a key file to `specs`. The file holds credentials, so it must
+ * not be readable by group/others. Error messages never include the URI.
+ */
+static gboolean load_cameras_file(const gchar *path, GPtrArray *specs)
 {
-    app->num_sources = g_strv_length(opt_cameras);
+    GStatBuf st;
+    if (g_stat(path, &st) != 0) {
+        g_printerr("Cannot read cameras file '%s'\n", path);
+        return FALSE;
+    }
+    if ((st.st_mode & (S_IRWXG | S_IRWXO)) != 0) {
+        g_printerr("Cameras file '%s' must not be accessible by group/others (chmod 600)\n", path);
+        return FALSE;
+    }
+
+    GKeyFile *kf = g_key_file_new();
+    GError *err = NULL;
+    gboolean ok = TRUE;
+    if (!g_key_file_load_from_file(kf, path, G_KEY_FILE_NONE, &err)) {
+        g_printerr("Cameras file '%s': %s\n", path, err->message);
+        g_error_free(err);
+        g_key_file_free(kf);
+        return FALSE;
+    }
+
+    gchar **groups = g_key_file_get_groups(kf, NULL);
+    for (gchar **g = groups; *g != NULL; g++) {
+        if (!g_str_has_prefix(*g, "camera.")) {
+            g_printerr("Cameras file: ignoring unknown group '%s'\n", *g);
+            continue;
+        }
+        gchar *uri = g_key_file_get_string(kf, *g, "uri", NULL);
+        if (uri == NULL || uri[0] == '\0') {
+            g_printerr("Cameras file: group '%s' has no uri=\n", *g);
+            ok = FALSE;
+        } else {
+            g_ptr_array_add(specs, g_strdup_printf("%s=%s", *g + strlen("camera."), uri));
+        }
+        g_free(uri);
+    }
+    g_strfreev(groups);
+    g_key_file_free(kf);
+    return ok;
+}
+
+/* Build SourceCtx[N] from the "ID=URI" specs. Returns FALSE (and prints why) on error. */
+static gboolean init_sources(AppCtx *app, const GPtrArray *specs)
+{
+    app->num_sources = specs->len;
     app->sources = g_new0(SourceCtx, app->num_sources);
 
     for (guint i = 0; i < app->num_sources; i++) {
         SourceCtx *src = &app->sources[i];
         src->source_id = i;
 
-        if (!parse_camera_arg(opt_cameras[i], &src->camera_id, &src->uri)) {
-            g_printerr("--camera '%s' has a bad format, expected ID=URI with ID an integer >= 0\n",
-                       opt_cameras[i]);
+        /* Do not echo the spec: it may hold a password. */
+        if (!parse_camera_arg(g_ptr_array_index(specs, i), &src->camera_id, &src->uri)) {
+            g_printerr("Source #%u has a bad format, expected ID=URI with ID an integer >= 0\n", i);
             return FALSE;
         }
         for (guint j = 0; j < i; j++) {
@@ -98,8 +161,11 @@ static gboolean init_sources(AppCtx *app)
 
 static void free_sources(AppCtx *app)
 {
-    for (guint i = 0; i < app->num_sources; i++)
+    for (guint i = 0; i < app->num_sources; i++) {
         g_free(app->sources[i].uri);
+        if (app->sources[i].mux_sinkpad != NULL)
+            gst_object_unref(app->sources[i].mux_sinkpad);
+    }
     g_free(app->sources);
     app->sources = NULL;
     app->num_sources = 0;
@@ -116,6 +182,15 @@ static void print_sources(const AppCtx *app)
     }
 }
 
+static void print_stats(const AppCtx *app)
+{
+    for (guint i = 0; i < app->num_sources; i++) {
+        const SourceCtx *src = &app->sources[i];
+        g_print("source_id=%u camera_id=%d frames=%" G_GUINT64_FORMAT " objects=%" G_GUINT64_FORMAT "\n",
+                src->source_id, src->camera_id, src->frame_count, src->object_count);
+    }
+}
+
 /* Bus: ERROR -> exit_code=1 and stop; WARNING -> log; EOS -> stop (exit 0). */
 static gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data)
 {
@@ -124,6 +199,8 @@ static gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data)
 
     switch (GST_MESSAGE_TYPE(msg)) {
     case GST_MESSAGE_EOS:
+        /* The pipeline posts EOS only after nvstreammux saw EOS on every sink pad, i.e. when
+         * ALL sources finished. */
         g_print("EOS\n");
         /* TODO(2.7): an error/EOS of ONE source must not stop the whole pipeline while other
          * sources are still running; for now only the EOS of the whole pipeline is handled. */
@@ -158,41 +235,150 @@ static gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data)
 }
 
 /*
- * Pad probe: reads NvDsBatchMeta -> NvDsFrameMeta -> NvDsObjectMeta.
- * To be attached on the src pad of nvtracker (TODO 1.5). Not attached yet, hence marked unused.
+ * Pad probe: reads NvDsBatchMeta -> NvDsFrameMeta -> NvDsObjectMeta. For now it only counts
+ * frames and objects per source_id, which shows that each source keeps its own source_id inside
+ * one batch. Attached on the src pad of nvinfer; it moves to nvtracker (src pad) in 1.3/1.5.
  */
-static G_GNUC_UNUSED GstPadProbeReturn detection_probe(GstPad *pad, GstPadProbeInfo *info,
-                                                       gpointer user_data)
+static GstPadProbeReturn detection_probe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
 {
     (void)pad;
-    (void)user_data;
+    AppCtx *app = (AppCtx *)user_data;
 
     GstBuffer *buf = GST_PAD_PROBE_INFO_BUFFER(info);
     NvDsBatchMeta *batch_meta = (buf != NULL) ? gst_buffer_get_nvds_batch_meta(buf) : NULL;
     if (batch_meta == NULL)
         return GST_PAD_PROBE_OK;
 
-    /* TODO(1.4/1.5): walk batch_meta->frame_meta_list; for each frame read source_id and buf_pts;
-     * walk obj_meta_list, skip UNTRACKED_OBJECT_ID, keep only the person class; copy the values
-     * into a Detection (own struct) and feed it to EventManager[source_id]. */
+    for (NvDsMetaList *l_frame = batch_meta->frame_meta_list; l_frame != NULL;
+         l_frame = l_frame->next) {
+        NvDsFrameMeta *frame_meta = (NvDsFrameMeta *)l_frame->data;
+        if (frame_meta->source_id >= app->num_sources)
+            continue;
+        SourceCtx *src = &app->sources[frame_meta->source_id];
+
+        src->frame_count++;
+        for (NvDsMetaList *l_obj = frame_meta->obj_meta_list; l_obj != NULL; l_obj = l_obj->next)
+            src->object_count++;
+        /* TODO(1.4/1.5): read buf_pts and, per object, object_id (skip UNTRACKED_OBJECT_ID),
+         * class_id (keep only person), confidence and rect_params; copy the values into a
+         * Detection (own struct) and feed it to EventManager[source_id]. */
+    }
     return GST_PAD_PROBE_OK;
 }
 
+/* Create an element, check it, and add it to the bin (the bin takes ownership). */
+static GstElement *make_element(GstElement *pipeline, const gchar *factory, const gchar *name)
+{
+    GstElement *elem = gst_element_factory_make(factory, name);
+    if (elem == NULL) {
+        g_printerr("Could not create element '%s' (%s)\n", name, factory);
+        return NULL;
+    }
+    if (!gst_bin_add(GST_BIN(pipeline), elem)) {
+        g_printerr("Could not add element '%s' to the pipeline\n", name);
+        gst_object_unref(elem);
+        return NULL;
+    }
+    return elem;
+}
+
+/* nvurisrcbin creates its video pad after it knows the stream: link it to the muxer pad that
+ * was requested for this source. Audio (and any other non-video pad) is ignored. */
+static void on_source_pad_added(GstElement *bin, GstPad *new_pad, gpointer user_data)
+{
+    SourceCtx *src = (SourceCtx *)user_data;
+
+    GstCaps *caps = gst_pad_get_current_caps(new_pad);
+    if (caps == NULL)
+        caps = gst_pad_query_caps(new_pad, NULL);
+    const gchar *media = gst_structure_get_name(gst_caps_get_structure(caps, 0));
+    gboolean is_video = (media != NULL && g_str_has_prefix(media, "video"));
+    gst_caps_unref(caps);
+    if (!is_video)
+        return;
+
+    if (gst_pad_link(new_pad, src->mux_sinkpad) != GST_PAD_LINK_OK)
+        GST_ELEMENT_ERROR(bin, CORE, PAD, (NULL),
+                          ("Could not link source_id=%u to nvstreammux", src->source_id));
+}
+
 /*
- * Build the pipeline N sources -> nvstreammux -> nvinfer -> fakesink. Returns NULL when not
- * implemented yet or on error.
- *
- * TODO(1.1), do it with N = 1, then 2, then 4 on the SAME code path:
- *   1. gst_pipeline_new; create nvstreammux, set batch-size = app->num_sources, width/height,
- *      live-source.
- *   2. For each SourceCtx: create the source (nvurisrcbin or uridecodebin), request a "sink_%u"
- *      pad from nvstreammux with %u = source_id, link the source pad to it. Ignore audio tracks.
- *   3. nvstreammux -> nvinfer (config-file-path = opt_config, batch-size = N) -> fakesink.
- *   4. Check that every gst_element_factory_make != NULL; keep unref/free balanced on errors.
+ * Build the pipeline N sources -> nvstreammux -> nvinfer -> fakesink, the same code path for any
+ * N >= 1. batch-size of nvstreammux and nvinfer = N. Returns NULL (after printing why) on error.
  */
 static GstElement *build_pipeline(AppCtx *app)
 {
-    (void)app;
+    GstElement *pipeline = gst_pipeline_new("ds-engine");
+    if (pipeline == NULL) {
+        g_printerr("Could not create the pipeline\n");
+        return NULL;
+    }
+
+    GstElement *streammux = make_element(pipeline, "nvstreammux", "stream-muxer");
+    GstElement *pgie = make_element(pipeline, "nvinfer", "primary-infer");
+    GstElement *sink = make_element(pipeline, "fakesink", "sink");
+    if (streammux == NULL || pgie == NULL || sink == NULL)
+        goto fail;
+
+    gboolean live = FALSE;
+    for (guint i = 0; i < app->num_sources; i++) {
+        gchar *scheme = g_uri_parse_scheme(app->sources[i].uri);
+        if (scheme != NULL && g_ascii_strcasecmp(scheme, "rtsp") == 0)
+            live = TRUE;
+        g_free(scheme);
+    }
+    g_object_set(streammux, "batch-size", app->num_sources, "width", MUXER_WIDTH, "height",
+                 MUXER_HEIGHT, "batched-push-timeout", MUXER_BATCH_TIMEOUT_USEC, "live-source",
+                 live, NULL);
+
+    /* batch-size after config-file-path, so it overrides any batch-size in the config. */
+    g_object_set(pgie, "config-file-path", opt_config, "batch-size", app->num_sources, NULL);
+    /* sync=FALSE: files run as fast as the GPU allows. The event logic uses the stream PTS, not
+     * the wall clock, so results do not depend on this. */
+    g_object_set(sink, "sync", FALSE, NULL);
+
+    for (guint i = 0; i < app->num_sources; i++) {
+        SourceCtx *src = &app->sources[i];
+
+        gchar *bin_name = g_strdup_printf("source-%u", src->source_id);
+        src->bin = make_element(pipeline, "nvurisrcbin", bin_name);
+        g_free(bin_name);
+        if (src->bin == NULL)
+            goto fail;
+        g_object_set(src->bin, "uri", src->uri, NULL);
+
+        /* Request "sink_<source_id>" so that source_id == the muxer pad index == the
+         * frame_meta->source_id seen in the probe. */
+        gchar *pad_name = g_strdup_printf("sink_%u", src->source_id);
+        src->mux_sinkpad = gst_element_request_pad_simple(streammux, pad_name);
+        if (src->mux_sinkpad == NULL)
+            g_printerr("Could not request pad '%s' from nvstreammux\n", pad_name);
+        g_free(pad_name);
+        if (src->mux_sinkpad == NULL)
+            goto fail;
+
+        g_signal_connect(src->bin, "pad-added", G_CALLBACK(on_source_pad_added), src);
+    }
+
+    if (!gst_element_link_many(streammux, pgie, sink, NULL)) {
+        g_printerr("Could not link nvstreammux -> nvinfer -> fakesink\n");
+        goto fail;
+    }
+
+    GstPad *pgie_src = gst_element_get_static_pad(pgie, "src");
+    if (pgie_src == NULL) {
+        g_printerr("Could not get the src pad of nvinfer\n");
+        goto fail;
+    }
+    gst_pad_add_probe(pgie_src, GST_PAD_PROBE_TYPE_BUFFER, detection_probe, app, NULL);
+    gst_object_unref(pgie_src);
+
+    return pipeline;
+
+fail:
+    gst_object_unref(pipeline);
+    for (guint i = 0; i < app->num_sources; i++)
+        app->sources[i].bin = NULL;
     return NULL;
 }
 
@@ -212,16 +398,30 @@ int main(int argc, char *argv[])
     }
     g_option_context_free(ctx);
 
-    if (opt_cameras == NULL || opt_cameras[0] == NULL) {
-        g_printerr("At least one --camera ID=URI is required\n");
+    /* Collect "ID=URI" specs: --camera first (in order), then the cameras file. */
+    GPtrArray *specs = g_ptr_array_new_with_free_func(g_free);
+    for (gchar **c = opt_cameras; c != NULL && *c != NULL; c++)
+        g_ptr_array_add(specs, g_strdup(*c));
+    if (opt_cameras_file != NULL && !load_cameras_file(opt_cameras_file, specs)) {
+        g_ptr_array_free(specs, TRUE);
         return EXIT_BAD_ARGS;
     }
-    /* TODO(1.1): read an RTSP password from a config file (mode 600) or an environment
-     * variable, NOT from argv (it leaks through `ps`). */
+    if (specs->len == 0) {
+        g_printerr("At least one --camera ID=URI (or --cameras-file) is required\n");
+        g_ptr_array_free(specs, TRUE);
+        return EXIT_BAD_ARGS;
+    }
+    if (opt_config == NULL) {
+        g_printerr("--config FILE (nvinfer config) is required\n");
+        g_ptr_array_free(specs, TRUE);
+        return EXIT_BAD_ARGS;
+    }
 
-    if (!init_sources(&app)) {
+    gboolean sources_ok = init_sources(&app, specs);
+    g_ptr_array_free(specs, TRUE);
+    g_strfreev(opt_cameras);
+    if (!sources_ok) {
         free_sources(&app);
-        g_strfreev(opt_cameras);
         return EXIT_BAD_ARGS;
     }
     print_sources(&app);
@@ -229,24 +429,28 @@ int main(int argc, char *argv[])
     app.loop = g_main_loop_new(NULL, FALSE);
     app.pipeline = build_pipeline(&app);
     if (app.pipeline == NULL) {
-        g_printerr("Pipeline not implemented yet (TODO 1.1 in build_pipeline)\n");
-        app.exit_code = EXIT_NOT_IMPLEMENTED;
+        app.exit_code = EXIT_BUILD_FAILED;
     } else {
         GstBus *bus = gst_pipeline_get_bus(GST_PIPELINE(app.pipeline));
         guint bus_watch_id = gst_bus_add_watch(bus, bus_call, &app);
         gst_object_unref(bus);
 
-        gst_element_set_state(app.pipeline, GST_STATE_PLAYING);
-        g_main_loop_run(app.loop);
+        if (gst_element_set_state(app.pipeline, GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
+            g_printerr("Could not set the pipeline to PLAYING\n");
+            app.exit_code = 1;
+        } else {
+            g_main_loop_run(app.loop);
+        }
 
         gst_element_set_state(app.pipeline, GST_STATE_NULL);
         gst_object_unref(app.pipeline);
         g_source_remove(bus_watch_id);
+        print_stats(&app);
     }
 
     g_main_loop_unref(app.loop);
     free_sources(&app);
-    g_strfreev(opt_cameras);
+    g_free(opt_cameras_file);
     g_free(opt_config);
     return app.exit_code;
 }

@@ -1,8 +1,18 @@
 ## Introduction
 
-An AI-powered smart home surveillance system. The application reads video from an MP4 file, a webcam, or an RTSP/IP
-camera, and uses YOLOv8 to detect people (with ByteTrack to follow each person). When a new person appears, it saves a
-snapshot and sends an alert via Telegram. It runs from the command line (CLI).
+An AI-powered smart home surveillance system. The goal is a C engine on NVIDIA DeepStream that reads several video
+sources (MP4 files, RTSP/IP cameras) in one batched pipeline, detects and tracks people with YOLOv8, turns the
+detections into `PERSON_DETECTED` events, and hands them to a backend that stores them and sends Telegram alerts.
+
+Current state of the repository:
+
+- `engine/`: the DeepStream engine in C. The N-source pipeline (`nvstreammux` -> `nvinfer`) runs; YOLOv8, tracking,
+  events and snapshots are not built yet (see [DeepStream engine](#deepstream-engine)).
+- `src/events/`: the Python `PERSON_DETECTED` de-duplication logic. It is the reference specification the C engine
+  will be ported from.
+- `src/notifications/`, `src/snapshot_management.py`, `src/config/`, `src/logging_config.py`: Python building blocks
+  (Telegram notifier, snapshot cleanup, `.env` configuration, logging) for the future backend. No Python program
+  runs a video pipeline any more: the old Ultralytics/OpenCV command line was removed.
 
 ## Installation
 
@@ -20,72 +30,22 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-On the first run, Ultralytics downloads the `yolov8n.pt` model automatically, so a network connection is required.
-
-## Check CUDA
-
-```bash
-python -c "import torch; print(torch.cuda.is_available())"
-```
-
-If the result is `True`, the application uses `cuda:0` for YOLO. Otherwise it falls back to the CPU.
-
-## Prepare a video source
-
-- **Video file**: put an `.mp4` file in `data/videos/`, for example `data/videos/test.mp4`.
-- **Webcam**: the default device is `0`. If the machine has several cameras, use `1`, `2`, ...
-- **RTSP/IP camera**: pass the URL with `--source`, or set `RTSP_URL` in `.env` and run without `--source`.
-
-  ```
-  python main.py --source "rtsp://username:password@192.168.1.100:554/stream"
-  ```
-
-  When the connection drops, the application retries every 5 seconds (`RECONNECT_DELAY`). The log shows the lines `[CAMERA] Connection lost`, `[CAMERA] Reconnecting...` and `[CAMERA] Connected`. If the very first connection fails, the application retries in the same way.
-
-## Run from the command line (CLI)
-
-Run with a video file:
-
-```bash
-python main.py --source data/videos/test.mp4
-```
-
-Run with a webcam, with tracking:
-
-```bash
-python main.py --source 0 --track
-```
-
-Run with an RTSP camera, with tracking:
-
-```bash
-python main.py --source "rtsp://username:password@192.168.1.100:554/stream" --track
-```
-
-Run without opening a video window (for servers/NAS boxes without a display):
-
-```bash
-python main.py --source "rtsp://username:password@192.168.1.100:554/stream" --track --headless
-```
-
-Change the confidence threshold:
-
-```bash
-python main.py --source 0 --conf-threshold 0.5
-```
-
-Without `--source`, the application uses `RTSP_URL` from `.env` if it is set; otherwise it prints the usage help and exits.
-
-Press `q` in the video window to quit. While running, the terminal shows the device in use, the FPS on the video, and the `PERSON_DETECTED` events.
+`ultralytics` stays in `requirements.txt` to export `yolov8n.pt` to ONNX for the engine; `opencv-python` is used by
+`scripts/test_telegram_snapshot.py`.
 
 ## PERSON_DETECTED event logic
 
+`PersonDetectedEventManager` (`src/events/person_detected.py`) is a pure state machine with no I/O:
+
 - Each `track_id` produces one event per appearance.
-- When a `track_id` disappears from the camera for longer than `ABSENCE_TIMEOUT` (10 seconds by default) and then reappears, the system creates a new event.
-- Events are written to the terminal and the log file in the format `[PERSON_DETECTED] ID=3 | confidence=0.91 | time=22:30:15`.
-- For each new event, if `ENABLE_SNAPSHOT=true` the image is saved to `SNAPSHOT_DIR`. If `ENABLE_TELEGRAM=true`, the image is sent with a caption, or only a text message is sent when there is no image.
+- When a `track_id` disappears for longer than `ABSENCE_TIMEOUT` (10 seconds by default) and then reappears, a new
+  event is created.
+- The caller passes the current time in, so the logic can be tested with synthetic timestamps.
 
 ## Telegram alerts
+
+`TelegramNotifier` (`src/notifications/telegram_notifier.py`) calls the Telegram Bot API directly. It is safe to
+create when unconfigured: it disables itself, every send becomes a no-op returning `False`, and it never raises.
 
 1. Create a bot with BotFather and get its token. Never commit the token to git.
 2. Get the chat ID (a user or group ID). You can use a helper bot such as `@get_id_bot`, or look at `getUpdates`.
@@ -96,21 +56,25 @@ Press `q` in the video window to quit. While running, the terminal shows the dev
    TELEGRAM_CHAT_ID=987654321
    ```
 
-For every new event, the application sends one photo with a caption to the configured chat. If sending fails, the error is logged and the video keeps running.
+Try it with a fake snapshot:
+
+```bash
+python scripts/test_telegram_snapshot.py
+```
 
 ## Snapshot storage management
 
-When `ENABLE_SNAPSHOT=true`, the application deletes old snapshots automatically to avoid filling the disk:
+`SnapshotCleaner` (`src/snapshot_management.py`) deletes old snapshots to avoid filling the disk:
 
 - `SNAPSHOT_RETENTION_DAYS` (default 7): keep snapshots newer than this many days and delete older ones.
-- `SNAPSHOT_CLEANUP_INTERVAL` (default 100): scan the directory after every N newly saved snapshots, to avoid scanning too often when there are many events.
+- `cleanup(snapshot_dir)` only looks at files named `PERSON_DETECTED_*.jpg` in the directory it is given
+  (`SNAPSHOT_DIR` in `.env`), so the engine must name its snapshots that way.
 
-Deletion does not block the pipeline. If a deletion fails (for example the file was removed externally), the error is logged and the application keeps running.
+A failed deletion is logged and never raises.
 
 ## Logging
 
-Logs go to the terminal and also to a rotating file (`RotatingFileHandler`), by default `logs/app.log`. This matters when running headless or as a service, because nobody is watching the terminal.
-
+`setup_logging()` (`src/logging_config.py`) logs to the terminal and to a rotating file, by default `logs/app.log`.
 Configure it in `.env`:
 
 ```
@@ -119,8 +83,6 @@ LOG_FILE=logs/app.log    # log file path
 LOG_MAX_BYTES=5242880    # maximum size before rotation (default 5 MB)
 LOG_BACKUP_COUNT=3       # number of old log files to keep
 ```
-
-When run as a service, the application shuts down cleanly on Ctrl+C or `SIGTERM`, so you can use `systemctl stop` or `docker stop` without a hard kill.
 
 ## Run the unit tests
 
@@ -133,25 +95,55 @@ pytest
 The test suite contains:
 
 - `tests/test_person_detected_event_manager.py`: the `PERSON_DETECTED` de-duplication logic.
-- `tests/test_player.py`: the video loop (`stop_event`, `on_frame`).
-- `tests/test_person_tracker_events.py`: the `PersonTracker` event callback, using a fake detector so YOLO is not loaded.
 - `tests/test_env_file.py`: reading and writing `.env`, using temporary files only.
 
-The tests use synthetic videos created by a fixture and need no camera, YOLO model, network or display.
+The tests need no camera, model, network or display.
 
-## DeepStream engine (work in progress)
+## DeepStream engine
 
-The `engine/` directory holds a C engine built on NVIDIA DeepStream, intended to eventually replace the Python
-inference/tracking path with one pipeline that processes several cameras in a single batch. It is currently a
-skeleton: it parses `--camera ID=URI` and handles the GStreamer bus, but the pipeline itself is not built yet, so
-`ds_engine` exits with code 3 ("pipeline not implemented").
+The `engine/` directory holds a C engine built on NVIDIA DeepStream: one process, one pipeline, N cameras
+(`nvstreammux` batches the N sources, so `nvinfer` runs once per batch).
+
+```
+source 0 ─┐
+source 1 ─┼─> nvstreammux (batch-size = N) ─> nvinfer ─> fakesink
+source N ─┘                                    └─ probe: frames/objects per source_id
+```
+
+What works now: the pipeline above for any N >= 1, per-source state keyed by `source_id`, the bus handling
+(ERROR/WARNING/EOS) and exit codes. A probe on the `nvinfer` source pad counts frames and objects per `source_id`.
+What does not exist yet: YOLOv8 (the smoke test uses the sample detector from the DeepStream image), the tracker,
+`PERSON_DETECTED` events, snapshots and the publisher.
 
 Build it inside the DeepStream container (`nvcr.io/nvidia/deepstream:7.1-triton-multiarch`, run with `--gpus all`):
 
 ```bash
 cd engine && make CUDA_VER=12.6
-./build/ds_engine --camera 1=file:///path/to/a.mp4
+./build/ds_engine --config configs/pgie_sample.txt \
+                  --camera 1=file:///path/to/a.mp4 \
+                  --camera 2=file:///path/to/b.mp4
 ```
+
+At the end it prints one line per source, for example `source_id=1 camera_id=2 frames=163 objects=6`. Every run
+spends about a minute building a TensorRT engine for the sample model.
+
+Options:
+
+- `--camera ID=URI`: a source, repeat it for each camera. `ID` is a non-negative integer, `source_id` is the
+  declaration order.
+- `--cameras-file FILE`: sources whose URI contains a password (for example `rtsp://user:pass@host/stream`), so the
+  password stays out of the command line, where `ps` would show it. The file must be mode 600 and has one group per
+  camera:
+
+  ```
+  [camera.3]
+  uri=rtsp://user:pass@192.168.1.100:554/stream
+  ```
+
+- `--config FILE`: the `nvinfer` config file (required).
+
+Exit codes: `0` all sources reached EOS, `1` a pipeline error, `2` bad arguments, `3` the pipeline could not be built.
+The program never prints a full URI, only its scheme.
 
 Run the tests of the pure-C code on the host (no DeepStream or GPU needed; built with AddressSanitizer and UBSan):
 

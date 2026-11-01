@@ -1,0 +1,25 @@
+# nvinfer config for the Phase 1.1 smoke test: the sample detector that ships in the DeepStream
+# image (4 classes: vehicle, two-wheeler, person, road sign), NOT YOLOv8 yet (that is Phase 1.2).
+# Run it with: ds_engine --config configs/pgie_sample.txt --camera ...
+# nvinfer builds a TensorRT engine from the ONNX on every run (about 40-60 s) because it can only
+# save it next to the ONNX, and /opt/... is read-only for the container user. The YOLOv8 config of
+# Phase 1.2 keeps its ONNX inside the repo, so its engine will be cached.
+[property]
+gpu-id=0
+net-scale-factor=0.00392156862745098
+onnx-file=/opt/nvidia/deepstream/deepstream/samples/models/Primary_Detector/resnet18_trafficcamnet_pruned.onnx
+labelfile-path=/opt/nvidia/deepstream/deepstream/samples/models/Primary_Detector/labels.txt
+int8-calib-file=/opt/nvidia/deepstream/deepstream/samples/models/Primary_Detector/cal_trt.bin
+batch-size=1
+process-mode=1
+model-color-format=0
+network-mode=1
+num-detected-classes=4
+interval=0
+gie-unique-id=1
+cluster-mode=2
+
+[class-attrs-all]
+pre-cluster-threshold=0.2
+topk=20
+nms-iou-threshold=0.5
