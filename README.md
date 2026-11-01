@@ -6,8 +6,8 @@ detections into `PERSON_DETECTED` events, and hands them to a backend that store
 
 Current state of the repository:
 
-- `engine/`: the DeepStream engine in C. The N-source pipeline (`nvstreammux` -> `nvinfer`) runs; YOLOv8, tracking,
-  events and snapshots are not built yet (see [DeepStream engine](#deepstream-engine)).
+- `engine/`: the DeepStream engine in C. The N-source pipeline (`nvstreammux` -> `nvinfer` with YOLOv8n) runs;
+  tracking, events and snapshots are not built yet (see [DeepStream engine](#deepstream-engine)).
 - `src/events/`: the Python `PERSON_DETECTED` de-duplication logic. It is the reference specification the C engine
   will be ported from.
 - `src/notifications/`, `src/snapshot_management.py`, `src/config/`, `src/logging_config.py`: Python building blocks
@@ -110,22 +110,35 @@ source 1 ─┼─> nvstreammux (batch-size = N) ─> nvinfer ─> fakesink
 source N ─┘                                    └─ probe: frames/objects per source_id
 ```
 
-What works now: the pipeline above for any N >= 1, per-source state keyed by `source_id`, the bus handling
-(ERROR/WARNING/EOS) and exit codes. A probe on the `nvinfer` source pad counts frames and objects per `source_id`.
-What does not exist yet: YOLOv8 (the smoke test uses the sample detector from the DeepStream image), the tracker,
-`PERSON_DETECTED` events, snapshots and the publisher.
+What works now: the pipeline above for any N >= 1 with YOLOv8n (person only, TensorRT FP16, dynamic batch), per-source
+state keyed by `source_id`, the bus handling (ERROR/WARNING/EOS) and exit codes. A probe on the `nvinfer` source pad
+counts frames and people per `source_id`. What does not exist yet: the tracker, `PERSON_DETECTED` events, snapshots and
+the publisher.
 
-Build it inside the DeepStream container (`nvcr.io/nvidia/deepstream:7.1-triton-multiarch`, run with `--gpus all`):
+Prepare the model once. On the host, export YOLOv8n to ONNX (the file is git-ignored):
 
 ```bash
-cd engine && make CUDA_VER=12.6
-./build/ds_engine --config configs/pgie_sample.txt \
+python engine/tools/export_yolov8_onnx.py      # yolov8n.pt -> engine/models/yolov8n.onnx
+```
+
+Build inside the DeepStream container (`nvcr.io/nvidia/deepstream:7.1-triton-multiarch`, run with `--gpus all`; mount
+`engine/` into it). The second command builds the YOLOv8 bbox parser that `nvinfer` loads:
+
+```bash
+cd engine && make CUDA_VER=12.6 && make -C parser CUDA_VER=12.6
+./build/ds_engine --config configs/pgie_yolov8n.txt \
                   --camera 1=file:///path/to/a.mp4 \
                   --camera 2=file:///path/to/b.mp4
 ```
 
-At the end it prints one line per source, for example `source_id=1 camera_id=2 frames=163 objects=6`. Every run
-spends about a minute building a TensorRT engine for the sample model.
+At the end it prints one line per source, for example `source_id=1 camera_id=2 frames=1442 objects=5322`. The first run
+spends about 2.5 minutes building the TensorRT engine; it is saved next to the ONNX and reused (a run then starts in
+seconds). `configs/pgie_yolov8n.txt` points at the engine for N = 2; for another N, `nvinfer` builds a new engine
+(`yolov8n.onnx_b<N>_gpu0_fp16.engine`) on every run until you change the `model-engine-file` line. `configs/pgie_sample.txt`
+is a smoke-test config for the sample detector shipped in the DeepStream image.
+
+On a 1442-frame test video the boxes match Ultralytics (IoU 0.95-0.99), but the engine finds about 10% fewer people at
+the same 0.25 threshold, mostly low-confidence boxes near the threshold.
 
 Options:
 
@@ -140,7 +153,7 @@ Options:
   uri=rtsp://user:pass@192.168.1.100:554/stream
   ```
 
-- `--config FILE`: the `nvinfer` config file (required).
+- `--config FILE`: the `nvinfer` config file (required), for example `configs/pgie_yolov8n.txt`.
 
 Exit codes: `0` all sources reached EOS, `1` a pipeline error, `2` bad arguments, `3` the pipeline could not be built.
 The program never prints a full URI, only its scheme.

@@ -1,0 +1,37 @@
+# nvinfer config for YOLOv8n (person only), ROADMAP Phase 1.2.
+# Run it with: ds_engine --config configs/pgie_yolov8n.txt --camera ...
+# Needs engine/models/yolov8n.onnx (python engine/tools/export_yolov8_onnx.py) and
+# engine/build/libnvds_yolov8_parser.so (make -C engine/parser CUDA_VER=12.6).
+# Relative paths below are resolved from the directory of this file. batch-size is overridden by
+# ds_engine with the number of sources. nvinfer builds the FP16 TensorRT engine on the first run and
+# saves it as engine/models/yolov8n.onnx_b<N>_gpu0_fp16.engine, but it only reuses an engine that
+# model-engine-file points to, so that line below names the N = 2 engine.
+[property]
+gpu-id=0
+# RGB, pixels scaled to 0..1, letterboxed to 640x640 like Ultralytics does
+net-scale-factor=0.00392156862745098
+model-color-format=0
+maintain-aspect-ratio=1
+symmetric-padding=1
+onnx-file=../models/yolov8n.onnx
+model-engine-file=../models/yolov8n.onnx_b2_gpu0_fp16.engine
+labelfile-path=labels.txt
+# the exported ONNX has dynamic height/width, so fix the input here
+infer-dims=3;640;640
+# 2 = FP16
+network-mode=2
+process-mode=1
+network-type=0
+interval=0
+gie-unique-id=1
+# the parser reports only the person class
+num-detected-classes=1
+# 2 = NMS, YOLOv8 has no NMS in the model
+cluster-mode=2
+parse-bbox-func-name=NvDsInferParseYoloV8
+custom-lib-path=../build/libnvds_yolov8_parser.so
+
+[class-attrs-all]
+pre-cluster-threshold=0.25
+nms-iou-threshold=0.45
+topk=300
