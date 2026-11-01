@@ -2,6 +2,8 @@
 #   make CUDA_VER=12.6        -> build/ds_engine
 # Tests for the pure-C code (no DeepStream/GPU needed), run on the host with gcc:
 #   make test-core            -> build and run build/test_core under ASan/UBSan
+# Fake RTSP camera for testing reconnect (inside the container):
+#   make rtsp-test-server     -> build/rtsp_test_server
 
 CUDA_VER ?= 12.6
 DS_DIR   ?= /opt/nvidia/deepstream/deepstream
@@ -39,7 +41,15 @@ TEST_CFLAGS := -std=gnu11 -g -O1 $(WARN) -fsanitize=address,undefined \
                -fno-omit-frame-pointer -Iinclude -Isrc/core -Itests \
                -DVECTOR_DIR='"$(VECTOR_DIR)"'
 
-.PHONY: all test-core clean
+.DEFAULT_GOAL := all
+.PHONY: all test-core rtsp-test-server clean
+
+# Test tool, not part of the engine: a fake RTSP camera (see tools/rtsp_test_server.c).
+rtsp-test-server: $(BUILD)/rtsp_test_server
+
+$(BUILD)/rtsp_test_server: tools/rtsp_test_server.c Makefile
+	@mkdir -p $(BUILD)
+	$(CC) -std=gnu11 -O2 $(WARN) -o $@ $< $(shell pkg-config --cflags --libs gstreamer-rtsp-server-1.0 gstreamer-1.0)
 
 all: $(APP)
 

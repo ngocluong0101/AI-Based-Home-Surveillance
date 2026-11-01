@@ -15,9 +15,11 @@
  *  - The DeepStream part is a single file; split it only when the repo owner asks for it.
  */
 #include <curl/curl.h>
+#include <glib-unix.h>
 #include <glib.h>
 #include <glib/gstdio.h>
 #include <gst/gst.h>
+#include <signal.h>
 #include <stdatomic.h>
 #include <stdio.h>
 #include <string.h>
@@ -35,10 +37,12 @@
 #define EXIT_BAD_ARGS 2
 #define EXIT_BUILD_FAILED 3
 
-/* nvstreammux output size and how long it waits to fill a batch (microseconds). */
+/* nvstreammux output size and how long it waits to fill a batch (microseconds). Shorter than a frame
+ * interval at 30 fps (33 ms): with a longer wait, a camera that is down would limit the others to
+ * one frame per wait (25 fps at 40 ms) while the muxer waits for its frames. */
 #define MUXER_WIDTH 1920
 #define MUXER_HEIGHT 1080
-#define MUXER_BATCH_TIMEOUT_USEC 40000
+#define MUXER_BATCH_TIMEOUT_USEC 20000
 
 /* NvDCF tracker (low-level library of nvtracker) and the frame size it works at; both must be
  * multiples of 32. The algorithm itself is chosen by the --tracker-config YAML file. */
@@ -75,6 +79,10 @@
  * is back. */
 #define WORKER_IDLE_US G_USEC_PER_SEC
 
+/* How often the main loop looks for RTSP sources that stopped delivering frames. */
+#define WATCHDOG_INTERVAL_S 1
+#define RTSP_TIMEOUT_DEFAULT_S 10
+
 /* GPU used for the JPEG encoder of the snapshots (nvinfer and the muxer use the default, 0). */
 #define GPU_ID 0
 #define SNAPSHOT_QUALITY_DEFAULT 85
@@ -91,11 +99,26 @@
 #define TILER_WIDTH 1920
 #define TILER_HEIGHT 1080
 
+/* Where a source is (ROADMAP 2.7). Only RTSP sources ever leave RUNNING, for RECONNECTING. */
+typedef enum { SOURCE_RUNNING, SOURCE_RECONNECTING } SourceState;
+
+struct AppCtx;
+
 /* State of one source. source_id = declaration order of --camera, then of --cameras-file. */
 typedef struct {
+    struct AppCtx *app;
     guint source_id;
     gint camera_id;
     gchar *uri;
+    gboolean is_rtsp;
+    /* Reconnect (RTSP only). The reconnecting itself is done by nvurisrcbin (rtsp-reconnect-interval);
+     * this is what the engine knows and reports. Everything but last_frame_us and reanchor belongs
+     * to the main thread. */
+    SourceState state;
+    gint64 lost_us;              /* monotonic time the source was declared lost */
+    guint64 reconnects;          /* times the source was lost */
+    _Atomic gint64 last_frame_us;  /* monotonic time of the last frame (probe); start time before the first */
+    _Atomic gboolean reanchor;     /* set when the source is lost: the probe takes a new stream_start_ns (PTS may restart) */
     GstElement *bin;     /* nvurisrcbin, owned by the pipeline */
     GstPad *mux_sinkpad; /* request pad "sink_<source_id>" of nvstreammux; we hold one ref */
     /* Written by the streaming thread (probe). frame_count is atomic because the FPS timer reads
@@ -120,7 +143,7 @@ typedef struct {
     /* TODO(3.6): fps, last-frame time, state (RUNNING / RECONNECTING). */
 } SourceCtx;
 
-typedef struct {
+typedef struct AppCtx {
     GMainLoop *loop;
     GstElement *pipeline;
     SourceCtx *sources;
@@ -167,6 +190,7 @@ static gchar *opt_snapshot_dir = NULL;
 static gint opt_snapshot_quality = SNAPSHOT_QUALITY_DEFAULT;
 static gchar *opt_backend_url = NULL;
 static gchar *opt_spool_file = NULL;
+static gint opt_rtsp_timeout = RTSP_TIMEOUT_DEFAULT_S;
 static gdouble opt_absence_timeout = 10.0;  /* same default as ABSENCE_TIMEOUT in src/config */
 
 static GOptionEntry option_entries[] = {
@@ -181,6 +205,9 @@ static GOptionEntry option_entries[] = {
     { "spool-file", 0, 0, G_OPTION_ARG_FILENAME, &opt_spool_file,
       "JSON-lines file where events wait while the backend cannot be reached; delivered when it "
       "is back, also after a restart of the engine", "FILE" },
+    { "rtsp-timeout", 0, 0, G_OPTION_ARG_INT, &opt_rtsp_timeout,
+      "Seconds without a frame after which an RTSP camera is switched off and on again, 0 = only "
+      "react to errors (default 10)", "SEC" },
     { "absence-timeout", 0, 0, G_OPTION_ARG_DOUBLE, &opt_absence_timeout,
       "Seconds a person must be out of sight before the same track ID raises a new "
       "PERSON_DETECTED event (default 10)", "SEC" },
@@ -276,6 +303,7 @@ static gboolean init_sources(AppCtx *app, const GPtrArray *specs)
 
     for (guint i = 0; i < app->num_sources; i++) {
         SourceCtx *src = &app->sources[i];
+        src->app = app;
         src->source_id = i;
         src->track_frames = g_hash_table_new(g_direct_hash, g_direct_equal);
         event_manager_init(&src->events, opt_absence_timeout);
@@ -285,6 +313,9 @@ static gboolean init_sources(AppCtx *app, const GPtrArray *specs)
             g_printerr("Source #%u has a bad format, expected ID=URI with ID an integer >= 0\n", i);
             return FALSE;
         }
+        gchar *scheme = g_uri_parse_scheme(src->uri);
+        src->is_rtsp = (scheme != NULL && g_ascii_strcasecmp(scheme, "rtsp") == 0);
+        g_free(scheme);
         for (guint j = 0; j < i; j++) {
             if (app->sources[j].camera_id == src->camera_id) {
                 g_printerr("camera_id %d is declared more than once\n", src->camera_id);
@@ -321,6 +352,11 @@ static void print_sources(const AppCtx *app)
     }
 }
 
+static const char *source_state_name(SourceState st)
+{
+    return st == SOURCE_RUNNING ? "RUNNING" : "RECONNECTING";
+}
+
 static void print_stats(const AppCtx *app)
 {
     guint64 total_frames = 0;
@@ -346,6 +382,9 @@ static void print_stats(const AppCtx *app)
                 src->source_id, src->camera_id, (guint64)src->frame_count, src->object_count,
                 src->untracked_count, tracks, short_tracks, src->event_count,
                 seconds > 0.0 ? (double)src->frame_count / seconds : 0.0);
+        if (src->is_rtsp)
+            g_print("source_id=%u camera_id=%d state=%s reconnects=%" G_GUINT64_FORMAT "\n",
+                    src->source_id, src->camera_id, source_state_name(src->state), src->reconnects);
         if (src->event_errors > 0)
             g_printerr("source_id=%u: %" G_GUINT64_FORMAT " frames skipped by the event manager "
                        "(out of memory)\n", src->source_id, src->event_errors);
@@ -370,7 +409,92 @@ static void print_stats(const AppCtx *app)
                 "includes startup)\n", seconds, total_frames, (double)total_frames / seconds);
 }
 
-/* Bus: ERROR -> exit_code=1 and stop; WARNING -> log; EOS -> stop (exit 0). */
+/* The source whose bin contains the element that posted `msg`, or NULL (nvinfer, the muxer...).
+ * `debug` is the debug text of the message, or NULL. A message that is handled late may come from an
+ * element that the bin already took apart (it has no parent then), and only the element path in the
+ * debug text, ".../GstDsNvUriSrcBin:source-<id>/...", still says where it came from. */
+static SourceCtx *source_of_message(AppCtx *app, GstMessage *msg, const gchar *debug)
+{
+    GstObject *obj = GST_MESSAGE_SRC(msg) != NULL ? gst_object_ref(GST_MESSAGE_SRC(msg)) : NULL;
+    while (obj != NULL) {
+        for (guint i = 0; i < app->num_sources; i++) {
+            if (GST_OBJECT(app->sources[i].bin) == obj) {
+                gst_object_unref(obj);
+                return &app->sources[i];
+            }
+        }
+        GstObject *parent = gst_object_get_parent(obj);
+        gst_object_unref(obj);
+        obj = parent;
+    }
+    for (guint i = 0; debug != NULL && i < app->num_sources; i++) {
+        gchar *needle = g_strdup_printf("/GstDsNvUriSrcBin:source-%u/", app->sources[i].source_id);
+        gboolean found = strstr(debug, needle) != NULL;
+        g_free(needle);
+        if (found)
+            return &app->sources[i];
+    }
+    return NULL;
+}
+
+/*
+ * An RTSP source lost its camera: an error on the bus, no frame for --rtsp-timeout seconds, or the
+ * stream ended. The engine only notes it (state RECONNECTING, a log line, a new time anchor for the
+ * events): nvurisrcbin, told to with rtsp-reconnect-interval, restarts its RTSP client by itself
+ * until the camera answers. (Switching the whole bin off and on does not work: it then adds its
+ * "vsrc_0" pad a second time and fails.) Only this source is affected; the others keep running
+ * because nvstreammux, with live-source set, batches whatever frames it has after a timeout.
+ * Called from the main thread.
+ */
+static void rtsp_reconnect(SourceCtx *src, const char *why)
+{
+    if (src->state != SOURCE_RUNNING)
+        return;
+    g_printerr("source_id=%u camera_id=%d: %s, reconnecting\n", src->source_id, src->camera_id, why);
+    src->state = SOURCE_RECONNECTING;
+    src->lost_us = g_get_monotonic_time();
+    src->reconnects++;
+    atomic_store_explicit(&src->reanchor, TRUE, memory_order_relaxed);
+}
+
+/* Timer (main thread): finds RTSP sources that went quiet without any error, and notes when a lost
+ * source delivers frames again. */
+static gboolean watchdog_tick(gpointer data)
+{
+    AppCtx *app = (AppCtx *)data;
+    gint64 now = g_get_monotonic_time();
+
+    for (guint i = 0; i < app->num_sources; i++) {
+        SourceCtx *src = &app->sources[i];
+        if (!src->is_rtsp)
+            continue;
+        gint64 last = atomic_load_explicit(&src->last_frame_us, memory_order_relaxed);
+        if (src->state == SOURCE_RECONNECTING) {
+            if (last > src->lost_us) {
+                src->state = SOURCE_RUNNING;
+                g_printerr("source_id=%u camera_id=%d: reconnected\n", src->source_id,
+                           src->camera_id);
+            }
+        } else if (opt_rtsp_timeout > 0 && now - last > (gint64)opt_rtsp_timeout * G_USEC_PER_SEC) {
+            rtsp_reconnect(src, "no frames");
+        }
+    }
+    return G_SOURCE_CONTINUE;
+}
+
+/* Stop on SIGINT/SIGTERM like on EOS: leave the loop, then the pipeline is stopped in order and the
+ * publisher flushes. (RTSP sources never end by themselves, so this is how the engine is stopped.) */
+static gboolean on_signal(gpointer data)
+{
+    g_print("Stopping\n");
+    g_main_loop_quit(((AppCtx *)data)->loop);
+    return G_SOURCE_CONTINUE;
+}
+
+/* Bus: EOS -> stop (exit 0). ERROR of an RTSP source -> that source reconnects, the rest goes on; of
+ * anything else (a file that cannot be read, inference, tracker, sink) -> exit_code=1 and stop.
+ * (A file source that fails in a pipeline with live sources leaves nvstreammux starving the others,
+ * so it is not tried to keep going; files are for tests, a camera is what disappears.) WARNING -> log. */
 static gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data)
 {
     (void)bus;
@@ -381,8 +505,6 @@ static gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data)
         /* The pipeline posts EOS only after nvstreammux saw EOS on every sink pad, i.e. when
          * ALL sources finished. */
         g_print("EOS\n");
-        /* TODO(2.7): an error/EOS of ONE source must not stop the whole pipeline while other
-         * sources are still running; for now only the EOS of the whole pipeline is handled. */
         g_main_loop_quit(app->loop);
         break;
     case GST_MESSAGE_WARNING: {
@@ -398,13 +520,21 @@ static gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data)
         GError *err = NULL;
         gchar *debug = NULL;
         gst_message_parse_error(msg, &err, &debug);
-        g_printerr("ERROR from %s: %s\n", GST_OBJECT_NAME(msg->src), err->message);
-        if (debug != NULL)
-            g_printerr("  debug: %s\n", debug);
+        SourceCtx *src = source_of_message(app, msg, debug);
+        if (src != NULL && src->is_rtsp) {
+            /* Not the debug text: for a camera it can hold the URL, with its password. */
+            g_printerr("ERROR from source_id=%u camera_id=%d (%s): %s\n", src->source_id,
+                       src->camera_id, GST_OBJECT_NAME(msg->src), err->message);
+            rtsp_reconnect(src, "error");
+        } else {
+            g_printerr("ERROR from %s: %s\n", GST_OBJECT_NAME(msg->src), err->message);
+            if (debug != NULL && src == NULL)
+                g_printerr("  debug: %s\n", debug);
+            app->exit_code = 1;
+            g_main_loop_quit(app->loop);
+        }
         g_error_free(err);
         g_free(debug);
-        app->exit_code = 1;
-        g_main_loop_quit(app->loop);
         break;
     }
     default:
@@ -890,6 +1020,7 @@ static GstPadProbeReturn detection_probe(GstPad *pad, GstPadProbeInfo *info, gpo
         size_t n = extract_person_detections(frame_meta, dets, G_N_ELEMENTS(dets), &total,
                                              &untracked);
         atomic_fetch_add_explicit(&src->frame_count, 1, memory_order_relaxed);
+        atomic_store_explicit(&src->last_frame_us, g_get_monotonic_time(), memory_order_relaxed);
         src->object_count += total;
         src->untracked_count += untracked;
 
@@ -901,8 +1032,9 @@ static GstPadProbeReturn detection_probe(GstPad *pad, GstPadProbeInfo *info, gpo
 
         /* Event clock = stream_start + PTS of the frame, never the wall clock at processing time,
          * so a file read faster than real time behaves like the same stream played live. Called
-         * for every frame, also with n == 0: that is how absent tracks time out. */
-        if (!src->have_stream_start) {
+         * for every frame, also with n == 0: that is how absent tracks time out. After a reconnect
+         * the PTS may start again from 0, so the anchor is taken anew from the wall clock. */
+        if (!src->have_stream_start || atomic_exchange(&src->reanchor, FALSE)) {
             src->stream_start_ns = g_get_real_time() * 1000 - (gint64)frame_meta->buf_pts;
             src->have_stream_start = TRUE;
         }
@@ -972,8 +1104,9 @@ static gboolean report_fps(gpointer data)
     for (guint i = 0; i < app->num_sources; i++) {
         SourceCtx *src = &app->sources[i];
         guint64 now = atomic_load_explicit(&src->frame_count, memory_order_relaxed);
-        g_print("fps source_id=%u camera_id=%d %.1f\n", src->source_id, src->camera_id,
-                (double)(now - src->fps_prev_frames) / (double)opt_fps_interval);
+        g_print("fps source_id=%u camera_id=%d %.1f %s\n", src->source_id, src->camera_id,
+                (double)(now - src->fps_prev_frames) / (double)opt_fps_interval,
+                source_state_name(src->state));
         src->fps_prev_frames = now;
     }
     return G_SOURCE_CONTINUE;
@@ -996,7 +1129,8 @@ static GstElement *make_element(GstElement *pipeline, const gchar *factory, cons
 }
 
 /* nvurisrcbin creates its video pad after it knows the stream: link it to the muxer pad that
- * was requested for this source. Audio (and any other non-video pad) is ignored. */
+ * was requested for this source. Audio (and any other non-video pad) is ignored. Called again
+ * if the bin makes a new pad: the old link is dropped first. */
 static void on_source_pad_added(GstElement *bin, GstPad *new_pad, gpointer user_data)
 {
     SourceCtx *src = (SourceCtx *)user_data;
@@ -1010,6 +1144,11 @@ static void on_source_pad_added(GstElement *bin, GstPad *new_pad, gpointer user_
     if (!is_video)
         return;
 
+    GstPad *old_peer = gst_pad_get_peer(src->mux_sinkpad);
+    if (old_peer != NULL) {
+        gst_pad_unlink(old_peer, src->mux_sinkpad);
+        gst_object_unref(old_peer);
+    }
     if (gst_pad_link(new_pad, src->mux_sinkpad) != GST_PAD_LINK_OK)
         GST_ELEMENT_ERROR(bin, CORE, PAD, (NULL),
                           ("Could not link source_id=%u to nvstreammux", src->source_id));
@@ -1101,6 +1240,9 @@ static GstElement *build_pipeline(AppCtx *app)
         if (src->bin == NULL)
             goto fail;
         g_object_set(src->bin, "uri", src->uri, NULL);
+        if (src->is_rtsp)
+            g_object_set(src->bin, "rtsp-reconnect-interval", (guint)opt_rtsp_timeout,
+                         "rtsp-reconnect-attempts", -1, NULL);
 
         /* Request "sink_<source_id>" so that source_id == the muxer pad index == the
          * frame_meta->source_id seen in the probe. */
@@ -1202,6 +1344,11 @@ int main(int argc, char *argv[])
         return EXIT_BAD_ARGS;
     }
 
+    if (opt_rtsp_timeout < 0 || opt_rtsp_timeout > 3600) {
+        g_printerr("--rtsp-timeout must be between 0 and 3600 seconds\n");
+        g_ptr_array_free(specs, TRUE);
+        return EXIT_BAD_ARGS;
+    }
     if (opt_snapshot_quality < 1 || opt_snapshot_quality > 100) {
         g_printerr("--snapshot-quality must be between 1 and 100\n");
         g_ptr_array_free(specs, TRUE);
@@ -1255,14 +1402,27 @@ int main(int argc, char *argv[])
             g_printerr("Could not set the pipeline to PLAYING\n");
             app.exit_code = 1;
         } else {
-            guint fps_timer_id = 0;
+            guint fps_timer_id = 0, watchdog_id = 0;
             if (opt_fps_interval > 0)
                 fps_timer_id = g_timeout_add_seconds((guint)opt_fps_interval, report_fps, &app);
             app.start_us = g_get_monotonic_time();
+            for (guint i = 0; i < app.num_sources; i++) {   /* the clock of the "no frames" check */
+                atomic_store_explicit(&app.sources[i].last_frame_us, app.start_us,
+                                      memory_order_relaxed);
+                if (app.sources[i].is_rtsp && watchdog_id == 0)
+                    watchdog_id = g_timeout_add_seconds(WATCHDOG_INTERVAL_S, watchdog_tick, &app);
+            }
+            guint sigint_id = g_unix_signal_add(SIGINT, on_signal, &app);
+            guint sigterm_id = g_unix_signal_add(SIGTERM, on_signal, &app);
             g_main_loop_run(app.loop);
             app.end_us = g_get_monotonic_time();
+            g_source_remove(sigint_id);
+            g_source_remove(sigterm_id);
             if (fps_timer_id != 0)
                 g_source_remove(fps_timer_id);
+            if (watchdog_id != 0)
+                g_source_remove(watchdog_id);
+
         }
 
         gst_element_set_state(app.pipeline, GST_STATE_NULL);

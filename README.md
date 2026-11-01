@@ -211,8 +211,27 @@ Options:
 - `--tracker-config FILE`: the `nvtracker` low-level config (required), `configs/tracker_nvdcf.yml` for NvDCF. The values in
   it are a starting point, not tuned.
 
-Exit codes: `0` all sources reached EOS, `1` a pipeline error, `2` bad arguments, `3` the pipeline could not be built.
+- `--rtsp-timeout SEC`: an RTSP camera that delivers no frame for SEC seconds is reconnected (default 10, 0 = only react to errors). See [RTSP cameras](#rtsp-cameras).
+
+Exit codes: `0` all sources reached EOS, or the engine was stopped with SIGINT/SIGTERM, `1` a pipeline error, `2` bad arguments, `3` the pipeline could not be built.
 The program never prints a full URI, only its scheme.
+
+### RTSP cameras
+
+An RTSP source never "ends": the engine keeps running until it is stopped with SIGINT/SIGTERM (Ctrl-C), which stops the
+pipeline in order, prints the summary and lets the publisher write what is left to the spool. When a camera goes away
+(connection refused, network cut, a camera that hangs without closing the connection, or a stream that ends), only that
+source is affected: the others keep their frame rate. `nvurisrcbin` restarts its RTSP client every `--rtsp-timeout`
+seconds until the camera answers; the engine notes the loss, reports the source as `RECONNECTING` in the periodic
+`fps source_id=... RUNNING|RECONNECTING` lines, logs `reconnected` when frames flow again, and ends with a line
+`source_id=... state=RUNNING reconnects=N`. A camera that is down when the engine starts is handled the same way. After
+a reconnect the event clock of that source is re-anchored, so a person who comes back after more than the absence
+timeout raises a new event. Errors of a source that is not RTSP (a file that cannot be read) still stop the engine
+with exit code 1.
+
+To try it without a camera, build the fake RTSP server inside the DeepStream container (`cd engine && make
+rtsp-test-server`), serve a video with `build/rtsp_test_server FILE.mp4 8554 /cam`, point `--camera 1=rtsp://127.0.0.1:8554/cam`
+at it, and stop and start the server, or pause it with `kill -STOP`, to make the camera disappear.
 
 Run the tests of the pure-C code (`engine/src/core/`: the `Detection` box normalisation, the event manager, which replays the shared vectors of `tests/vectors/`, the event JSON, the spool file and the retry delays) on the host, no
 DeepStream or GPU needed; built with AddressSanitizer and UBSan:
