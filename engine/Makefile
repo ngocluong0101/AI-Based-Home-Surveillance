@@ -27,7 +27,7 @@ APP_CFLAGS = -std=gnu11 -g -O2 $(WARN) -Iinclude -Isrc/core \
              $(shell pkg-config --cflags $(PKGS))
 APP_LIBS   = $(shell pkg-config --libs $(PKGS)) \
              -L/usr/local/cuda-$(CUDA_VER)/lib64 -lcudart -lcuda \
-             -L$(DS_DIR)/lib -lnvdsgst_meta -lnvds_meta \
+             -L$(DS_DIR)/lib -lnvdsgst_meta -lnvds_meta -lnvbufsurface -lnvds_batch_jpegenc \
              -Wl,-rpath,$(DS_DIR)/lib
 
 APP_OBJS := $(patsubst src/%.c,$(BUILD)/%.o,$(DS_SRCS) $(CORE_SRCS))

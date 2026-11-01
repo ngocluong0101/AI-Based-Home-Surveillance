@@ -35,6 +35,7 @@ void test_event_record_json_parses_back(void);
 void test_event_record_timestamp_is_utc(void);
 void test_event_record_numbers_are_clamped_and_rounded(void);
 void test_event_record_small_buffer_fails_cleanly(void);
+void test_event_snapshot_name(void);
 
 static const TestCase TESTS[] = {
     { "bbox_normalize_inside_frame", test_bbox_normalize_inside_frame },
@@ -49,6 +50,7 @@ static const TestCase TESTS[] = {
     { "event_record_timestamp_is_utc", test_event_record_timestamp_is_utc },
     { "event_record_numbers_are_clamped_and_rounded", test_event_record_numbers_are_clamped_and_rounded },
     { "event_record_small_buffer_fails_cleanly", test_event_record_small_buffer_fails_cleanly },
+    { "event_snapshot_name", test_event_snapshot_name },
     { NULL, NULL }, /* table terminator */
 };
 

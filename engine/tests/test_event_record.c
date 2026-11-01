@@ -149,3 +149,29 @@ void test_event_record_small_buffer_fails_cleanly(void)
     r.snapshot[sizeof(r.snapshot) - 1] = '\0';
     CHECK(event_record_to_json(&r, json, sizeof(json)) > 0);
 }
+
+void test_event_snapshot_name(void)
+{
+    EventRecord r = sample();
+    char name[EVENT_SNAPSHOT_NAME_MAX];
+
+    CHECK(event_snapshot_name(&r, name, sizeof(name)) > 0);
+    CHECK(strcmp(name, "PERSON_DETECTED_cam1_id12_20260101T120000_123e4567.jpg") == 0);
+
+    /* UTC, and the pattern SnapshotCleaner globs for */
+    CHECK(strncmp(name, "PERSON_DETECTED_", 16) == 0);
+    CHECK(strcmp(name + strlen(name) - 4, ".jpg") == 0);
+
+    /* an ID that is not hex/alphanumeric cannot put a path separator into the name */
+    strcpy(r.event_id, "../../etc/passwd");
+    CHECK(event_snapshot_name(&r, name, sizeof(name)) > 0);
+    CHECK(strchr(name, '/') == NULL);
+    CHECK(strstr(name, "_id12_") != NULL);
+
+    /* longest case fits EVENT_SNAPSHOT_NAME_MAX; a small buffer fails with an empty string */
+    r.camera_id = -2147483647;
+    r.track_id = 18446744073709551615ULL;
+    CHECK(event_snapshot_name(&r, name, sizeof(name)) > 0);
+    CHECK(event_snapshot_name(&r, name, 10) == -1);
+    CHECK(name[0] == '\0');
+}

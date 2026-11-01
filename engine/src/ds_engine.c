@@ -26,6 +26,8 @@
 #include "event_manager.h"
 #include "event_record.h"
 #include "gstnvdsmeta.h"
+#include "nvbufsurface.h"
+#include "nvds_obj_encode.h"
 
 #define EXIT_BAD_ARGS 2
 #define EXIT_BUILD_FAILED 3
@@ -53,6 +55,15 @@
  * are dropped and counted rather than letting memory grow. ROADMAP 2.6 replaces the drop with a
  * spool file. */
 #define EVENT_QUEUE_MAX 1024
+
+/* GPU used for the JPEG encoder of the snapshots (nvinfer and the muxer use the default, 0). */
+#define GPU_ID 0
+#define SNAPSHOT_QUALITY_DEFAULT 85
+/* Longest snapshot directory accepted, so that dir + "/" + name stays a sane path. */
+#define SNAPSHOT_DIR_MAX 700
+/* JPEG bytes that may wait in the queue (a 1080p frame is ~200 KB); beyond it a snapshot is skipped
+ * and its events are published without one. */
+#define SNAPSHOT_QUEUE_MAX_BYTES (64 * 1024 * 1024)
 
 /* Class id of "person" in the nvinfer output (the YOLOv8 parser reports only this class). */
 #define PERSON_CLASS_ID 0
@@ -105,6 +116,15 @@ typedef struct {
     GThread *publisher;
     _Atomic guint64 events_published;  /* written by the worker */
     _Atomic guint64 events_dropped;    /* written by the probe: queue full */
+    /* Snapshots (ROADMAP 2.5); snap_ctx is NULL when --snapshot-dir is not given. The probe asks
+     * the encoder for JPEG bytes and queues them; the publisher thread writes the files. */
+    NvDsObjEncCtxHandle snap_ctx;
+    _Atomic guint64 snapshots_written;     /* files the worker wrote */
+    _Atomic guint64 snapshots_failed;      /* encode failed, over the byte budget, or write failed */
+    _Atomic guint64 events_with_snapshot;  /* published with a file name */
+    _Atomic guint64 snapshot_bytes_queued; /* JPEG bytes waiting in the queue */
+    guint64 snapshot_block_us;             /* probe only: time in nvds_obj_enc_finish(), total */
+    guint64 snapshot_block_max_us;
 } AppCtx;
 
 static gchar **opt_cameras = NULL;
@@ -113,9 +133,16 @@ static gchar *opt_config = NULL;
 static gchar *opt_tracker_config = NULL;
 static gchar *opt_output = NULL;
 static gint opt_fps_interval = 5;
+static gchar *opt_snapshot_dir = NULL;
+static gint opt_snapshot_quality = SNAPSHOT_QUALITY_DEFAULT;
 static gdouble opt_absence_timeout = 10.0;  /* same default as ABSENCE_TIMEOUT in src/config */
 
 static GOptionEntry option_entries[] = {
+    { "snapshot-dir", 0, 0, G_OPTION_ARG_FILENAME, &opt_snapshot_dir,
+      "Save a JPEG of the whole frame for each PERSON_DETECTED event in DIR "
+      "(created if missing); without it no snapshots are taken", "DIR" },
+    { "snapshot-quality", 0, 0, G_OPTION_ARG_INT, &opt_snapshot_quality,
+      "JPEG quality 1-100 (default 85)", "Q" },
     { "absence-timeout", 0, 0, G_OPTION_ARG_DOUBLE, &opt_absence_timeout,
       "Seconds a person must be out of sight before the same track ID raises a new "
       "PERSON_DETECTED event (default 10)", "SEC" },
@@ -290,6 +317,12 @@ static void print_stats(const AppCtx *app)
     g_print("events published=%" G_GUINT64_FORMAT " dropped=%" G_GUINT64_FORMAT
             " pipeline_run_id=%s\n", (guint64)app->events_published, (guint64)app->events_dropped,
             app->pipeline_run_id);
+    if (opt_snapshot_dir != NULL)
+        g_print("snapshots written=%" G_GUINT64_FORMAT " failed=%" G_GUINT64_FORMAT
+                " events_with_snapshot=%" G_GUINT64_FORMAT " probe_blocked_ms total=%.1f max=%.1f\n",
+                (guint64)app->snapshots_written, (guint64)app->snapshots_failed,
+                (guint64)app->events_with_snapshot, (double)app->snapshot_block_us / 1000.0,
+                (double)app->snapshot_block_max_us / 1000.0);
     if (seconds > 0.0)
         g_print("elapsed=%.1fs total_frames=%" G_GUINT64_FORMAT " fps=%.1f (all sources together, "
                 "includes startup)\n", seconds, total_frames, (double)total_frames / seconds);
@@ -377,18 +410,33 @@ static size_t extract_person_detections(const NvDsFrameMeta *frame_meta, Detecti
     return n;
 }
 
-/* Pushed after the last event to tell the worker to stop (g_async_queue_push() refuses NULL). */
-static EventRecord publisher_stop_marker;
+/* What travels through the queue to the publisher thread. */
+typedef enum { ITEM_EVENT, ITEM_SNAPSHOT, ITEM_STOP } ItemKind;
 
-/* Probe side: turn an event of source `src` into an EventRecord and queue it. Never blocks. */
-static void enqueue_event(AppCtx *app, const SourceCtx *src, const PersonDetectedEvent *ev)
+typedef struct {
+    ItemKind kind;
+    EventRecord rec;       /* ITEM_EVENT */
+    gchar *snapshot_name;  /* ITEM_SNAPSHOT: file name inside --snapshot-dir */
+    guint8 *jpeg;          /* ITEM_SNAPSHOT: the encoded image */
+    gsize jpeg_len;
+} QueueItem;
+
+/* Pushed after the last item to stop the worker (g_async_queue_push() refuses NULL). */
+static QueueItem publisher_stop_item = { .kind = ITEM_STOP };
+
+static void queue_item_free(QueueItem *item)
 {
-    if (g_async_queue_length(app->event_queue) >= EVENT_QUEUE_MAX) {
-        atomic_fetch_add_explicit(&app->events_dropped, 1, memory_order_relaxed);
-        return;
-    }
+    g_free(item->snapshot_name);
+    g_free(item->jpeg);
+    g_free(item);
+}
 
-    EventRecord *rec = g_new0(EventRecord, 1);
+/* Probe side: a queue item holding the EventRecord of an event of source `src`. */
+static QueueItem *new_event_item(const AppCtx *app, const SourceCtx *src, const PersonDetectedEvent *ev)
+{
+    QueueItem *item = g_new0(QueueItem, 1);
+    EventRecord *rec = &item->rec;
+    item->kind = ITEM_EVENT;
     gchar *id = g_uuid_string_random();
     g_strlcpy(rec->event_id, id, sizeof(rec->event_id));
     g_free(id);
@@ -398,28 +446,160 @@ static void enqueue_event(AppCtx *app, const SourceCtx *src, const PersonDetecte
     rec->confidence = ev->confidence;
     rec->timestamp_ns = ev->timestamp_ns;
     memcpy(rec->bbox, ev->bbox, sizeof(rec->bbox));
-    /* rec->snapshot stays empty until ROADMAP 2.5. */
-    g_async_queue_push(app->event_queue, rec);
+    return item;
 }
 
-/* Worker thread: takes records off the queue until it gets publisher_stop_marker.
+/* The events that started in one frame, as a range of the probe's `pending` array. */
+typedef struct {
+    NvDsFrameMeta *frame_meta;
+    guint first, count;
+    gboolean encoding;       /* an encode of this frame was queued with the encoder */
+    QueueItem *snapshot;     /* its JPEG, once finish() is done; NULL = no snapshot */
+} FrameGroup;
+
+/*
+ * Ask the object encoder for a JPEG of the whole frame of group->frame_meta; the events of the
+ * group share it and carry the name derived from the first one. nvds_obj_enc_process() only
+ * enqueues, and the encoder reads the NVMM surface of this buffer, so the caller must call
+ * nvds_obj_enc_finish() before the buffer leaves the probe. `map` holds the mapping of `buf`
+ * (made on first use, unmapped by the caller): its data is the NvBufSurface of the whole batch.
+ *
+ * The encoder is told not to save a file (saveImg = FALSE) but to attach the JPEG to the frame as
+ * user meta: the library's own file writer does not check fopen() and crashes the process when the
+ * directory is not writable, and writing files does not belong in the probe anyway.
+ */
+static void submit_snapshot(AppCtx *app, GstBuffer *buf, GstMapInfo *map, gboolean *mapped,
+                            FrameGroup *group, QueueItem **items)
+{
+    if (!*mapped) {
+        if (!gst_buffer_map(buf, map, GST_MAP_READ))
+            goto failed;
+        *mapped = TRUE;
+    }
+
+    char name[EVENT_SNAPSHOT_NAME_MAX];
+    if (event_snapshot_name(&items[0]->rec, name, sizeof(name)) < 0)
+        goto failed;
+
+    NvDsObjEncUsrArgs args = { 0 };
+    args.isFrame = TRUE;
+    args.saveImg = FALSE;
+    args.attachUsrMeta = TRUE;
+    args.quality = opt_snapshot_quality;
+    if (!nvds_obj_enc_process(app->snap_ctx, &args, (NvBufSurface *)map->data, NULL,
+                              group->frame_meta))
+        goto failed;
+
+    for (guint i = 0; i < group->count; i++)
+        g_strlcpy(items[i]->rec.snapshot, name, sizeof(items[i]->rec.snapshot));
+    group->encoding = TRUE;
+    return;
+
+failed:
+    atomic_fetch_add_explicit(&app->snapshots_failed, 1, memory_order_relaxed);
+}
+
+/* After nvds_obj_enc_finish(): copy the JPEG the encoder attached to the frame into a snapshot
+ * item, or return NULL. (Whether a frame-level encode attaches its meta to the frame rather than
+ * to an object was not documented; it was checked by running it.) */
+static QueueItem *take_jpeg(const NvDsFrameMeta *frame_meta, const gchar *name)
+{
+    for (NvDsMetaList *l = frame_meta->frame_user_meta_list; l != NULL; l = l->next) {
+        const NvDsUserMeta *um = (const NvDsUserMeta *)l->data;
+        if (um->base_meta.meta_type != NVDS_CROP_IMAGE_META)
+            continue;
+        const NvDsObjEncOutParams *enc = (const NvDsObjEncOutParams *)um->user_meta_data;
+        if (enc == NULL || enc->outBuffer == NULL || enc->outLen == 0)
+            return NULL;
+        QueueItem *item = g_new0(QueueItem, 1);
+        item->kind = ITEM_SNAPSHOT;
+        item->snapshot_name = g_strdup(name);
+        item->jpeg = g_malloc(enc->outLen);
+        memcpy(item->jpeg, enc->outBuffer, enc->outLen);
+        item->jpeg_len = enc->outLen;
+        return item;
+    }
+    return NULL;
+}
+
+/* Hand one frame's events (and their snapshot, which goes first) to the publisher. Never blocks:
+ * when the worker is too far behind the events are dropped and counted, together, so that no event
+ * is left pointing at a file that was never queued. */
+static void enqueue_group(AppCtx *app, QueueItem **items, const FrameGroup *group)
+{
+    guint needed = group->count + (group->snapshot != NULL ? 1 : 0);
+
+    if ((guint)g_async_queue_length(app->event_queue) + needed > EVENT_QUEUE_MAX) {
+        atomic_fetch_add_explicit(&app->events_dropped, group->count, memory_order_relaxed);
+        for (guint i = 0; i < group->count; i++)
+            queue_item_free(items[i]);
+        if (group->snapshot != NULL)
+            queue_item_free(group->snapshot);
+        return;
+    }
+    if (group->snapshot != NULL) {
+        atomic_fetch_add_explicit(&app->snapshot_bytes_queued, group->snapshot->jpeg_len,
+                                  memory_order_relaxed);
+        g_async_queue_push(app->event_queue, group->snapshot);
+    }
+    for (guint i = 0; i < group->count; i++)
+        g_async_queue_push(app->event_queue, items[i]);
+}
+
+/* Write a snapshot file: temp file + rename inside g_file_set_contents(), so a reader (or the
+ * cleaner) never sees half an image. Returns FALSE and logs when it cannot. */
+static gboolean write_snapshot(const QueueItem *item)
+{
+    gchar *path = g_build_filename(opt_snapshot_dir, item->snapshot_name, NULL);
+    GError *error = NULL;
+    gboolean ok = g_file_set_contents(path, (const gchar *)item->jpeg, (gssize)item->jpeg_len, &error);
+    if (!ok) {
+        g_printerr("Could not write a snapshot: %s\n", error->message);
+        g_error_free(error);
+    }
+    g_free(path);
+    return ok;
+}
+
+/* Worker thread: takes items off the queue until it gets publisher_stop_item. A snapshot item
+ * always comes before the events that name it, so the file is on disk before the event goes out.
  * For now "publishing" is one JSON line on stdout; ROADMAP 2.6 turns this into the HTTP POST. */
 static gpointer publisher_thread(gpointer data)
 {
     AppCtx *app = (AppCtx *)data;
     char json[EVENT_JSON_MAX];
+    gchar *failed_snapshot = NULL;   /* name of the last snapshot that could not be written */
 
     for (;;) {
-        EventRecord *rec = g_async_queue_pop(app->event_queue);
-        if (rec == &publisher_stop_marker)
+        QueueItem *item = g_async_queue_pop(app->event_queue);
+        if (item->kind == ITEM_STOP)
             break;
-        if (event_record_to_json(rec, json, sizeof(json)) > 0)
-            g_print("event %s\n", json);
-        else
-            g_printerr("Could not serialise an event\n");
-        atomic_fetch_add_explicit(&app->events_published, 1, memory_order_relaxed);
-        g_free(rec);
+
+        if (item->kind == ITEM_SNAPSHOT) {
+            atomic_fetch_sub_explicit(&app->snapshot_bytes_queued, item->jpeg_len,
+                                      memory_order_relaxed);
+            if (write_snapshot(item)) {
+                atomic_fetch_add_explicit(&app->snapshots_written, 1, memory_order_relaxed);
+            } else {
+                atomic_fetch_add_explicit(&app->snapshots_failed, 1, memory_order_relaxed);
+                g_free(failed_snapshot);
+                failed_snapshot = g_strdup(item->snapshot_name);
+            }
+        } else {
+            EventRecord *rec = &item->rec;
+            if (failed_snapshot != NULL && strcmp(rec->snapshot, failed_snapshot) == 0)
+                rec->snapshot[0] = '\0';   /* never name a file that is not there */
+            if (rec->snapshot[0] != '\0')
+                atomic_fetch_add_explicit(&app->events_with_snapshot, 1, memory_order_relaxed);
+            if (event_record_to_json(rec, json, sizeof(json)) > 0)
+                g_print("event %s\n", json);
+            else
+                g_printerr("Could not serialise an event\n");
+            atomic_fetch_add_explicit(&app->events_published, 1, memory_order_relaxed);
+        }
+        queue_item_free(item);
     }
+    g_free(failed_snapshot);
     return NULL;
 }
 
@@ -445,7 +625,7 @@ static void publisher_stop(AppCtx *app)
 {
     if (app->publisher == NULL)
         return;
-    g_async_queue_push(app->event_queue, &publisher_stop_marker);
+    g_async_queue_push(app->event_queue, &publisher_stop_item);
     g_thread_join(app->publisher);
     app->publisher = NULL;
 }
@@ -468,9 +648,17 @@ static GstPadProbeReturn detection_probe(GstPad *pad, GstPadProbeInfo *info, gpo
     if (batch_meta == NULL)
         return GST_PAD_PROBE_OK;
 
+    /* Events of this batch wait here, grouped by frame, until the snapshots are encoded. Created on
+     * the first event only: most batches have none. */
+    GPtrArray *pending = NULL;
+    GArray *groups = NULL;
+    GstMapInfo map = GST_MAP_INFO_INIT;
+    gboolean mapped = FALSE;
+    gboolean encode_queued = FALSE;
+
     for (NvDsMetaList *l_frame = batch_meta->frame_meta_list; l_frame != NULL;
          l_frame = l_frame->next) {
-        const NvDsFrameMeta *frame_meta = (const NvDsFrameMeta *)l_frame->data;
+        NvDsFrameMeta *frame_meta = (NvDsFrameMeta *)l_frame->data;
         if (frame_meta->source_id >= app->num_sources)
             continue;
         SourceCtx *src = &app->sources[frame_meta->source_id];
@@ -503,10 +691,53 @@ static GstPadProbeReturn detection_probe(GstPad *pad, GstPadProbeInfo *info, gpo
             src->event_errors++;
         else
             src->event_count += (guint64)emitted;
-        for (int i = 0; i < emitted; i++)
-            enqueue_event(app, src, &events[i]);
-        /* TODO(2.5): snapshot of the frame for each event. */
+        if (emitted > 0) {
+            if (pending == NULL) {
+                pending = g_ptr_array_new();
+                groups = g_array_new(FALSE, TRUE, sizeof(FrameGroup));
+            }
+            FrameGroup group = { .frame_meta = frame_meta, .first = pending->len,
+                                 .count = (guint)emitted };
+            for (int i = 0; i < emitted; i++)
+                g_ptr_array_add(pending, new_event_item(app, src, &events[i]));
+            if (app->snap_ctx != NULL) {
+                submit_snapshot(app, buf, &map, &mapped, &group,
+                                (QueueItem **)pending->pdata + group.first);
+                encode_queued |= group.encoding;
+            }
+            g_array_append_val(groups, group);
+        }
     }
+
+    if (pending != NULL) {
+        if (encode_queued) {
+            gint64 t0 = g_get_monotonic_time();
+            nvds_obj_enc_finish(app->snap_ctx);
+            guint64 waited = (guint64)(g_get_monotonic_time() - t0);
+            app->snapshot_block_us += waited;
+            if (waited > app->snapshot_block_max_us)
+                app->snapshot_block_max_us = waited;
+        }
+        for (guint g = 0; g < groups->len; g++) {
+            FrameGroup *group = &g_array_index(groups, FrameGroup, g);
+            QueueItem **items = (QueueItem **)pending->pdata + group->first;
+            if (group->encoding) {
+                if ((guint64)atomic_load_explicit(&app->snapshot_bytes_queued, memory_order_relaxed) <
+                    SNAPSHOT_QUEUE_MAX_BYTES)
+                    group->snapshot = take_jpeg(group->frame_meta, items[0]->rec.snapshot);
+                if (group->snapshot == NULL) {   /* encode gave nothing, or the queue is full of JPEGs */
+                    atomic_fetch_add_explicit(&app->snapshots_failed, 1, memory_order_relaxed);
+                    for (guint i = 0; i < group->count; i++)
+                        items[i]->rec.snapshot[0] = '\0';
+                }
+            }
+            enqueue_group(app, items, group);
+        }
+        g_ptr_array_free(pending, TRUE);
+        g_array_free(groups, TRUE);
+    }
+    if (mapped)
+        gst_buffer_unmap(buf, &map);
     return GST_PAD_PROBE_OK;
 }
 
@@ -735,6 +966,20 @@ int main(int argc, char *argv[])
         return EXIT_BAD_ARGS;
     }
 
+    if (opt_snapshot_quality < 1 || opt_snapshot_quality > 100) {
+        g_printerr("--snapshot-quality must be between 1 and 100\n");
+        g_ptr_array_free(specs, TRUE);
+        return EXIT_BAD_ARGS;
+    }
+    if (opt_snapshot_dir != NULL) {
+        if (strlen(opt_snapshot_dir) > SNAPSHOT_DIR_MAX ||
+            g_mkdir_with_parents(opt_snapshot_dir, 0755) != 0) {
+            g_printerr("Cannot use --snapshot-dir (too long, or it cannot be created)\n");
+            g_ptr_array_free(specs, TRUE);
+            return EXIT_BAD_ARGS;
+        }
+    }
+
     gboolean sources_ok = init_sources(&app, specs);
     g_ptr_array_free(specs, TRUE);
     g_strfreev(opt_cameras);
@@ -748,6 +993,16 @@ int main(int argc, char *argv[])
         g_printerr("Could not start the publisher thread\n");
         free_sources(&app);
         return EXIT_BUILD_FAILED;
+    }
+
+    if (opt_snapshot_dir != NULL) {
+        app.snap_ctx = nvds_obj_enc_create_context(GPU_ID);
+        if (app.snap_ctx == NULL) {
+            g_printerr("Could not create the JPEG encoder context\n");
+            publisher_stop(&app);
+            free_sources(&app);
+            return EXIT_BUILD_FAILED;
+        }
     }
 
     app.loop = g_main_loop_new(NULL, FALSE);
@@ -781,6 +1036,8 @@ int main(int argc, char *argv[])
         print_stats(&app);
     }
 
+    if (app.snap_ctx != NULL)
+        nvds_obj_enc_destroy_context(app.snap_ctx);
     if (app.event_queue != NULL)
         g_async_queue_unref(app.event_queue);
     g_main_loop_unref(app.loop);
@@ -789,5 +1046,6 @@ int main(int argc, char *argv[])
     g_free(opt_config);
     g_free(opt_tracker_config);
     g_free(opt_output);
+    g_free(opt_snapshot_dir);
     return app.exit_code;
 }

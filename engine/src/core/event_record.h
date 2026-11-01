@@ -44,4 +44,13 @@ typedef struct {
 #define EVENT_JSON_MAX 1536   /* fixed part ~300 bytes + a snapshot name of 191 chars at 6 bytes each */
 int event_record_to_json(const EventRecord *r, char *out, size_t cap);
 
+/*
+ * File name (no directory) of the snapshot of this event:
+ *   PERSON_DETECTED_cam<camera_id>_id<track_id>_<YYYYMMDD>T<HHMMSS>_<first 8 characters of event_id>.jpg
+ * The time is UTC. It matches PERSON_DETECTED_*.jpg, which SnapshotCleaner deletes by age. Returns
+ * the length, or -1 (and an empty out) if it does not fit in cap bytes; EVENT_SNAPSHOT_NAME_MAX
+ * always suffices.
+ */
+int event_snapshot_name(const EventRecord *r, char *out, size_t cap);
+
 #endif /* EVENT_RECORD_H */

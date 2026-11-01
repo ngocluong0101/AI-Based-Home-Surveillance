@@ -125,8 +125,11 @@ each source to that source's event manager (`engine/src/core/event_manager.c`, a
 which emits one `PERSON_DETECTED` event per appearance of a track; its clock is the stream start time plus the frame's
 PTS, not the wall clock. Each event becomes an `EventRecord` (schema below), is pushed on a bounded queue (1024) and a
 worker thread prints it as a line `event {json}` on stdout, so nothing slow runs in the probe; if the worker falls
-behind, new events are dropped and counted (`dropped=` in the summary). What does not exist yet: snapshots (the
-`snapshot` field is `null`) and the HTTP publisher with retry and spool file.
+behind, new events are dropped and counted (`dropped=` in the summary). With `--snapshot-dir DIR` the probe also asks the DeepStream JPEG encoder for the whole frame of each event; events that
+start in the same frame share one file. The probe only copies the JPEG bytes (it waits a few milliseconds, only on frames
+that have an event); the worker thread writes the file and only then prints the event, so the file is on disk when the
+event goes out. A file that cannot be written (directory not writable, disk full) is logged and the event is published
+with `"snapshot":null`. What does not exist yet: the HTTP publisher with retry and spool file.
 
 Prepare the model once. On the host, export YOLOv8n to ONNX (the file is git-ignored):
 
@@ -147,7 +150,7 @@ cd engine && make CUDA_VER=12.6 && make -C parser CUDA_VER=12.6
 ```
 
 At the end it prints one line per source, for example `source_id=0 camera_id=1 frames=1443 objects=4993 untracked=0 tracks=29 short_tracks=4 events=29 fps=351.2`, followed by
-a line `events published=58 dropped=0 pipeline_run_id=...` and the elapsed time and the overall frame rate (it includes the start-up). While it runs it prints the frame rate of every
+a line `events published=58 dropped=0 pipeline_run_id=...`, with `--snapshot-dir` a line `snapshots written=56 failed=0 events_with_snapshot=58 probe_blocked_ms total=... max=...`, and the elapsed time and the overall frame rate (it includes the start-up). While it runs it prints the frame rate of every
 source each 5 seconds. The first run
 spends about 2.5 minutes building the TensorRT engine; it is saved next to the ONNX and reused (a run then starts in
 seconds). `configs/pgie_yolov8n.txt` points at the engine for N = 2; for another N, `nvinfer` builds a new engine
@@ -168,7 +171,8 @@ Event schema v1, one JSON object per event (`engine/src/core/event_record.h`):
 
 `event_id` is unique per event (so a repeated delivery can be ignored). `pipeline_run_id` is new each time the engine
 starts, because track IDs restart then: a person is `(pipeline_run_id, camera_id, track_id)`. `timestamp` is UTC, stream
-start plus PTS. `bbox` is x, y, w, h relative to the frame. `snapshot` is a file name or `null`.
+start plus PTS. `bbox` is x, y, w, h relative to the frame. `snapshot` is a file name (no directory) like `PERSON_DETECTED_cam1_id12_20260101T120000_123e4567.jpg`, which matches what
+`SnapshotCleaner` deletes, or `null`.
 
 Options:
 
@@ -187,6 +191,8 @@ Options:
 - `--output FILE`: debug only. Writes an MP4 with all sources tiled in one video (rows x columns grid), the boxes drawn and
   labelled `person <track ID>`. Without it nothing is rendered. If one source ends earlier than the others, the tile of a
   source that is still running shows only about half of its frames (every frame is still processed and counted).
+- `--snapshot-dir DIR`: save a JPEG of the whole frame for each event in DIR (created if missing). Without it no snapshots are taken.
+- `--snapshot-quality Q`: JPEG quality 1-100 (default 85).
 - `--absence-timeout SEC`: how long a person must be out of sight before the same track ID raises a new event (default 10, same as `ABSENCE_TIMEOUT`).
 - `--fps-interval SEC`: how often the frame rate of each source is printed (default 5, 0 turns it off).
 - `--tracker-config FILE`: the `nvtracker` low-level config (required), `configs/tracker_nvdcf.yml` for NvDCF. The values in

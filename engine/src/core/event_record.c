@@ -82,12 +82,15 @@ static int64_t floor_div(int64_t a, int64_t b)
     return (a % b < 0) ? q - 1 : q;
 }
 
-/* ns since the Unix epoch -> "YYYY-MM-DDTHH:MM:SS.mmmZ" (UTC). Civil-from-days after H. Hinnant. */
-static void put_timestamp(Writer *w, int64_t ns)
+typedef struct {
+    int year, month, day, hour, minute, second, millisecond;
+} Civil;
+
+/* ns since the Unix epoch -> UTC calendar fields. Civil-from-days after H. Hinnant. */
+static void civil_from_ns(int64_t ns, Civil *c)
 {
     int64_t ms_total = floor_div(ns, 1000000);
     int64_t secs = floor_div(ms_total, 1000);
-    int ms = (int)(ms_total - secs * 1000);
     int64_t days = floor_div(secs, 86400);
     int sod = (int)(secs - days * 86400);
 
@@ -98,15 +101,48 @@ static void put_timestamp(Writer *w, int64_t ns)
     int64_t y = yoe + era * 400;
     int64_t doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
     int64_t mp = (5 * doy + 2) / 153;
-    int day = (int)(doy - (153 * mp + 2) / 5 + 1);
-    int month = (int)(mp < 10 ? mp + 3 : mp - 9);
-    if (month <= 2)
-        y++;
+    c->day = (int)(doy - (153 * mp + 2) / 5 + 1);
+    c->month = (int)(mp < 10 ? mp + 3 : mp - 9);
+    c->year = (int)(c->month <= 2 ? y + 1 : y);
+    c->hour = sod / 3600;
+    c->minute = sod % 3600 / 60;
+    c->second = sod % 60;
+    c->millisecond = (int)(ms_total - secs * 1000);
+}
 
+/* "YYYY-MM-DDTHH:MM:SS.mmmZ" (UTC). */
+static void put_timestamp(Writer *w, int64_t ns)
+{
+    Civil c;
+    civil_from_ns(ns, &c);
     char tmp[40];
-    int n = snprintf(tmp, sizeof(tmp), "%04lld-%02d-%02dT%02d:%02d:%02d.%03dZ", (long long)y, month,
-                     day, sod / 3600, sod % 3600 / 60, sod % 60, ms);
+    int n = snprintf(tmp, sizeof(tmp), "%04d-%02d-%02dT%02d:%02d:%02d.%03dZ", c.year, c.month, c.day,
+                     c.hour, c.minute, c.second, c.millisecond);
     put_raw(w, tmp, (size_t)n);
+}
+
+int event_snapshot_name(const EventRecord *r, char *out, size_t cap)
+{
+    Civil c;
+    civil_from_ns(r->timestamp_ns, &c);
+
+    /* Only the first 8 characters of the event ID, and only characters that are safe in a file name. */
+    char id8[9] = { 0 };
+    for (int i = 0; i < 8 && r->event_id[i] != '\0'; i++) {
+        char ch = r->event_id[i];
+        int ok = (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'z') || (ch >= 'A' && ch <= 'Z');
+        id8[i] = ok ? ch : '_';
+    }
+
+    int n = snprintf(out, cap, "PERSON_DETECTED_cam%d_id%llu_%04d%02d%02dT%02d%02d%02d_%s.jpg",
+                     (int)r->camera_id, (unsigned long long)r->track_id, c.year, c.month, c.day,
+                     c.hour, c.minute, c.second, id8);
+    if (n < 0 || (size_t)n >= cap) {
+        if (cap > 0)
+            out[0] = '\0';
+        return -1;
+    }
+    return n;
 }
 
 int event_record_to_json(const EventRecord *r, char *out, size_t cap)
