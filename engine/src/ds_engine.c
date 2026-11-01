@@ -14,6 +14,7 @@
  *  - Never log a full URI (an RTSP URL may contain a password); log only the scheme.
  *  - The DeepStream part is a single file; split it only when the repo owner asks for it.
  */
+#include <curl/curl.h>
 #include <glib.h>
 #include <glib/gstdio.h>
 #include <gst/gst.h>
@@ -22,9 +23,11 @@
 #include <string.h>
 #include <sys/stat.h>
 
+#include "backoff.h"
 #include "detection.h"
 #include "event_manager.h"
 #include "event_record.h"
+#include "event_spool.h"
 #include "gstnvdsmeta.h"
 #include "nvbufsurface.h"
 #include "nvds_obj_encode.h"
@@ -51,10 +54,26 @@
  * stream, see maxTargetsPerStream in the tracker config). */
 #define MAX_DETECTIONS_PER_FRAME 256
 
-/* Events waiting for the publisher thread; when it is this far behind (backend down) new events
- * are dropped and counted rather than letting memory grow. ROADMAP 2.6 replaces the drop with a
- * spool file. */
+/* Events waiting for the publisher thread. A dead backend does not fill it: the worker moves
+ * events to the spool file at once. It fills only if the worker is stuck in one slow request
+ * (HTTP_TIMEOUT_MS at most); then new events are dropped and counted rather than letting memory
+ * grow. */
 #define EVENT_QUEUE_MAX 1024
+
+/* Delivery to the backend (ROADMAP 2.6). Every request is bounded by these timeouts. */
+#define HTTP_CONNECT_TIMEOUT_MS 2000
+#define HTTP_TIMEOUT_MS 5000
+/* Largest spool file; further events are lost (and counted) once it is full. */
+#define SPOOL_MAX_BYTES (256ull * 1024 * 1024)
+/* Events moved from the spool to the backend between two looks at the queue, so a long spool
+ * does not keep the live events waiting. */
+#define SPOOL_DRAIN_BATCH 50
+/* How long the worker may keep trying to deliver when the engine is shutting down; what is left
+ * stays in the spool for the next run. */
+#define SHUTDOWN_GRACE_US (10 * G_USEC_PER_SEC)
+/* The worker wakes up this often even when no event arrives, to empty the spool once the backend
+ * is back. */
+#define WORKER_IDLE_US G_USEC_PER_SEC
 
 /* GPU used for the JPEG encoder of the snapshots (nvinfer and the muxer use the default, 0). */
 #define GPU_ID 0
@@ -114,7 +133,18 @@ typedef struct {
     gchar pipeline_run_id[EVENT_UUID_LEN + 1];  /* new on every start: track IDs restart with it */
     GAsyncQueue *event_queue;
     GThread *publisher;
-    _Atomic guint64 events_published;  /* written by the worker */
+    _Atomic guint64 events_published;  /* written by the worker: delivered (or printed) */
+    _Atomic guint64 events_spooled;    /* written to the spool file, to be delivered later */
+    _Atomic guint64 events_rejected;   /* the backend refused them for good (HTTP 400/413/422) */
+    _Atomic guint64 events_lost;       /* could not even be spooled (file full or unwritable) */
+    /* Delivery to the backend; backend_url == NULL means events are printed on stdout instead.
+     * Used by the worker thread only, after publisher_start(). */
+    CURL *curl;
+    struct curl_slist *curl_headers;
+    EventSpool *spool;
+    uint32_t backoff_ms;       /* delay used after the last failure, 0 = backend considered up */
+    gint64 retry_at_us;        /* monotonic time before which the backend is not tried */
+    _Atomic gint64 shutdown_deadline_us;  /* 0 until publisher_stop(); then when to give up */
     _Atomic guint64 events_dropped;    /* written by the probe: queue full */
     /* Snapshots (ROADMAP 2.5); snap_ctx is NULL when --snapshot-dir is not given. The probe asks
      * the encoder for JPEG bytes and queues them; the publisher thread writes the files. */
@@ -135,6 +165,8 @@ static gchar *opt_output = NULL;
 static gint opt_fps_interval = 5;
 static gchar *opt_snapshot_dir = NULL;
 static gint opt_snapshot_quality = SNAPSHOT_QUALITY_DEFAULT;
+static gchar *opt_backend_url = NULL;
+static gchar *opt_spool_file = NULL;
 static gdouble opt_absence_timeout = 10.0;  /* same default as ABSENCE_TIMEOUT in src/config */
 
 static GOptionEntry option_entries[] = {
@@ -143,6 +175,12 @@ static GOptionEntry option_entries[] = {
       "(created if missing); without it no snapshots are taken", "DIR" },
     { "snapshot-quality", 0, 0, G_OPTION_ARG_INT, &opt_snapshot_quality,
       "JPEG quality 1-100 (default 85)", "Q" },
+    { "backend-url", 0, 0, G_OPTION_ARG_STRING, &opt_backend_url,
+      "POST each event as JSON to this URL (e.g. http://127.0.0.1:8000/internal/events); without "
+      "it events are printed on stdout. Needs --spool-file", "URL" },
+    { "spool-file", 0, 0, G_OPTION_ARG_FILENAME, &opt_spool_file,
+      "JSON-lines file where events wait while the backend cannot be reached; delivered when it "
+      "is back, also after a restart of the engine", "FILE" },
     { "absence-timeout", 0, 0, G_OPTION_ARG_DOUBLE, &opt_absence_timeout,
       "Seconds a person must be out of sight before the same track ID raises a new "
       "PERSON_DETECTED event (default 10)", "SEC" },
@@ -317,6 +355,10 @@ static void print_stats(const AppCtx *app)
     g_print("events published=%" G_GUINT64_FORMAT " dropped=%" G_GUINT64_FORMAT
             " pipeline_run_id=%s\n", (guint64)app->events_published, (guint64)app->events_dropped,
             app->pipeline_run_id);
+    if (opt_backend_url != NULL)
+        g_print("backend spooled=%" G_GUINT64_FORMAT " rejected=%" G_GUINT64_FORMAT " lost=%"
+                G_GUINT64_FORMAT "\n", (guint64)app->events_spooled, (guint64)app->events_rejected,
+                (guint64)app->events_lost);
     if (opt_snapshot_dir != NULL)
         g_print("snapshots written=%" G_GUINT64_FORMAT " failed=%" G_GUINT64_FORMAT
                 " events_with_snapshot=%" G_GUINT64_FORMAT " probe_blocked_ms total=%.1f max=%.1f\n",
@@ -561,9 +603,134 @@ static gboolean write_snapshot(const QueueItem *item)
     return ok;
 }
 
+typedef enum { SEND_OK, SEND_RETRY, SEND_REJECTED } SendResult;
+
+/* libcurl would write the response body to stdout by default; we do not need it. */
+static size_t discard_body(char *data, size_t size, size_t nmemb, void *user)
+{
+    (void)data; (void)user;
+    return size * nmemb;
+}
+
+/* The backend is tried only when the last failure is far enough in the past, and not once the
+ * grace period of a shutdown is over. */
+static gboolean backend_ready(const AppCtx *app)
+{
+    gint64 now = g_get_monotonic_time();
+    gint64 deadline = atomic_load_explicit(&app->shutdown_deadline_us, memory_order_relaxed);
+    return now >= app->retry_at_us && (deadline == 0 || now < deadline);
+}
+
+static void backend_failed(AppCtx *app)
+{
+    app->backoff_ms = backoff_next_ms(app->backoff_ms);
+    app->retry_at_us = g_get_monotonic_time() + (gint64)app->backoff_ms * 1000;
+}
+
+static void backend_ok(AppCtx *app)
+{
+    if (app->backoff_ms != 0)
+        g_printerr("Backend reachable again\n");
+    app->backoff_ms = 0;
+    app->retry_at_us = 0;
+}
+
+/* POST one event. Errors are logged without the URL (it may carry a secret). Only the answers that
+ * say "this event is bad" (400/413/422) are final; anything else, including 404/401/403 from a
+ * misconfigured backend, is retried so that no event is lost to a setup mistake. 409 means the
+ * backend already has this event_id, which is what we wanted. */
+static SendResult http_post(AppCtx *app, const char *json)
+{
+    curl_easy_setopt(app->curl, CURLOPT_POSTFIELDS, json);
+    curl_easy_setopt(app->curl, CURLOPT_POSTFIELDSIZE, (long)strlen(json));
+    CURLcode rc = curl_easy_perform(app->curl);
+    if (rc != CURLE_OK) {
+        if (app->backoff_ms == 0)
+            g_printerr("Backend unreachable: %s; events go to the spool file\n",
+                       curl_easy_strerror(rc));
+        return SEND_RETRY;
+    }
+
+    long status = 0;
+    curl_easy_getinfo(app->curl, CURLINFO_RESPONSE_CODE, &status);
+    if ((status >= 200 && status < 300) || status == 409)
+        return SEND_OK;
+    if (status == 400 || status == 413 || status == 422) {
+        if (atomic_load_explicit(&app->events_rejected, memory_order_relaxed) == 0)
+            g_printerr("Backend rejected an event (HTTP %ld); further rejections are only counted\n",
+                       status);
+        return SEND_REJECTED;
+    }
+    if (app->backoff_ms == 0)
+        g_printerr("Backend answered HTTP %ld; events go to the spool file\n", status);
+    return SEND_RETRY;
+}
+
+/* Send what the spool holds, oldest first, at most `max` events (0 = until it is empty or the
+ * backend fails). */
+static void drain_spool(AppCtx *app, guint max)
+{
+    char json[EVENT_JSON_MAX];
+    for (guint n = 0; (max == 0 || n < max) && backend_ready(app); n++) {
+        int got = event_spool_peek(app->spool, json, sizeof(json));
+        if (got < 0) {
+            g_printerr("Could not read the spool file\n");
+            backend_failed(app);
+            return;
+        }
+        if (got == 0)
+            return;
+        SendResult r = http_post(app, json);
+        if (r == SEND_RETRY) {
+            backend_failed(app);
+            return;
+        }
+        backend_ok(app);
+        event_spool_pop(app->spool);
+        atomic_fetch_add_explicit(r == SEND_OK ? &app->events_published : &app->events_rejected,
+                                  1, memory_order_relaxed);
+    }
+}
+
+static void spool_event(AppCtx *app, const char *json)
+{
+    int rc = event_spool_append(app->spool, json);
+    if (rc == 0) {
+        atomic_fetch_add_explicit(&app->events_spooled, 1, memory_order_relaxed);
+        return;
+    }
+    g_printerr(rc == -2 ? "Spool file is full, an event is lost\n"
+                        : "Could not write to the spool file, an event is lost\n");
+    atomic_fetch_add_explicit(&app->events_lost, 1, memory_order_relaxed);
+}
+
+/* One serialised event: to the backend if it is up and nothing older is waiting, otherwise behind
+ * what is already in the spool, so that events keep their order. */
+static void deliver_event(AppCtx *app, const char *json)
+{
+    if (app->curl == NULL) {
+        g_print("event %s\n", json);
+        atomic_fetch_add_explicit(&app->events_published, 1, memory_order_relaxed);
+        return;
+    }
+
+    drain_spool(app, SPOOL_DRAIN_BATCH);
+    if (event_spool_empty(app->spool) && backend_ready(app)) {
+        SendResult r = http_post(app, json);
+        if (r != SEND_RETRY) {
+            backend_ok(app);
+            atomic_fetch_add_explicit(r == SEND_OK ? &app->events_published : &app->events_rejected,
+                                      1, memory_order_relaxed);
+            return;
+        }
+        backend_failed(app);
+    }
+    spool_event(app, json);
+}
+
 /* Worker thread: takes items off the queue until it gets publisher_stop_item. A snapshot item
  * always comes before the events that name it, so the file is on disk before the event goes out.
- * For now "publishing" is one JSON line on stdout; ROADMAP 2.6 turns this into the HTTP POST. */
+ * The probe never waits for any of this: a slow or dead backend only slows this thread down. */
 static gpointer publisher_thread(gpointer data)
 {
     AppCtx *app = (AppCtx *)data;
@@ -571,7 +738,12 @@ static gpointer publisher_thread(gpointer data)
     gchar *failed_snapshot = NULL;   /* name of the last snapshot that could not be written */
 
     for (;;) {
-        QueueItem *item = g_async_queue_pop(app->event_queue);
+        QueueItem *item = g_async_queue_timeout_pop(app->event_queue, WORKER_IDLE_US);
+        if (item == NULL) {   /* nothing arrived: a good moment to empty the spool */
+            if (app->curl != NULL)
+                drain_spool(app, SPOOL_DRAIN_BATCH);
+            continue;
+        }
         if (item->kind == ITEM_STOP)
             break;
 
@@ -592,15 +764,58 @@ static gpointer publisher_thread(gpointer data)
             if (rec->snapshot[0] != '\0')
                 atomic_fetch_add_explicit(&app->events_with_snapshot, 1, memory_order_relaxed);
             if (event_record_to_json(rec, json, sizeof(json)) > 0)
-                g_print("event %s\n", json);
+                deliver_event(app, json);
             else
                 g_printerr("Could not serialise an event\n");
-            atomic_fetch_add_explicit(&app->events_published, 1, memory_order_relaxed);
         }
         queue_item_free(item);
     }
+
+    /* Shutting down: one last try to empty the spool, within the grace period. */
+    if (app->curl != NULL)
+        drain_spool(app, 0);
     g_free(failed_snapshot);
     return NULL;
+}
+
+/* Everything the worker needs for the HTTP side: libcurl handle (kept alive between events, so the
+ * connection is reused) and the spool. Returns FALSE with a message if it cannot be set up. */
+static gboolean delivery_init(AppCtx *app)
+{
+    curl_global_init(CURL_GLOBAL_DEFAULT);   /* not thread safe: before the worker exists */
+    app->spool = event_spool_open(opt_spool_file, SPOOL_MAX_BYTES);
+    if (app->spool == NULL) {
+        g_printerr("Cannot open the spool file (--spool-file)\n");
+        return FALSE;
+    }
+    app->curl = curl_easy_init();
+    if (app->curl == NULL) {
+        g_printerr("Could not initialise libcurl\n");
+        event_spool_close(app->spool);
+        app->spool = NULL;
+        return FALSE;
+    }
+    app->curl_headers = curl_slist_append(NULL, "Content-Type: application/json");
+    curl_easy_setopt(app->curl, CURLOPT_URL, opt_backend_url);
+    curl_easy_setopt(app->curl, CURLOPT_POST, 1L);
+    curl_easy_setopt(app->curl, CURLOPT_HTTPHEADER, app->curl_headers);
+    curl_easy_setopt(app->curl, CURLOPT_CONNECTTIMEOUT_MS, (long)HTTP_CONNECT_TIMEOUT_MS);
+    curl_easy_setopt(app->curl, CURLOPT_TIMEOUT_MS, (long)HTTP_TIMEOUT_MS);
+    curl_easy_setopt(app->curl, CURLOPT_NOSIGNAL, 1L);          /* we call it from a thread */
+    curl_easy_setopt(app->curl, CURLOPT_FOLLOWLOCATION, 0L);
+    curl_easy_setopt(app->curl, CURLOPT_WRITEFUNCTION, discard_body);
+    return TRUE;
+}
+
+static void delivery_free(AppCtx *app)
+{
+    if (app->curl != NULL)
+        curl_easy_cleanup(app->curl);
+    app->curl = NULL;
+    curl_slist_free_all(app->curl_headers);
+    app->curl_headers = NULL;
+    event_spool_close(app->spool);
+    app->spool = NULL;
 }
 
 static gboolean publisher_start(AppCtx *app)
@@ -609,25 +824,33 @@ static gboolean publisher_start(AppCtx *app)
     g_strlcpy(app->pipeline_run_id, run_id, sizeof(app->pipeline_run_id));
     g_free(run_id);
 
+    if (opt_backend_url != NULL && !delivery_init(app))
+        return FALSE;
+
     app->event_queue = g_async_queue_new();
     app->publisher = g_thread_try_new("publisher", publisher_thread, app, NULL);
     if (app->publisher == NULL) {
         g_async_queue_unref(app->event_queue);
         app->event_queue = NULL;
+        delivery_free(app);
         return FALSE;
     }
     return TRUE;
 }
 
-/* Let the worker finish what is queued, then stop it. Call after the pipeline has stopped, so the
+/* Let the worker finish what is queued (for at most SHUTDOWN_GRACE_US when the backend is slow or
+ * down; the rest goes to the spool), then stop it. Call after the pipeline has stopped, so the
  * probe pushes nothing more. Safe to call twice. */
 static void publisher_stop(AppCtx *app)
 {
     if (app->publisher == NULL)
         return;
+    atomic_store_explicit(&app->shutdown_deadline_us,
+                          g_get_monotonic_time() + SHUTDOWN_GRACE_US, memory_order_relaxed);
     g_async_queue_push(app->event_queue, &publisher_stop_item);
     g_thread_join(app->publisher);
     app->publisher = NULL;
+    delivery_free(app);
 }
 
 /*
@@ -966,6 +1189,19 @@ int main(int argc, char *argv[])
         return EXIT_BAD_ARGS;
     }
 
+    if ((opt_backend_url == NULL) != (opt_spool_file == NULL)) {
+        g_printerr("--backend-url and --spool-file go together: without a spool file events would "
+                   "be lost while the backend is down\n");
+        g_ptr_array_free(specs, TRUE);
+        return EXIT_BAD_ARGS;
+    }
+    if (opt_backend_url != NULL && !g_str_has_prefix(opt_backend_url, "http://") &&
+        !g_str_has_prefix(opt_backend_url, "https://")) {
+        g_printerr("--backend-url must start with http:// or https://\n");
+        g_ptr_array_free(specs, TRUE);
+        return EXIT_BAD_ARGS;
+    }
+
     if (opt_snapshot_quality < 1 || opt_snapshot_quality > 100) {
         g_printerr("--snapshot-quality must be between 1 and 100\n");
         g_ptr_array_free(specs, TRUE);
@@ -1047,5 +1283,8 @@ int main(int argc, char *argv[])
     g_free(opt_tracker_config);
     g_free(opt_output);
     g_free(opt_snapshot_dir);
+    g_free(opt_backend_url);
+    g_free(opt_spool_file);
+    curl_global_cleanup();
     return app.exit_code;
 }

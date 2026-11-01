@@ -7,7 +7,7 @@ detections into `PERSON_DETECTED` events, and hands them to a backend that store
 Current state of the repository:
 
 - `engine/`: the DeepStream engine in C. The N-source pipeline (`nvstreammux` -> `nvinfer` with YOLOv8n -> `nvtracker`)
-  runs and raises `PERSON_DETECTED` events per source (queued and printed as JSON lines; not yet sent to a backend), and can write a debug video with the boxes and track IDs drawn; snapshots and the publisher are not built yet (see [DeepStream engine](#deepstream-engine)).
+  runs and raises `PERSON_DETECTED` events per source (with a JPEG snapshot of the frame each; queued and then POSTed to a backend with retry and a spool file, or printed as JSON lines when no backend is given), and can write a debug video with the boxes and track IDs drawn (see [DeepStream engine](#deepstream-engine)).
 - `src/events/`: the Python `PERSON_DETECTED` de-duplication logic. It is the reference specification; the C engine
   has a port of it (`engine/src/core/event_manager.c`) that passes the same test vectors.
 - `src/notifications/`, `src/snapshot_management.py`, `src/config/`, `src/logging_config.py`: Python building blocks
@@ -124,12 +124,23 @@ objects, distinct track IDs, tracks seen in fewer than 10 frames, frame rate. Th
 each source to that source's event manager (`engine/src/core/event_manager.c`, a C port of `PersonDetectedEventManager`),
 which emits one `PERSON_DETECTED` event per appearance of a track; its clock is the stream start time plus the frame's
 PTS, not the wall clock. Each event becomes an `EventRecord` (schema below), is pushed on a bounded queue (1024) and a
-worker thread prints it as a line `event {json}` on stdout, so nothing slow runs in the probe; if the worker falls
+worker thread delivers it (see below), so nothing slow runs in the probe; if the worker falls
 behind, new events are dropped and counted (`dropped=` in the summary). With `--snapshot-dir DIR` the probe also asks the DeepStream JPEG encoder for the whole frame of each event; events that
 start in the same frame share one file. The probe only copies the JPEG bytes (it waits a few milliseconds, only on frames
 that have an event); the worker thread writes the file and only then prints the event, so the file is on disk when the
 event goes out. A file that cannot be written (directory not writable, disk full) is logged and the event is published
-with `"snapshot":null`. What does not exist yet: the HTTP publisher with retry and spool file.
+with `"snapshot":null`.
+
+Delivery. Without `--backend-url` the worker prints each event as a line `event {json}` on stdout (for debugging). With
+`--backend-url URL --spool-file FILE` it POSTs the JSON to the backend with libcurl (connect timeout 2 s, 5 s in total).
+HTTP 2xx, or 409 (the backend already has this `event_id`), counts as delivered; 400/413/422 means the backend refuses the
+event for good (counted as `rejected`); anything else (no connection, 5xx, 429, even 404/401/403 from a misconfigured
+backend) is retried later. After a failure the backend is not tried again for 1 s, then 2 s, 4 s ... up to 60 s, and in the
+meantime every event is appended to the spool file (one JSON per line, flushed to disk), so a dead backend costs nothing but
+the file. Once the backend answers again the spool is emptied oldest first, also after a restart of the engine; the backend
+must ignore an event it already has (same `event_id`). When the engine stops it keeps trying for at most 10 s; what is left
+stays in the spool. Errors are logged without the URL. The snapshot files are not sent: the JSON only names the file.
+The test backend `engine/tools/fake_receiver.py` can answer slowly (`--delay`) or with an error (`--status`, `--status-for`).
 
 Prepare the model once. On the host, export YOLOv8n to ONNX (the file is git-ignored):
 
@@ -150,7 +161,7 @@ cd engine && make CUDA_VER=12.6 && make -C parser CUDA_VER=12.6
 ```
 
 At the end it prints one line per source, for example `source_id=0 camera_id=1 frames=1443 objects=4993 untracked=0 tracks=29 short_tracks=4 events=29 fps=351.2`, followed by
-a line `events published=58 dropped=0 pipeline_run_id=...`, with `--snapshot-dir` a line `snapshots written=56 failed=0 events_with_snapshot=58 probe_blocked_ms total=... max=...`, and the elapsed time and the overall frame rate (it includes the start-up). While it runs it prints the frame rate of every
+a line `events published=58 dropped=0 pipeline_run_id=...`, with `--backend-url` a line `backend spooled=0 rejected=0 lost=0`, with `--snapshot-dir` a line `snapshots written=56 failed=0 events_with_snapshot=58 probe_blocked_ms total=... max=...`, and the elapsed time and the overall frame rate (it includes the start-up). While it runs it prints the frame rate of every
 source each 5 seconds. The first run
 spends about 2.5 minutes building the TensorRT engine; it is saved next to the ONNX and reused (a run then starts in
 seconds). `configs/pgie_yolov8n.txt` points at the engine for N = 2; for another N, `nvinfer` builds a new engine
@@ -193,6 +204,8 @@ Options:
   source that is still running shows only about half of its frames (every frame is still processed and counted).
 - `--snapshot-dir DIR`: save a JPEG of the whole frame for each event in DIR (created if missing). Without it no snapshots are taken.
 - `--snapshot-quality Q`: JPEG quality 1-100 (default 85).
+- `--backend-url URL`: POST every event as JSON to URL (e.g. `http://127.0.0.1:8000/internal/events`); must be given together with `--spool-file`. Without both, events are printed on stdout.
+- `--spool-file FILE`: JSON-lines file in which events wait while the backend cannot be reached (at most 256 MB, then events are lost and counted as `lost=`).
 - `--absence-timeout SEC`: how long a person must be out of sight before the same track ID raises a new event (default 10, same as `ABSENCE_TIMEOUT`).
 - `--fps-interval SEC`: how often the frame rate of each source is printed (default 5, 0 turns it off).
 - `--tracker-config FILE`: the `nvtracker` low-level config (required), `configs/tracker_nvdcf.yml` for NvDCF. The values in
@@ -201,7 +214,7 @@ Options:
 Exit codes: `0` all sources reached EOS, `1` a pipeline error, `2` bad arguments, `3` the pipeline could not be built.
 The program never prints a full URI, only its scheme.
 
-Run the tests of the pure-C code (`engine/src/core/`: the `Detection` box normalisation, the event manager, which replays the shared vectors of `tests/vectors/`, and the event JSON) on the host, no
+Run the tests of the pure-C code (`engine/src/core/`: the `Detection` box normalisation, the event manager, which replays the shared vectors of `tests/vectors/`, the event JSON, the spool file and the retry delays) on the host, no
 DeepStream or GPU needed; built with AddressSanitizer and UBSan:
 
 ```bash

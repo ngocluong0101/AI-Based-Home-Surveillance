@@ -37,6 +37,15 @@ void test_event_record_numbers_are_clamped_and_rounded(void);
 void test_event_record_small_buffer_fails_cleanly(void);
 void test_event_snapshot_name(void);
 
+/* tests/test_event_spool.c */
+void test_event_spool_keeps_order_and_empties_the_file(void);
+void test_event_spool_survives_a_restart(void);
+void test_event_spool_repairs_a_torn_last_line(void);
+void test_event_spool_refuses_when_full(void);
+void test_event_spool_skips_unsendable_lines(void);
+void test_event_spool_open_fails_on_bad_path(void);
+void test_backoff_doubles_and_is_capped(void);
+
 static const TestCase TESTS[] = {
     { "bbox_normalize_inside_frame", test_bbox_normalize_inside_frame },
     { "bbox_normalize_clips_to_frame", test_bbox_normalize_clips_to_frame },
@@ -51,6 +60,13 @@ static const TestCase TESTS[] = {
     { "event_record_numbers_are_clamped_and_rounded", test_event_record_numbers_are_clamped_and_rounded },
     { "event_record_small_buffer_fails_cleanly", test_event_record_small_buffer_fails_cleanly },
     { "event_snapshot_name", test_event_snapshot_name },
+    { "event_spool_keeps_order_and_empties_the_file", test_event_spool_keeps_order_and_empties_the_file },
+    { "event_spool_survives_a_restart", test_event_spool_survives_a_restart },
+    { "event_spool_repairs_a_torn_last_line", test_event_spool_repairs_a_torn_last_line },
+    { "event_spool_refuses_when_full", test_event_spool_refuses_when_full },
+    { "event_spool_skips_unsendable_lines", test_event_spool_skips_unsendable_lines },
+    { "event_spool_open_fails_on_bad_path", test_event_spool_open_fails_on_bad_path },
+    { "backoff_doubles_and_is_capped", test_backoff_doubles_and_is_capped },
     { NULL, NULL }, /* table terminator */
 };
 
