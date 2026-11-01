@@ -1,0 +1,92 @@
+{
+  "name": "stale_tracks_are_forgotten",
+  "description": "A track that is gone is dropped once absent longer than the timeout, not before.",
+  "absence_timeout_s": 10.0,
+  "steps": [
+    {
+      "now_ns": 0,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.8
+        },
+        {
+          "track_id": 2,
+          "conf": 0.7
+        }
+      ],
+      "expected_events": [
+        {
+          "track_id": 1,
+          "confidence": 0.8
+        },
+        {
+          "track_id": 2,
+          "confidence": 0.7
+        }
+      ],
+      "tracks_after": 2
+    },
+    {
+      "now_ns": 5000000000,
+      "detections": [
+        {
+          "track_id": 2,
+          "conf": 0.7
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 2
+    },
+    {
+      "now_ns": 10000000000,
+      "detections": [
+        {
+          "track_id": 2,
+          "conf": 0.7
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 2
+    },
+    {
+      "now_ns": 10000001000,
+      "detections": [
+        {
+          "track_id": 2,
+          "conf": 0.7
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 11000000000,
+      "detections": [],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 20000001000,
+      "detections": [],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 20000002000,
+      "detections": [
+        {
+          "track_id": 2,
+          "conf": 0.71
+        }
+      ],
+      "expected_events": [
+        {
+          "track_id": 2,
+          "confidence": 0.71
+        }
+      ],
+      "tracks_after": 1
+    }
+  ]
+}

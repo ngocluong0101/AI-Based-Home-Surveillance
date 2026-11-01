@@ -33,8 +33,11 @@ APP_LIBS   = $(shell pkg-config --libs $(PKGS)) \
 APP_OBJS := $(patsubst src/%.c,$(BUILD)/%.o,$(DS_SRCS) $(CORE_SRCS))
 
 # ---- test-core (pure C, host) ----
+# VECTOR_DIR: the test vectors shared with the Python tests (relative to engine/, where make runs)
+VECTOR_DIR  ?= ../tests/vectors
 TEST_CFLAGS := -std=gnu11 -g -O1 $(WARN) -fsanitize=address,undefined \
-               -fno-omit-frame-pointer -Iinclude -Isrc/core -Itests
+               -fno-omit-frame-pointer -Iinclude -Isrc/core -Itests \
+               -DVECTOR_DIR='"$(VECTOR_DIR)"'
 
 .PHONY: all test-core clean
 

@@ -1,0 +1,74 @@
+{
+  "name": "track_id_zero_and_large",
+  "description": "Track ID 0 is a valid ID, and IDs above 32 bits are kept apart.",
+  "absence_timeout_s": 10.0,
+  "steps": [
+    {
+      "now_ns": 0,
+      "detections": [
+        {
+          "track_id": 0,
+          "conf": 0.8
+        },
+        {
+          "track_id": 4294967296,
+          "conf": 0.7
+        },
+        {
+          "track_id": 4294967297,
+          "conf": 0.6
+        }
+      ],
+      "expected_events": [
+        {
+          "track_id": 0,
+          "confidence": 0.8
+        },
+        {
+          "track_id": 4294967296,
+          "confidence": 0.7
+        },
+        {
+          "track_id": 4294967297,
+          "confidence": 0.6
+        }
+      ],
+      "tracks_after": 3
+    },
+    {
+      "now_ns": 1000000000,
+      "detections": [
+        {
+          "track_id": 0,
+          "conf": 0.8
+        },
+        {
+          "track_id": 4294967296,
+          "conf": 0.7
+        },
+        {
+          "track_id": 4294967297,
+          "conf": 0.6
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 3
+    },
+    {
+      "now_ns": 2000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.5
+        }
+      ],
+      "expected_events": [
+        {
+          "track_id": 1,
+          "confidence": 0.5
+        }
+      ],
+      "tracks_after": 4
+    }
+  ]
+}

@@ -7,9 +7,9 @@ detections into `PERSON_DETECTED` events, and hands them to a backend that store
 Current state of the repository:
 
 - `engine/`: the DeepStream engine in C. The N-source pipeline (`nvstreammux` -> `nvinfer` with YOLOv8n -> `nvtracker`)
-  runs, and can write a debug video with the boxes and track IDs drawn; events and snapshots are not built yet (see [DeepStream engine](#deepstream-engine)).
-- `src/events/`: the Python `PERSON_DETECTED` de-duplication logic. It is the reference specification the C engine
-  will be ported from.
+  runs and raises `PERSON_DETECTED` events per source (counted, not yet delivered), and can write a debug video with the boxes and track IDs drawn; snapshots and the publisher are not built yet (see [DeepStream engine](#deepstream-engine)).
+- `src/events/`: the Python `PERSON_DETECTED` de-duplication logic. It is the reference specification; the C engine
+  has a port of it (`engine/src/core/event_manager.c`) that passes the same test vectors.
 - `src/notifications/`, `src/snapshot_management.py`, `src/config/`, `src/logging_config.py`: Python building blocks
   (Telegram notifier, snapshot cleanup, `.env` configuration, logging) for the future backend. No Python program
   runs a video pipeline any more: the old Ultralytics/OpenCV command line was removed.
@@ -41,6 +41,9 @@ cp .env.example .env
 - When a `track_id` disappears for longer than `ABSENCE_TIMEOUT` (10 seconds by default) and then reappears, a new
   event is created.
 - The caller passes the current time in, so the logic can be tested with synthetic timestamps.
+- `tests/vectors/event_manager_*.json` are test vectors generated from this class (`tests/vectors/generate_event_manager_vectors.py`):
+  a list of steps (clock, detections) with the expected events. `pytest` replays them on the Python class and
+  `make test-core` replays the same files on the C port, so the two cannot drift apart.
 
 ## Telegram alerts
 
@@ -95,6 +98,7 @@ pytest
 The test suite contains:
 
 - `tests/test_person_detected_event_manager.py`: the `PERSON_DETECTED` de-duplication logic.
+- `tests/test_event_manager_vectors.py`: the shared event manager vectors (see above).
 - `tests/test_env_file.py`: reading and writing `.env`, using temporary files only.
 
 The tests need no camera, model, network or display.
@@ -116,8 +120,11 @@ What works now: the pipeline above for any N >= 1 with YOLOv8n (person only, Ten
 NvDCF tracker, per-source state keyed by `source_id`, the bus handling (ERROR/WARNING/EOS) and exit codes. A probe on
 the `nvtracker` source pad copies every tracked person of every frame into a plain `Detection` struct (source, track ID,
 confidence, relative box, stream time; `engine/src/core/detection.h`) and gathers statistics per `source_id`: frames,
-objects, distinct track IDs, tracks seen in fewer than 10 frames, frame rate. What does not exist yet: `PERSON_DETECTED`
-events (the `Detection` values are not fed to an event manager yet), snapshots and the publisher.
+objects, distinct track IDs, tracks seen in fewer than 10 frames, frame rate. The same probe feeds the `Detection` values of
+each source to that source's event manager (`engine/src/core/event_manager.c`, a C port of `PersonDetectedEventManager`),
+which emits one `PERSON_DETECTED` event per appearance of a track; its clock is the stream start time plus the frame's
+PTS, not the wall clock. For now the events are only counted (`events=` in the summary line). What does not exist yet:
+snapshots and the publisher.
 
 Prepare the model once. On the host, export YOLOv8n to ONNX (the file is git-ignored):
 
@@ -137,7 +144,7 @@ cd engine && make CUDA_VER=12.6 && make -C parser CUDA_VER=12.6
                   --camera 2=file:///path/to/b.mp4
 ```
 
-At the end it prints one line per source, for example `source_id=0 camera_id=1 frames=1442 objects=4793 untracked=0 tracks=21 short_tracks=3 fps=363.4`, followed by
+At the end it prints one line per source, for example `source_id=0 camera_id=1 frames=1443 objects=4993 untracked=0 tracks=29 short_tracks=4 events=29 fps=351.2`, followed by
 the elapsed time and the overall frame rate (it includes the start-up). While it runs it prints the frame rate of every
 source each 5 seconds. The first run
 spends about 2.5 minutes building the TensorRT engine; it is saved next to the ONNX and reused (a run then starts in
@@ -167,6 +174,7 @@ Options:
 - `--output FILE`: debug only. Writes an MP4 with all sources tiled in one video (rows x columns grid), the boxes drawn and
   labelled `person <track ID>`. Without it nothing is rendered. If one source ends earlier than the others, the tile of a
   source that is still running shows only about half of its frames (every frame is still processed and counted).
+- `--absence-timeout SEC`: how long a person must be out of sight before the same track ID raises a new event (default 10, same as `ABSENCE_TIMEOUT`).
 - `--fps-interval SEC`: how often the frame rate of each source is printed (default 5, 0 turns it off).
 - `--tracker-config FILE`: the `nvtracker` low-level config (required), `configs/tracker_nvdcf.yml` for NvDCF. The values in
   it are a starting point, not tuned.
@@ -174,7 +182,7 @@ Options:
 Exit codes: `0` all sources reached EOS, `1` a pipeline error, `2` bad arguments, `3` the pipeline could not be built.
 The program never prints a full URI, only its scheme.
 
-Run the tests of the pure-C code (`engine/src/core/`, 3 tests for the `Detection` box normalisation) on the host, no
+Run the tests of the pure-C code (`engine/src/core/`: the `Detection` box normalisation and the event manager, which replays the shared vectors of `tests/vectors/`) on the host, no
 DeepStream or GPU needed; built with AddressSanitizer and UBSan:
 
 ```bash

@@ -1,0 +1,63 @@
+{
+  "name": "flicker_within_timeout",
+  "description": "A track that blinks out for less than the timeout each time stays one appearance.",
+  "absence_timeout_s": 10.0,
+  "steps": [
+    {
+      "now_ns": 0,
+      "detections": [
+        {
+          "track_id": 7,
+          "conf": 0.8
+        }
+      ],
+      "expected_events": [
+        {
+          "track_id": 7,
+          "confidence": 0.8
+        }
+      ],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 3000000000,
+      "detections": [],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 6000000000,
+      "detections": [
+        {
+          "track_id": 7,
+          "conf": 0.8
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 9000000000,
+      "detections": [],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 12000000000,
+      "detections": [],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 15000000000,
+      "detections": [
+        {
+          "track_id": 7,
+          "conf": 0.8
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    }
+  ]
+}

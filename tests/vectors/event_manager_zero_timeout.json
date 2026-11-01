@@ -1,0 +1,72 @@
+{
+  "name": "zero_timeout",
+  "description": "With absence_timeout 0 only a gap of at least one clock tick starts a new appearance.",
+  "absence_timeout_s": 0.0,
+  "steps": [
+    {
+      "now_ns": 0,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.8
+        }
+      ],
+      "expected_events": [
+        {
+          "track_id": 1,
+          "confidence": 0.8
+        }
+      ],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 0,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.81
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 1000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.82
+        }
+      ],
+      "expected_events": [
+        {
+          "track_id": 1,
+          "confidence": 0.82
+        }
+      ],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 1000,
+      "detections": [],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 2000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.83
+        }
+      ],
+      "expected_events": [
+        {
+          "track_id": 1,
+          "confidence": 0.83
+        }
+      ],
+      "tracks_after": 1
+    }
+  ]
+}

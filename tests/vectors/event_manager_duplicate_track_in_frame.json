@@ -1,0 +1,62 @@
+{
+  "name": "duplicate_track_in_frame",
+  "description": "The same track twice in one frame emits once, with the confidence of the first.",
+  "absence_timeout_s": 10.0,
+  "steps": [
+    {
+      "now_ns": 0,
+      "detections": [
+        {
+          "track_id": 5,
+          "conf": 0.5
+        },
+        {
+          "track_id": 5,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [
+        {
+          "track_id": 5,
+          "confidence": 0.5
+        }
+      ],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 1000000000,
+      "detections": [
+        {
+          "track_id": 5,
+          "conf": 0.9
+        },
+        {
+          "track_id": 5,
+          "conf": 0.95
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 30000000000,
+      "detections": [
+        {
+          "track_id": 5,
+          "conf": 0.4
+        },
+        {
+          "track_id": 5,
+          "conf": 0.45
+        }
+      ],
+      "expected_events": [
+        {
+          "track_id": 5,
+          "confidence": 0.4
+        }
+      ],
+      "tracks_after": 1
+    }
+  ]
+}

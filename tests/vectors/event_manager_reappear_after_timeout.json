@@ -1,0 +1,56 @@
+{
+  "name": "reappear_after_timeout",
+  "description": "A track back after more than absence_timeout emits again; its new confidence is used.",
+  "absence_timeout_s": 10.0,
+  "steps": [
+    {
+      "now_ns": 0,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.8
+        }
+      ],
+      "expected_events": [
+        {
+          "track_id": 1,
+          "confidence": 0.8
+        }
+      ],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 5000000000,
+      "detections": [],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 15000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.65
+        }
+      ],
+      "expected_events": [
+        {
+          "track_id": 1,
+          "confidence": 0.65
+        }
+      ],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 16000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.99
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    }
+  ]
+}

@@ -1,0 +1,88 @@
+{
+  "name": "tracks_are_independent",
+  "description": "One track timing out and returning does not disturb another that stays.",
+  "absence_timeout_s": 10.0,
+  "steps": [
+    {
+      "now_ns": 0,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.8
+        },
+        {
+          "track_id": 2,
+          "conf": 0.7
+        }
+      ],
+      "expected_events": [
+        {
+          "track_id": 1,
+          "confidence": 0.8
+        },
+        {
+          "track_id": 2,
+          "confidence": 0.7
+        }
+      ],
+      "tracks_after": 2
+    },
+    {
+      "now_ns": 4000000000,
+      "detections": [
+        {
+          "track_id": 2,
+          "conf": 0.72
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 2
+    },
+    {
+      "now_ns": 8000000000,
+      "detections": [
+        {
+          "track_id": 2,
+          "conf": 0.72
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 2
+    },
+    {
+      "now_ns": 12000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.6
+        },
+        {
+          "track_id": 2,
+          "conf": 0.72
+        }
+      ],
+      "expected_events": [
+        {
+          "track_id": 1,
+          "confidence": 0.6
+        }
+      ],
+      "tracks_after": 2
+    },
+    {
+      "now_ns": 14000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.61
+        },
+        {
+          "track_id": 2,
+          "conf": 0.72
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 2
+    }
+  ]
+}

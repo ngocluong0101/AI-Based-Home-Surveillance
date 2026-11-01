@@ -1,0 +1,25 @@
+{
+  "name": "no_detections",
+  "description": "Frames without detections emit nothing and remember nothing.",
+  "absence_timeout_s": 10.0,
+  "steps": [
+    {
+      "now_ns": 0,
+      "detections": [],
+      "expected_events": [],
+      "tracks_after": 0
+    },
+    {
+      "now_ns": 1000000000,
+      "detections": [],
+      "expected_events": [],
+      "tracks_after": 0
+    },
+    {
+      "now_ns": 2000000000,
+      "detections": [],
+      "expected_events": [],
+      "tracks_after": 0
+    }
+  ]
+}

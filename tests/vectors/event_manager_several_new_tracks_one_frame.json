@@ -1,0 +1,82 @@
+{
+  "name": "several_new_tracks_one_frame",
+  "description": "Every new track of a frame emits, in detection order; a later newcomer emits alone.",
+  "absence_timeout_s": 10.0,
+  "steps": [
+    {
+      "now_ns": 0,
+      "detections": [
+        {
+          "track_id": 3,
+          "conf": 0.7
+        },
+        {
+          "track_id": 1,
+          "conf": 0.9
+        },
+        {
+          "track_id": 2,
+          "conf": 0.8
+        }
+      ],
+      "expected_events": [
+        {
+          "track_id": 3,
+          "confidence": 0.7
+        },
+        {
+          "track_id": 1,
+          "confidence": 0.9
+        },
+        {
+          "track_id": 2,
+          "confidence": 0.8
+        }
+      ],
+      "tracks_after": 3
+    },
+    {
+      "now_ns": 1000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        },
+        {
+          "track_id": 2,
+          "conf": 0.8
+        },
+        {
+          "track_id": 3,
+          "conf": 0.7
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 3
+    },
+    {
+      "now_ns": 2000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        },
+        {
+          "track_id": 4,
+          "conf": 0.55
+        },
+        {
+          "track_id": 3,
+          "conf": 0.7
+        }
+      ],
+      "expected_events": [
+        {
+          "track_id": 4,
+          "confidence": 0.55
+        }
+      ],
+      "tracks_after": 4
+    }
+  ]
+}

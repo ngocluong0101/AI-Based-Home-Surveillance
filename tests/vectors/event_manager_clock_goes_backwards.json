@@ -1,0 +1,61 @@
+{
+  "name": "clock_goes_backwards",
+  "description": "A clock that steps back (a looped file) is never 'absent too long': nothing emits, nothing is dropped.",
+  "absence_timeout_s": 10.0,
+  "steps": [
+    {
+      "now_ns": 100000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.8
+        }
+      ],
+      "expected_events": [
+        {
+          "track_id": 1,
+          "confidence": 0.8
+        }
+      ],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 50000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.8
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 50000000000,
+      "detections": [
+        {
+          "track_id": 2,
+          "conf": 0.7
+        }
+      ],
+      "expected_events": [
+        {
+          "track_id": 2,
+          "confidence": 0.7
+        }
+      ],
+      "tracks_after": 2
+    },
+    {
+      "now_ns": 51000000000,
+      "detections": [
+        {
+          "track_id": 2,
+          "conf": 0.7
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 2
+    }
+  ]
+}

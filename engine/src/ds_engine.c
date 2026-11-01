@@ -23,6 +23,7 @@
 #include <sys/stat.h>
 
 #include "detection.h"
+#include "event_manager.h"
 #include "gstnvdsmeta.h"
 
 #define EXIT_BAD_ARGS 2
@@ -71,8 +72,16 @@ typedef struct {
     /* track_id -> number of frames it was seen in. Statistics only (ROADMAP 1.3); it is replaced
      * by the EventManager state in Phase 2. */
     GHashTable *track_frames;
-    /* TODO(2.1): this source's EventManager.
-     * TODO(3.6): fps, last-frame time, state (RUNNING / RECONNECTING). */
+    /* Event de-duplication of this source (ROADMAP 2.1). Touched only by the probe, which runs on
+     * one streaming thread, and read after the pipeline stopped, so it needs no lock. */
+    EventManager events;
+    /* Wall-clock time (ns since the Unix epoch) that PTS 0 of this stream corresponds to, fixed by
+     * the first frame seen; the EventManager clock is stream_start_ns + pts. */
+    gint64 stream_start_ns;
+    gboolean have_stream_start;
+    guint64 event_count;   /* PERSON_DETECTED events emitted */
+    guint64 event_errors;  /* frames dropped from event processing because memory ran out */
+    /* TODO(3.6): fps, last-frame time, state (RUNNING / RECONNECTING). */
 } SourceCtx;
 
 typedef struct {
@@ -91,8 +100,12 @@ static gchar *opt_config = NULL;
 static gchar *opt_tracker_config = NULL;
 static gchar *opt_output = NULL;
 static gint opt_fps_interval = 5;
+static gdouble opt_absence_timeout = 10.0;  /* same default as ABSENCE_TIMEOUT in src/config */
 
 static GOptionEntry option_entries[] = {
+    { "absence-timeout", 0, 0, G_OPTION_ARG_DOUBLE, &opt_absence_timeout,
+      "Seconds a person must be out of sight before the same track ID raises a new "
+      "PERSON_DETECTED event (default 10)", "SEC" },
     { "output", 0, 0, G_OPTION_ARG_FILENAME, &opt_output,
       "Debug: write an MP4 of all sources tiled in one video, with boxes and track IDs drawn on it "
       "(without it nothing is rendered)", "FILE" },
@@ -187,6 +200,7 @@ static gboolean init_sources(AppCtx *app, const GPtrArray *specs)
         SourceCtx *src = &app->sources[i];
         src->source_id = i;
         src->track_frames = g_hash_table_new(g_direct_hash, g_direct_equal);
+        event_manager_init(&src->events, opt_absence_timeout);
 
         /* Do not echo the spec: it may hold a password. */
         if (!parse_camera_arg(g_ptr_array_index(specs, i), &src->camera_id, &src->uri)) {
@@ -207,6 +221,7 @@ static void free_sources(AppCtx *app)
 {
     for (guint i = 0; i < app->num_sources; i++) {
         g_free(app->sources[i].uri);
+        event_manager_destroy(&app->sources[i].events);
         if (app->sources[i].track_frames != NULL)
             g_hash_table_destroy(app->sources[i].track_frames);
         if (app->sources[i].mux_sinkpad != NULL)
@@ -248,10 +263,14 @@ static void print_stats(const AppCtx *app)
         }
 
         g_print("source_id=%u camera_id=%d frames=%" G_GUINT64_FORMAT " objects=%" G_GUINT64_FORMAT
-                " untracked=%" G_GUINT64_FORMAT " tracks=%u short_tracks=%u fps=%.1f\n",
+                " untracked=%" G_GUINT64_FORMAT " tracks=%u short_tracks=%u events=%"
+                G_GUINT64_FORMAT " fps=%.1f\n",
                 src->source_id, src->camera_id, (guint64)src->frame_count, src->object_count,
-                src->untracked_count, tracks, short_tracks,
+                src->untracked_count, tracks, short_tracks, src->event_count,
                 seconds > 0.0 ? (double)src->frame_count / seconds : 0.0);
+        if (src->event_errors > 0)
+            g_printerr("source_id=%u: %" G_GUINT64_FORMAT " frames skipped by the event manager "
+                       "(out of memory)\n", src->source_id, src->event_errors);
         total_frames += src->frame_count;
     }
 
@@ -379,8 +398,23 @@ static GstPadProbeReturn detection_probe(GstPad *pad, GstPadProbeInfo *info, gpo
             gsize seen = GPOINTER_TO_SIZE(g_hash_table_lookup(src->track_frames, key));
             g_hash_table_insert(src->track_frames, key, GSIZE_TO_POINTER(seen + 1));
         }
-        /* TODO(2.1): feed dets[0..n) to EventManager[src->source_id]; its clock is
-         * stream_start[source_id] + dets[i].pts, not the wall clock. */
+
+        /* Event clock = stream_start + PTS of the frame, never the wall clock at processing time,
+         * so a file read faster than real time behaves like the same stream played live. Called
+         * for every frame, also with n == 0: that is how absent tracks time out. */
+        if (!src->have_stream_start) {
+            src->stream_start_ns = g_get_real_time() * 1000 - (gint64)frame_meta->buf_pts;
+            src->have_stream_start = TRUE;
+        }
+        PersonDetectedEvent events[MAX_DETECTIONS_PER_FRAME];
+        int emitted = event_manager_process(&src->events, dets, n,
+                                            src->stream_start_ns + (gint64)frame_meta->buf_pts,
+                                            events, G_N_ELEMENTS(events));
+        if (emitted < 0)
+            src->event_errors++;
+        else
+            src->event_count += (guint64)emitted;
+        /* TODO(2.2): snapshot + hand events[0..emitted) to the publisher queue. */
     }
     return GST_PAD_PROBE_OK;
 }
@@ -600,6 +634,12 @@ int main(int argc, char *argv[])
     if (opt_config == NULL || opt_tracker_config == NULL) {
         g_printerr("--config FILE (nvinfer config) and --tracker-config FILE (nvtracker YAML) "
                    "are required\n");
+        g_ptr_array_free(specs, TRUE);
+        return EXIT_BAD_ARGS;
+    }
+
+    if (!(opt_absence_timeout >= 0.0 && opt_absence_timeout <= 86400.0)) {
+        g_printerr("--absence-timeout must be between 0 and 86400 seconds\n");
         g_ptr_array_free(specs, TRUE);
         return EXIT_BAD_ARGS;
     }

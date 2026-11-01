@@ -23,10 +23,20 @@ void test_bbox_normalize_inside_frame(void);
 void test_bbox_normalize_clips_to_frame(void);
 void test_bbox_normalize_rejects_unusable_boxes(void);
 
+/* tests/test_event_manager.c */
+void test_event_manager_shared_vectors(void);
+void test_event_manager_output_capacity(void);
+void test_event_manager_destroy_is_safe(void);
+void test_event_manager_instances_are_independent(void);
+
 static const TestCase TESTS[] = {
     { "bbox_normalize_inside_frame", test_bbox_normalize_inside_frame },
     { "bbox_normalize_clips_to_frame", test_bbox_normalize_clips_to_frame },
     { "bbox_normalize_rejects_unusable_boxes", test_bbox_normalize_rejects_unusable_boxes },
+    { "event_manager_shared_vectors", test_event_manager_shared_vectors },
+    { "event_manager_output_capacity", test_event_manager_output_capacity },
+    { "event_manager_destroy_is_safe", test_event_manager_destroy_is_safe },
+    { "event_manager_instances_are_independent", test_event_manager_instances_are_independent },
     { NULL, NULL }, /* table terminator */
 };
 

@@ -1,0 +1,77 @@
+{
+  "name": "real_stream_clock",
+  "description": "Clock values of a real stream (Unix time in ns, beyond 2^53) keep their exact resolution.",
+  "absence_timeout_s": 10.0,
+  "steps": [
+    {
+      "now_ns": 1767268800000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.8
+        }
+      ],
+      "expected_events": [
+        {
+          "track_id": 1,
+          "confidence": 0.8
+        }
+      ],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 1767268810000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.8
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 1767268820000001000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.8
+        }
+      ],
+      "expected_events": [
+        {
+          "track_id": 1,
+          "confidence": 0.8
+        }
+      ],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 1767268830000001000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.8
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 1767268840000003000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.8
+        }
+      ],
+      "expected_events": [
+        {
+          "track_id": 1,
+          "confidence": 0.8
+        }
+      ],
+      "tracks_after": 1
+    }
+  ]
+}

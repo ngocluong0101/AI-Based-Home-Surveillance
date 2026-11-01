@@ -1,0 +1,61 @@
+{
+  "name": "short_timeout_fractional",
+  "description": "absence_timeout is in seconds and may be fractional.",
+  "absence_timeout_s": 0.5,
+  "steps": [
+    {
+      "now_ns": 0,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.8
+        }
+      ],
+      "expected_events": [
+        {
+          "track_id": 1,
+          "confidence": 0.8
+        }
+      ],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 500000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.8
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 1000001000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.82
+        }
+      ],
+      "expected_events": [
+        {
+          "track_id": 1,
+          "confidence": 0.82
+        }
+      ],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 1500001000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.83
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    }
+  ]
+}
