@@ -1,10 +1,12 @@
 /*
  * ds_engine.c - DeepStream engine: N video sources in one batched pipeline.
  *
- * ROADMAP Phase 1.1-1.3: CLI parsing (--camera ID=URI, --cameras-file), the SourceCtx[N] table,
- * the pipeline N sources -> nvstreammux -> nvinfer -> nvtracker (NvDCF) -> fakesink, bus handling
- * (ERROR/WARNING/EOS), exit codes, and a probe that gathers frame/object/track statistics per
- * source_id. Things still to do are marked TODO(roadmap item).
+ * ROADMAP Phase 1: CLI parsing (--camera ID=URI, --cameras-file), the SourceCtx[N] table, the
+ * pipeline N sources -> nvstreammux -> nvinfer -> nvtracker (NvDCF) -> fakesink, or with --output
+ * -> tiler -> OSD -> H.264 -> MP4, bus handling (ERROR/WARNING/EOS), exit codes, and a probe on
+ * the nvtracker src pad that copies the tracked persons of every frame into Detection structs and
+ * gathers frame/object/track statistics per source_id. Things still to do are marked
+ * TODO(roadmap item).
  *
  * Conventions (see CLAUDE.md / ROADMAP.md):
  *  - All per-source state lives in SourceCtx[N]; no single global per-source variables.
@@ -15,10 +17,12 @@
 #include <glib.h>
 #include <glib/gstdio.h>
 #include <gst/gst.h>
+#include <stdatomic.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
 
+#include "detection.h"
 #include "gstnvdsmeta.h"
 
 #define EXIT_BAD_ARGS 2
@@ -39,6 +43,17 @@
  * share of them means the tracker fragments one person into several IDs. */
 #define SHORT_TRACK_FRAMES 10
 
+/* Most Detection entries gathered from one frame (nvtracker keeps at most 150 targets per
+ * stream, see maxTargetsPerStream in the tracker config). */
+#define MAX_DETECTIONS_PER_FRAME 256
+
+/* Class id of "person" in the nvinfer output (the YOLOv8 parser reports only this class). */
+#define PERSON_CLASS_ID 0
+
+/* --output: size of the tiled video that holds all sources. */
+#define TILER_WIDTH 1920
+#define TILER_HEIGHT 1080
+
 /* State of one source. source_id = declaration order of --camera, then of --cameras-file. */
 typedef struct {
     guint source_id;
@@ -46,9 +61,11 @@ typedef struct {
     gchar *uri;
     GstElement *bin;     /* nvurisrcbin, owned by the pipeline */
     GstPad *mux_sinkpad; /* request pad "sink_<source_id>" of nvstreammux; we hold one ref */
-    /* Written by the streaming thread (probe), read by the main thread after the pipeline
-     * stopped, so no lock is needed. */
-    guint64 frame_count;
+    /* Written by the streaming thread (probe). frame_count is atomic because the FPS timer reads
+     * it while the pipeline runs; the other counters are read only after it stopped, so they
+     * need no lock. */
+    _Atomic guint64 frame_count;
+    guint64 fps_prev_frames;  /* frame_count at the previous FPS report (main thread only) */
     guint64 object_count;
     guint64 untracked_count;  /* objects that came out of the tracker without an ID */
     /* track_id -> number of frames it was seen in. Statistics only (ROADMAP 1.3); it is replaced
@@ -72,8 +89,15 @@ static gchar **opt_cameras = NULL;
 static gchar *opt_cameras_file = NULL;
 static gchar *opt_config = NULL;
 static gchar *opt_tracker_config = NULL;
+static gchar *opt_output = NULL;
+static gint opt_fps_interval = 5;
 
 static GOptionEntry option_entries[] = {
+    { "output", 0, 0, G_OPTION_ARG_FILENAME, &opt_output,
+      "Debug: write an MP4 of all sources tiled in one video, with boxes and track IDs drawn on it "
+      "(without it nothing is rendered)", "FILE" },
+    { "fps-interval", 0, 0, G_OPTION_ARG_INT, &opt_fps_interval,
+      "Print the frame rate of every source each SEC seconds, 0 = off (default 5)", "SEC" },
     { "camera", 'c', 0, G_OPTION_ARG_STRING_ARRAY, &opt_cameras,
       "Video source as ID=URI, repeat for each camera "
       "(e.g. --camera 1=file:///a.mp4 --camera 2=rtsp://...)", "ID=URI" },
@@ -207,6 +231,7 @@ static void print_sources(const AppCtx *app)
 static void print_stats(const AppCtx *app)
 {
     guint64 total_frames = 0;
+    double seconds = (double)(app->end_us - app->start_us) / G_USEC_PER_SEC;
 
     for (guint i = 0; i < app->num_sources; i++) {
         const SourceCtx *src = &app->sources[i];
@@ -223,13 +248,13 @@ static void print_stats(const AppCtx *app)
         }
 
         g_print("source_id=%u camera_id=%d frames=%" G_GUINT64_FORMAT " objects=%" G_GUINT64_FORMAT
-                " untracked=%" G_GUINT64_FORMAT " tracks=%u short_tracks=%u\n",
-                src->source_id, src->camera_id, src->frame_count, src->object_count,
-                src->untracked_count, tracks, short_tracks);
+                " untracked=%" G_GUINT64_FORMAT " tracks=%u short_tracks=%u fps=%.1f\n",
+                src->source_id, src->camera_id, (guint64)src->frame_count, src->object_count,
+                src->untracked_count, tracks, short_tracks,
+                seconds > 0.0 ? (double)src->frame_count / seconds : 0.0);
         total_frames += src->frame_count;
     }
 
-    double seconds = (double)(app->end_us - app->start_us) / G_USEC_PER_SEC;
     if (seconds > 0.0)
         g_print("elapsed=%.1fs total_frames=%" G_GUINT64_FORMAT " fps=%.1f (all sources together, "
                 "includes startup)\n", seconds, total_frames, (double)total_frames / seconds);
@@ -279,15 +304,56 @@ static gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data)
 }
 
 /*
- * Pad probe: reads NvDsBatchMeta -> NvDsFrameMeta -> NvDsObjectMeta. For now it only gathers
- * statistics per source_id: frames, objects, and for how many frames each track ID was seen.
- * object_id is unique only inside one source, hence one table per SourceCtx. Attached on the src
- * pad of nvtracker, where object_id is already set.
+ * Copy the tracked persons of one frame into out[] (at most `max`). This is the only place that
+ * reads NvDsObjectMeta; it keeps no pointer to it. Boxes are normalised to the muxer frame
+ * (MUXER_WIDTH x MUXER_HEIGHT): nvstreammux scales every source to that size and rect_params is
+ * expressed in it. *total is the number of objects in the frame, *untracked the number of them
+ * that have no track ID yet (those are not copied). Returns the number of Detection written.
+ */
+static size_t extract_person_detections(const NvDsFrameMeta *frame_meta, Detection *out,
+                                        size_t max, guint *total, guint *untracked)
+{
+    size_t n = 0;
+
+    *total = 0;
+    *untracked = 0;
+    for (NvDsMetaList *l_obj = frame_meta->obj_meta_list; l_obj != NULL; l_obj = l_obj->next) {
+        const NvDsObjectMeta *obj = (const NvDsObjectMeta *)l_obj->data;
+
+        (*total)++;
+        if (obj->object_id == UNTRACKED_OBJECT_ID) {
+            (*untracked)++;
+            continue;
+        }
+        if (obj->class_id != PERSON_CLASS_ID || n >= max)
+            continue;
+
+        Detection *det = &out[n];
+        if (!detection_bbox_normalize(obj->rect_params.left, obj->rect_params.top,
+                                      obj->rect_params.width, obj->rect_params.height,
+                                      MUXER_WIDTH, MUXER_HEIGHT, det->bbox))
+            continue;
+        det->source_id = frame_meta->source_id;
+        det->track_id = obj->object_id;
+        det->confidence = obj->confidence;
+        det->pts = frame_meta->buf_pts;
+        n++;
+    }
+    return n;
+}
+
+/*
+ * Pad probe on the src pad of nvtracker, before any tiler/demux so the batch is still whole:
+ * NvDsBatchMeta -> one NvDsFrameMeta per source -> Detection[] for that source. For now the
+ * Detection values only feed statistics per source_id (frames, objects, and for how many frames
+ * each track ID was seen; object_id is unique only inside one source, hence one table per
+ * SourceCtx). It does no I/O and returns at once.
  */
 static GstPadProbeReturn detection_probe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
 {
     (void)pad;
     AppCtx *app = (AppCtx *)user_data;
+    Detection dets[MAX_DETECTIONS_PER_FRAME];
 
     GstBuffer *buf = GST_PAD_PROBE_INFO_BUFFER(info);
     NvDsBatchMeta *batch_meta = (buf != NULL) ? gst_buffer_get_nvds_batch_meta(buf) : NULL;
@@ -296,28 +362,42 @@ static GstPadProbeReturn detection_probe(GstPad *pad, GstPadProbeInfo *info, gpo
 
     for (NvDsMetaList *l_frame = batch_meta->frame_meta_list; l_frame != NULL;
          l_frame = l_frame->next) {
-        NvDsFrameMeta *frame_meta = (NvDsFrameMeta *)l_frame->data;
+        const NvDsFrameMeta *frame_meta = (const NvDsFrameMeta *)l_frame->data;
         if (frame_meta->source_id >= app->num_sources)
             continue;
         SourceCtx *src = &app->sources[frame_meta->source_id];
 
-        src->frame_count++;
-        for (NvDsMetaList *l_obj = frame_meta->obj_meta_list; l_obj != NULL; l_obj = l_obj->next) {
-            const NvDsObjectMeta *obj = (const NvDsObjectMeta *)l_obj->data;
-            src->object_count++;
-            if (obj->object_id == UNTRACKED_OBJECT_ID) {
-                src->untracked_count++;
-                continue;
-            }
-            gpointer key = GSIZE_TO_POINTER((gsize)obj->object_id);
+        guint total = 0, untracked = 0;
+        size_t n = extract_person_detections(frame_meta, dets, G_N_ELEMENTS(dets), &total,
+                                             &untracked);
+        atomic_fetch_add_explicit(&src->frame_count, 1, memory_order_relaxed);
+        src->object_count += total;
+        src->untracked_count += untracked;
+
+        for (size_t i = 0; i < n; i++) {
+            gpointer key = GSIZE_TO_POINTER((gsize)dets[i].track_id);
             gsize seen = GPOINTER_TO_SIZE(g_hash_table_lookup(src->track_frames, key));
             g_hash_table_insert(src->track_frames, key, GSIZE_TO_POINTER(seen + 1));
         }
-        /* TODO(1.4/1.5): read buf_pts and, per object, class_id (keep only person), confidence
-         * and rect_params; copy the values into a Detection (own struct) and feed it to
-         * EventManager[source_id]. */
+        /* TODO(2.1): feed dets[0..n) to EventManager[src->source_id]; its clock is
+         * stream_start[source_id] + dets[i].pts, not the wall clock. */
     }
     return GST_PAD_PROBE_OK;
+}
+
+/* Timer on the main loop: print the frame rate of every source over the last interval. */
+static gboolean report_fps(gpointer data)
+{
+    AppCtx *app = (AppCtx *)data;
+
+    for (guint i = 0; i < app->num_sources; i++) {
+        SourceCtx *src = &app->sources[i];
+        guint64 now = atomic_load_explicit(&src->frame_count, memory_order_relaxed);
+        g_print("fps source_id=%u camera_id=%d %.1f\n", src->source_id, src->camera_id,
+                (double)(now - src->fps_prev_frames) / (double)opt_fps_interval);
+        src->fps_prev_frames = now;
+    }
+    return G_SOURCE_CONTINUE;
 }
 
 /* Create an element, check it, and add it to the bin (the bin takes ownership). */
@@ -357,8 +437,11 @@ static void on_source_pad_added(GstElement *bin, GstPad *new_pad, gpointer user_
 }
 
 /*
- * Build the pipeline N sources -> nvstreammux -> nvinfer -> nvtracker -> fakesink, the same path for any
- * N >= 1. batch-size of nvstreammux and nvinfer = N. Returns NULL (after printing why) on error.
+ * Build the pipeline N sources -> nvstreammux -> nvinfer -> nvtracker -> fakesink, the same path
+ * for any N >= 1. With --output the fakesink is replaced by the debug branch
+ * nvmultistreamtiler -> nvvideoconvert -> nvdsosd -> nvvideoconvert -> H.264 -> MP4 file; the
+ * probe stays on nvtracker, before the tiler. batch-size of nvstreammux and nvinfer = N.
+ * Returns NULL (after printing why) on error.
  */
 static GstElement *build_pipeline(AppCtx *app)
 {
@@ -368,12 +451,33 @@ static GstElement *build_pipeline(AppCtx *app)
         return NULL;
     }
 
+    GstElement *tiler = NULL, *conv_osd = NULL, *osd = NULL, *conv_enc = NULL, *enc_caps = NULL;
+    GstElement *encoder = NULL, *parser = NULL, *mux = NULL;
     GstElement *streammux = make_element(pipeline, "nvstreammux", "stream-muxer");
     GstElement *pgie = make_element(pipeline, "nvinfer", "primary-infer");
     GstElement *tracker = make_element(pipeline, "nvtracker", "tracker");
-    GstElement *sink = make_element(pipeline, "fakesink", "sink");
-    if (streammux == NULL || pgie == NULL || tracker == NULL || sink == NULL)
+    GstElement *sink = NULL;
+    if (streammux == NULL || pgie == NULL || tracker == NULL)
         goto fail;
+
+    if (opt_output != NULL) {
+        tiler = make_element(pipeline, "nvmultistreamtiler", "tiler");
+        conv_osd = make_element(pipeline, "nvvideoconvert", "convert-for-osd");
+        osd = make_element(pipeline, "nvdsosd", "osd");
+        conv_enc = make_element(pipeline, "nvvideoconvert", "convert-for-encoder");
+        enc_caps = make_element(pipeline, "capsfilter", "encoder-caps");
+        encoder = make_element(pipeline, "nvv4l2h264enc", "encoder");
+        parser = make_element(pipeline, "h264parse", "h264-parser");
+        mux = make_element(pipeline, "qtmux", "mp4-muxer");
+        sink = make_element(pipeline, "filesink", "sink");
+        if (tiler == NULL || conv_osd == NULL || osd == NULL || conv_enc == NULL ||
+            enc_caps == NULL || encoder == NULL || parser == NULL || mux == NULL || sink == NULL)
+            goto fail;
+    } else {
+        sink = make_element(pipeline, "fakesink", "sink");
+        if (sink == NULL)
+            goto fail;
+    }
 
     gboolean live = FALSE;
     for (guint i = 0; i < app->num_sources; i++) {
@@ -393,6 +497,21 @@ static GstElement *build_pipeline(AppCtx *app)
     /* sync=FALSE: files run as fast as the GPU allows. The event logic uses the stream PTS, not
      * the wall clock, so results do not depend on this. */
     g_object_set(sink, "sync", FALSE, NULL);
+
+    if (opt_output != NULL) {
+        /* smallest rows x columns grid that holds all sources */
+        guint rows = 1;
+        while (rows * rows < app->num_sources)
+            rows++;
+        guint columns = (app->num_sources + rows - 1) / rows;
+        g_object_set(tiler, "rows", rows, "columns", columns, "width", TILER_WIDTH, "height",
+                     TILER_HEIGHT, NULL);
+
+        GstCaps *caps = gst_caps_from_string("video/x-raw(memory:NVMM), format=I420");
+        g_object_set(enc_caps, "caps", caps, NULL);
+        gst_caps_unref(caps);
+        g_object_set(sink, "location", opt_output, NULL);
+    }
 
     for (guint i = 0; i < app->num_sources; i++) {
         SourceCtx *src = &app->sources[i];
@@ -417,12 +536,21 @@ static GstElement *build_pipeline(AppCtx *app)
         g_signal_connect(src->bin, "pad-added", G_CALLBACK(on_source_pad_added), src);
     }
 
-    if (!gst_element_link_many(streammux, pgie, tracker, sink, NULL)) {
-        g_printerr("Could not link nvstreammux -> nvinfer -> nvtracker -> fakesink\n");
+    if (!gst_element_link_many(streammux, pgie, tracker, NULL)) {
+        g_printerr("Could not link nvstreammux -> nvinfer -> nvtracker\n");
+        goto fail;
+    }
+    gboolean tail_linked =
+        (opt_output != NULL)
+            ? gst_element_link_many(tracker, tiler, conv_osd, osd, conv_enc, enc_caps, encoder,
+                                    parser, mux, sink, NULL)
+            : gst_element_link_many(tracker, sink, NULL);
+    if (!tail_linked) {
+        g_printerr("Could not link the end of the pipeline after nvtracker\n");
         goto fail;
     }
 
-    /* Before any tiler/demux, while the batch is still whole. */
+    /* Before the tiler (or any demux), while the batch is still whole. */
     GstPad *tracker_src = gst_element_get_static_pad(tracker, "src");
     if (tracker_src == NULL) {
         g_printerr("Could not get the src pad of nvtracker\n");
@@ -498,9 +626,14 @@ int main(int argc, char *argv[])
             g_printerr("Could not set the pipeline to PLAYING\n");
             app.exit_code = 1;
         } else {
+            guint fps_timer_id = 0;
+            if (opt_fps_interval > 0)
+                fps_timer_id = g_timeout_add_seconds((guint)opt_fps_interval, report_fps, &app);
             app.start_us = g_get_monotonic_time();
             g_main_loop_run(app.loop);
             app.end_us = g_get_monotonic_time();
+            if (fps_timer_id != 0)
+                g_source_remove(fps_timer_id);
         }
 
         gst_element_set_state(app.pipeline, GST_STATE_NULL);
@@ -514,5 +647,6 @@ int main(int argc, char *argv[])
     g_free(opt_cameras_file);
     g_free(opt_config);
     g_free(opt_tracker_config);
+    g_free(opt_output);
     return app.exit_code;
 }

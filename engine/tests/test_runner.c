@@ -18,8 +18,15 @@ typedef struct {
     test_fn fn;
 } TestCase;
 
+/* tests/test_detection.c */
+void test_bbox_normalize_inside_frame(void);
+void test_bbox_normalize_clips_to_frame(void);
+void test_bbox_normalize_rejects_unusable_boxes(void);
+
 static const TestCase TESTS[] = {
-    /* { "event_manager_first_seen", test_event_manager_first_seen }, */
+    { "bbox_normalize_inside_frame", test_bbox_normalize_inside_frame },
+    { "bbox_normalize_clips_to_frame", test_bbox_normalize_clips_to_frame },
+    { "bbox_normalize_rejects_unusable_boxes", test_bbox_normalize_rejects_unusable_boxes },
     { NULL, NULL }, /* table terminator */
 };
 
