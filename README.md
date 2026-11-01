@@ -7,7 +7,7 @@ detections into `PERSON_DETECTED` events, and hands them to a backend that store
 Current state of the repository:
 
 - `engine/`: the DeepStream engine in C. The N-source pipeline (`nvstreammux` -> `nvinfer` with YOLOv8n -> `nvtracker`)
-  runs and raises `PERSON_DETECTED` events per source (counted, not yet delivered), and can write a debug video with the boxes and track IDs drawn; snapshots and the publisher are not built yet (see [DeepStream engine](#deepstream-engine)).
+  runs and raises `PERSON_DETECTED` events per source (queued and printed as JSON lines; not yet sent to a backend), and can write a debug video with the boxes and track IDs drawn; snapshots and the publisher are not built yet (see [DeepStream engine](#deepstream-engine)).
 - `src/events/`: the Python `PERSON_DETECTED` de-duplication logic. It is the reference specification; the C engine
   has a port of it (`engine/src/core/event_manager.c`) that passes the same test vectors.
 - `src/notifications/`, `src/snapshot_management.py`, `src/config/`, `src/logging_config.py`: Python building blocks
@@ -123,8 +123,10 @@ confidence, relative box, stream time; `engine/src/core/detection.h`) and gather
 objects, distinct track IDs, tracks seen in fewer than 10 frames, frame rate. The same probe feeds the `Detection` values of
 each source to that source's event manager (`engine/src/core/event_manager.c`, a C port of `PersonDetectedEventManager`),
 which emits one `PERSON_DETECTED` event per appearance of a track; its clock is the stream start time plus the frame's
-PTS, not the wall clock. For now the events are only counted (`events=` in the summary line). What does not exist yet:
-snapshots and the publisher.
+PTS, not the wall clock. Each event becomes an `EventRecord` (schema below), is pushed on a bounded queue (1024) and a
+worker thread prints it as a line `event {json}` on stdout, so nothing slow runs in the probe; if the worker falls
+behind, new events are dropped and counted (`dropped=` in the summary). What does not exist yet: snapshots (the
+`snapshot` field is `null`) and the HTTP publisher with retry and spool file.
 
 Prepare the model once. On the host, export YOLOv8n to ONNX (the file is git-ignored):
 
@@ -145,7 +147,7 @@ cd engine && make CUDA_VER=12.6 && make -C parser CUDA_VER=12.6
 ```
 
 At the end it prints one line per source, for example `source_id=0 camera_id=1 frames=1443 objects=4993 untracked=0 tracks=29 short_tracks=4 events=29 fps=351.2`, followed by
-the elapsed time and the overall frame rate (it includes the start-up). While it runs it prints the frame rate of every
+a line `events published=58 dropped=0 pipeline_run_id=...` and the elapsed time and the overall frame rate (it includes the start-up). While it runs it prints the frame rate of every
 source each 5 seconds. The first run
 spends about 2.5 minutes building the TensorRT engine; it is saved next to the ONNX and reused (a run then starts in
 seconds). `configs/pgie_yolov8n.txt` points at the engine for N = 2; for another N, `nvinfer` builds a new engine
@@ -156,6 +158,17 @@ On a 1442-frame test video the boxes match Ultralytics (IoU 0.95-0.99), but the 
 the same 0.25 threshold, mostly low-confidence boxes near the threshold. On the same video NvDCF gives 21 tracks (3 short)
 where Ultralytics with ByteTrack gives 36 (9 short); without ground truth this shows fewer split IDs, not that the IDs are
 all correct.
+
+Event schema v1, one JSON object per event (`engine/src/core/event_record.h`):
+
+```json
+{"schema_version":1,"event_id":"<uuid>","camera_id":1,"pipeline_run_id":"<uuid>","type":"PERSON_DETECTED",
+ "track_id":12,"confidence":0.9100,"timestamp":"2026-01-01T12:00:00.123Z","bbox":[0.1000,0.2000,0.3000,0.4000],"snapshot":null}
+```
+
+`event_id` is unique per event (so a repeated delivery can be ignored). `pipeline_run_id` is new each time the engine
+starts, because track IDs restart then: a person is `(pipeline_run_id, camera_id, track_id)`. `timestamp` is UTC, stream
+start plus PTS. `bbox` is x, y, w, h relative to the frame. `snapshot` is a file name or `null`.
 
 Options:
 
@@ -182,7 +195,7 @@ Options:
 Exit codes: `0` all sources reached EOS, `1` a pipeline error, `2` bad arguments, `3` the pipeline could not be built.
 The program never prints a full URI, only its scheme.
 
-Run the tests of the pure-C code (`engine/src/core/`: the `Detection` box normalisation and the event manager, which replays the shared vectors of `tests/vectors/`) on the host, no
+Run the tests of the pure-C code (`engine/src/core/`: the `Detection` box normalisation, the event manager, which replays the shared vectors of `tests/vectors/`, and the event JSON) on the host, no
 DeepStream or GPU needed; built with AddressSanitizer and UBSan:
 
 ```bash

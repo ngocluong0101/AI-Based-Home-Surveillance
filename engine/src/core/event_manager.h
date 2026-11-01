@@ -23,6 +23,7 @@ typedef struct {
     uint32_t source_id;    /* copied from the Detection */
     uint64_t track_id;
     float confidence;      /* confidence of the detection that started the appearance */
+    float bbox[4];         /* x, y, w, h relative to the frame, of that same detection */
     int64_t timestamp_ns;  /* the `now` of the call that emitted it */
 } PersonDetectedEvent;
 

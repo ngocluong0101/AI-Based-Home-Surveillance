@@ -24,6 +24,7 @@
 
 #include "detection.h"
 #include "event_manager.h"
+#include "event_record.h"
 #include "gstnvdsmeta.h"
 
 #define EXIT_BAD_ARGS 2
@@ -47,6 +48,11 @@
 /* Most Detection entries gathered from one frame (nvtracker keeps at most 150 targets per
  * stream, see maxTargetsPerStream in the tracker config). */
 #define MAX_DETECTIONS_PER_FRAME 256
+
+/* Events waiting for the publisher thread; when it is this far behind (backend down) new events
+ * are dropped and counted rather than letting memory grow. ROADMAP 2.6 replaces the drop with a
+ * spool file. */
+#define EVENT_QUEUE_MAX 1024
 
 /* Class id of "person" in the nvinfer output (the YOLOv8 parser reports only this class). */
 #define PERSON_CLASS_ID 0
@@ -92,6 +98,13 @@ typedef struct {
     gint exit_code;
     gint64 start_us;  /* monotonic time when the pipeline went to PLAYING, for the summary only */
     gint64 end_us;
+    /* Event flow (ROADMAP 2.2): the probe pushes EventRecord (heap, owned by whoever pops it) and a
+     * worker thread consumes them, so nothing slow ever runs in the probe. */
+    gchar pipeline_run_id[EVENT_UUID_LEN + 1];  /* new on every start: track IDs restart with it */
+    GAsyncQueue *event_queue;
+    GThread *publisher;
+    _Atomic guint64 events_published;  /* written by the worker */
+    _Atomic guint64 events_dropped;    /* written by the probe: queue full */
 } AppCtx;
 
 static gchar **opt_cameras = NULL;
@@ -274,6 +287,9 @@ static void print_stats(const AppCtx *app)
         total_frames += src->frame_count;
     }
 
+    g_print("events published=%" G_GUINT64_FORMAT " dropped=%" G_GUINT64_FORMAT
+            " pipeline_run_id=%s\n", (guint64)app->events_published, (guint64)app->events_dropped,
+            app->pipeline_run_id);
     if (seconds > 0.0)
         g_print("elapsed=%.1fs total_frames=%" G_GUINT64_FORMAT " fps=%.1f (all sources together, "
                 "includes startup)\n", seconds, total_frames, (double)total_frames / seconds);
@@ -361,6 +377,79 @@ static size_t extract_person_detections(const NvDsFrameMeta *frame_meta, Detecti
     return n;
 }
 
+/* Pushed after the last event to tell the worker to stop (g_async_queue_push() refuses NULL). */
+static EventRecord publisher_stop_marker;
+
+/* Probe side: turn an event of source `src` into an EventRecord and queue it. Never blocks. */
+static void enqueue_event(AppCtx *app, const SourceCtx *src, const PersonDetectedEvent *ev)
+{
+    if (g_async_queue_length(app->event_queue) >= EVENT_QUEUE_MAX) {
+        atomic_fetch_add_explicit(&app->events_dropped, 1, memory_order_relaxed);
+        return;
+    }
+
+    EventRecord *rec = g_new0(EventRecord, 1);
+    gchar *id = g_uuid_string_random();
+    g_strlcpy(rec->event_id, id, sizeof(rec->event_id));
+    g_free(id);
+    g_strlcpy(rec->pipeline_run_id, app->pipeline_run_id, sizeof(rec->pipeline_run_id));
+    rec->camera_id = src->camera_id;
+    rec->track_id = ev->track_id;
+    rec->confidence = ev->confidence;
+    rec->timestamp_ns = ev->timestamp_ns;
+    memcpy(rec->bbox, ev->bbox, sizeof(rec->bbox));
+    /* rec->snapshot stays empty until ROADMAP 2.5. */
+    g_async_queue_push(app->event_queue, rec);
+}
+
+/* Worker thread: takes records off the queue until it gets publisher_stop_marker.
+ * For now "publishing" is one JSON line on stdout; ROADMAP 2.6 turns this into the HTTP POST. */
+static gpointer publisher_thread(gpointer data)
+{
+    AppCtx *app = (AppCtx *)data;
+    char json[EVENT_JSON_MAX];
+
+    for (;;) {
+        EventRecord *rec = g_async_queue_pop(app->event_queue);
+        if (rec == &publisher_stop_marker)
+            break;
+        if (event_record_to_json(rec, json, sizeof(json)) > 0)
+            g_print("event %s\n", json);
+        else
+            g_printerr("Could not serialise an event\n");
+        atomic_fetch_add_explicit(&app->events_published, 1, memory_order_relaxed);
+        g_free(rec);
+    }
+    return NULL;
+}
+
+static gboolean publisher_start(AppCtx *app)
+{
+    gchar *run_id = g_uuid_string_random();
+    g_strlcpy(app->pipeline_run_id, run_id, sizeof(app->pipeline_run_id));
+    g_free(run_id);
+
+    app->event_queue = g_async_queue_new();
+    app->publisher = g_thread_try_new("publisher", publisher_thread, app, NULL);
+    if (app->publisher == NULL) {
+        g_async_queue_unref(app->event_queue);
+        app->event_queue = NULL;
+        return FALSE;
+    }
+    return TRUE;
+}
+
+/* Let the worker finish what is queued, then stop it. Call after the pipeline has stopped, so the
+ * probe pushes nothing more. Safe to call twice. */
+static void publisher_stop(AppCtx *app)
+{
+    if (app->publisher == NULL)
+        return;
+    g_async_queue_push(app->event_queue, &publisher_stop_marker);
+    g_thread_join(app->publisher);
+    app->publisher = NULL;
+}
+
 /*
  * Pad probe on the src pad of nvtracker, before any tiler/demux so the batch is still whole:
  * NvDsBatchMeta -> one NvDsFrameMeta per source -> Detection[] for that source. For now the
@@ -414,7 +503,9 @@ static GstPadProbeReturn detection_probe(GstPad *pad, GstPadProbeInfo *info, gpo
             src->event_errors++;
         else
             src->event_count += (guint64)emitted;
-        /* TODO(2.2): snapshot + hand events[0..emitted) to the publisher queue. */
+        for (int i = 0; i < emitted; i++)
+            enqueue_event(app, src, &events[i]);
+        /* TODO(2.5): snapshot of the frame for each event. */
     }
     return GST_PAD_PROBE_OK;
 }
@@ -653,10 +744,17 @@ int main(int argc, char *argv[])
     }
     print_sources(&app);
 
+    if (!publisher_start(&app)) {
+        g_printerr("Could not start the publisher thread\n");
+        free_sources(&app);
+        return EXIT_BUILD_FAILED;
+    }
+
     app.loop = g_main_loop_new(NULL, FALSE);
     app.pipeline = build_pipeline(&app);
     if (app.pipeline == NULL) {
         app.exit_code = EXIT_BUILD_FAILED;
+        publisher_stop(&app);
     } else {
         GstBus *bus = gst_pipeline_get_bus(GST_PIPELINE(app.pipeline));
         guint bus_watch_id = gst_bus_add_watch(bus, bus_call, &app);
@@ -679,9 +777,12 @@ int main(int argc, char *argv[])
         gst_element_set_state(app.pipeline, GST_STATE_NULL);
         gst_object_unref(app.pipeline);
         g_source_remove(bus_watch_id);
+        publisher_stop(&app);   /* the pipeline is down, so no more events come */
         print_stats(&app);
     }
 
+    if (app.event_queue != NULL)
+        g_async_queue_unref(app.event_queue);
     g_main_loop_unref(app.loop);
     free_sources(&app);
     g_free(opt_cameras_file);

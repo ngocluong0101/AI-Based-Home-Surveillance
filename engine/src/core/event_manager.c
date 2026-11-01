@@ -1,6 +1,7 @@
 #include "event_manager.h"
 
 #include <stdlib.h>
+#include <string.h>
 
 #define INITIAL_TRACK_CAPACITY 32
 
@@ -87,6 +88,7 @@ int event_manager_process(EventManager *em, const Detection *dets, size_t num_de
                 out[emitted].source_id = d->source_id;
                 out[emitted].track_id = d->track_id;
                 out[emitted].confidence = d->confidence;
+                memcpy(out[emitted].bbox, d->bbox, sizeof(d->bbox));
                 out[emitted].timestamp_ns = now_ns;
                 emitted++;
             }

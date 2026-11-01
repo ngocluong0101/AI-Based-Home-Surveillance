@@ -86,6 +86,12 @@ def scenarios() -> list[dict]:
             ],
         },
         {
+            "name": "stationary_for_ten_minutes",
+            "description": "A person standing still for 10 minutes (a frame every 5 s) is one event.",
+            "absence_timeout_s": 10.0,
+            "steps": [step(i * 5 * S, det(1, 0.90 if i % 2 else 0.85)) for i in range(121)],
+        },
+        {
             "name": "reappear_after_timeout",
             "description": "A track back after more than absence_timeout emits again; its new confidence is used.",
             "absence_timeout_s": 10.0,

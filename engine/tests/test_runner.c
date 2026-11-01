@@ -29,6 +29,13 @@ void test_event_manager_output_capacity(void);
 void test_event_manager_destroy_is_safe(void);
 void test_event_manager_instances_are_independent(void);
 
+/* tests/test_event_record.c */
+void test_event_record_golden_json(void);
+void test_event_record_json_parses_back(void);
+void test_event_record_timestamp_is_utc(void);
+void test_event_record_numbers_are_clamped_and_rounded(void);
+void test_event_record_small_buffer_fails_cleanly(void);
+
 static const TestCase TESTS[] = {
     { "bbox_normalize_inside_frame", test_bbox_normalize_inside_frame },
     { "bbox_normalize_clips_to_frame", test_bbox_normalize_clips_to_frame },
@@ -37,6 +44,11 @@ static const TestCase TESTS[] = {
     { "event_manager_output_capacity", test_event_manager_output_capacity },
     { "event_manager_destroy_is_safe", test_event_manager_destroy_is_safe },
     { "event_manager_instances_are_independent", test_event_manager_instances_are_independent },
+    { "event_record_golden_json", test_event_record_golden_json },
+    { "event_record_json_parses_back", test_event_record_json_parses_back },
+    { "event_record_timestamp_is_utc", test_event_record_timestamp_is_utc },
+    { "event_record_numbers_are_clamped_and_rounded", test_event_record_numbers_are_clamped_and_rounded },
+    { "event_record_small_buffer_fails_cleanly", test_event_record_small_buffer_fails_cleanly },
     { NULL, NULL }, /* table terminator */
 };
 

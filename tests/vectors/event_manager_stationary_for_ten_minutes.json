@@ -1,0 +1,1343 @@
+{
+  "name": "stationary_for_ten_minutes",
+  "description": "A person standing still for 10 minutes (a frame every 5 s) is one event.",
+  "absence_timeout_s": 10.0,
+  "steps": [
+    {
+      "now_ns": 0,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [
+        {
+          "track_id": 1,
+          "confidence": 0.85
+        }
+      ],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 5000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 10000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 15000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 20000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 25000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 30000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 35000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 40000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 45000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 50000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 55000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 60000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 65000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 70000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 75000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 80000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 85000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 90000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 95000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 100000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 105000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 110000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 115000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 120000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 125000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 130000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 135000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 140000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 145000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 150000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 155000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 160000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 165000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 170000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 175000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 180000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 185000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 190000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 195000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 200000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 205000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 210000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 215000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 220000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 225000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 230000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 235000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 240000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 245000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 250000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 255000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 260000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 265000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 270000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 275000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 280000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 285000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 290000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 295000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 300000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 305000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 310000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 315000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 320000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 325000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 330000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 335000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 340000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 345000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 350000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 355000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 360000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 365000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 370000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 375000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 380000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 385000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 390000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 395000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 400000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 405000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 410000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 415000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 420000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 425000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 430000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 435000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 440000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 445000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 450000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 455000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 460000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 465000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 470000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 475000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 480000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 485000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 490000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 495000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 500000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 505000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 510000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 515000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 520000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 525000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 530000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 535000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 540000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 545000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 550000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 555000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 560000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 565000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 570000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 575000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 580000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 585000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 590000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 595000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.9
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    },
+    {
+      "now_ns": 600000000000,
+      "detections": [
+        {
+          "track_id": 1,
+          "conf": 0.85
+        }
+      ],
+      "expected_events": [],
+      "tracks_after": 1
+    }
+  ]
+}
