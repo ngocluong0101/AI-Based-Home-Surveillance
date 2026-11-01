@@ -3,7 +3,7 @@
 
 #include <stdio.h>
 
-/* Số lần CHECK thất bại; test_runner.c định nghĩa và quyết định mã thoát. */
+/* Number of failed CHECKs; defined in test_runner.c, which also decides the exit code. */
 extern int g_failures;
 
 #define CHECK(cond)                                                          \

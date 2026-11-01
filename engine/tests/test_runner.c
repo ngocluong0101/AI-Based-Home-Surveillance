@@ -1,8 +1,9 @@
 /*
- * Bộ chạy test cho phần C thuần (engine/src/core/), không phụ thuộc DeepStream.
+ * Test runner for the pure-C code (engine/src/core/), which does not depend on DeepStream.
  *
- * Thêm test: viết hàm `void test_xxx(void)` dùng CHECK(...) (test_util.h) trong
- * tests/<tên>.c, khai báo ở đây rồi thêm vào bảng TESTS. Mã thoát != 0 nếu có test hỏng.
+ * To add a test: write a `void test_xxx(void)` that uses CHECK(...) (test_util.h) in
+ * tests/<name>.c, declare it here and add it to the TESTS table. The exit code is non-zero
+ * if any test fails.
  */
 #include <stdio.h>
 
@@ -19,7 +20,7 @@ typedef struct {
 
 static const TestCase TESTS[] = {
     /* { "event_manager_first_seen", test_event_manager_first_seen }, */
-    { NULL, NULL }, /* phần tử kết thúc bảng */
+    { NULL, NULL }, /* table terminator */
 };
 
 int main(void)

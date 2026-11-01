@@ -1,140 +1,162 @@
-## Giới thiệu
+## Introduction
 
-Hệ thống giám sát nhà thông minh dùng AI. Ứng dụng đọc video từ file MP4, webcam hoặc camera RTSP/IP, dùng YOLOv8
-để phát hiện người (kèm ByteTrack để theo dõi từng người). Khi có người mới xuất hiện, ứng dụng lưu snapshot và
-gửi cảnh báo qua Telegram. Chạy bằng dòng lệnh (CLI).
+An AI-powered smart home surveillance system. The application reads video from an MP4 file, a webcam, or an RTSP/IP
+camera, and uses YOLOv8 to detect people (with ByteTrack to follow each person). When a new person appears, it saves a
+snapshot and sends an alert via Telegram. It runs from the command line (CLI).
 
-## Hướng dẫn cài đặt
+## Installation
 
-1. Clone repository về máy.
-2. Tùy chọn: tạo virtual environment.
-3. Cài đặt dependencies:
+1. Clone the repository.
+2. Optional: create a virtual environment.
+3. Install the dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-4. Sao chép file cấu hình mẫu:
+4. Copy the sample configuration file:
 
 ```bash
 cp .env.example .env
 ```
 
-Lần chạy đầu tiên, Ultralytics sẽ tự tải model `yolov8n.pt`, nên cần có mạng.
+On the first run, Ultralytics downloads the `yolov8n.pt` model automatically, so a network connection is required.
 
-## Kiểm tra CUDA
+## Check CUDA
 
 ```bash
 python -c "import torch; print(torch.cuda.is_available())"
 ```
 
-Nếu kết quả là `True`, ứng dụng sẽ dùng `cuda:0` cho YOLO. Nếu không, ứng dụng dùng CPU.
+If the result is `True`, the application uses `cuda:0` for YOLO. Otherwise it falls back to the CPU.
 
-## Chuẩn bị nguồn video
+## Prepare a video source
 
-- **File video**: đặt file `.mp4` vào `data/videos/`, ví dụ `data/videos/test.mp4`.
-- **Webcam**: mặc định là thiết bị `0`. Nếu máy có nhiều camera, dùng `1`, `2`, ...
-- **Camera RTSP/IP**: truyền URL qua `--source`, hoặc đặt `RTSP_URL` trong `.env` rồi chạy mà không cần `--source`.
+- **Video file**: put an `.mp4` file in `data/videos/`, for example `data/videos/test.mp4`.
+- **Webcam**: the default device is `0`. If the machine has several cameras, use `1`, `2`, ...
+- **RTSP/IP camera**: pass the URL with `--source`, or set `RTSP_URL` in `.env` and run without `--source`.
 
   ```
   python main.py --source "rtsp://username:password@192.168.1.100:554/stream"
   ```
 
-  Khi mất kết nối, ứng dụng tự thử lại sau mỗi 5 giây (`RECONNECT_DELAY`). Log sẽ có các dòng `[CAMERA] Connection lost`, `[CAMERA] Reconnecting...`, `[CAMERA] Connected`. Nếu lần kết nối đầu tiên thất bại, ứng dụng cũng thử lại như vậy.
+  When the connection drops, the application retries every 5 seconds (`RECONNECT_DELAY`). The log shows the lines `[CAMERA] Connection lost`, `[CAMERA] Reconnecting...` and `[CAMERA] Connected`. If the very first connection fails, the application retries in the same way.
 
-## Chạy bằng dòng lệnh (CLI)
+## Run from the command line (CLI)
 
-Chạy với file video:
+Run with a video file:
 
 ```bash
 python main.py --source data/videos/test.mp4
 ```
 
-Chạy với webcam, có tracking:
+Run with a webcam, with tracking:
 
 ```bash
 python main.py --source 0 --track
 ```
 
-Chạy với camera RTSP, có tracking:
+Run with an RTSP camera, with tracking:
 
 ```bash
 python main.py --source "rtsp://username:password@192.168.1.100:554/stream" --track
 ```
 
-Chạy không mở cửa sổ video (dành cho server/NAS không có màn hình):
+Run without opening a video window (for servers/NAS boxes without a display):
 
 ```bash
 python main.py --source "rtsp://username:password@192.168.1.100:554/stream" --track --headless
 ```
 
-Đổi ngưỡng confidence:
+Change the confidence threshold:
 
 ```bash
 python main.py --source 0 --conf-threshold 0.5
 ```
 
-Không truyền `--source`: ứng dụng dùng `RTSP_URL` trong `.env` nếu có, nếu không thì chỉ in hướng dẫn và thoát.
+Without `--source`, the application uses `RTSP_URL` from `.env` if it is set; otherwise it prints the usage help and exits.
 
-Nhấn `q` trong cửa sổ video để thoát. Trong khi chạy, terminal hiển thị thiết bị đang dùng, FPS trên video, và các sự kiện `PERSON_DETECTED`.
+Press `q` in the video window to quit. While running, the terminal shows the device in use, the FPS on the video, and the `PERSON_DETECTED` events.
 
-## Logic sự kiện PERSON_DETECTED
+## PERSON_DETECTED event logic
 
-- Mỗi `track_id` chỉ tạo một sự kiện trong một lần xuất hiện.
-- Khi `track_id` biến mất khỏi camera quá `ABSENCE_TIMEOUT` (mặc định 10 giây) rồi xuất hiện lại, hệ thống tạo sự kiện mới.
-- Sự kiện được ghi ra terminal và file log, theo định dạng `[PERSON_DETECTED] ID=3 | confidence=0.91 | time=22:30:15`.
-- Với mỗi sự kiện mới, nếu `ENABLE_SNAPSHOT=true` thì ảnh được lưu vào `SNAPSHOT_DIR`. Nếu `ENABLE_TELEGRAM=true` thì gửi ảnh kèm chú thích, hoặc chỉ gửi tin nhắn nếu không có ảnh.
+- Each `track_id` produces one event per appearance.
+- When a `track_id` disappears from the camera for longer than `ABSENCE_TIMEOUT` (10 seconds by default) and then reappears, the system creates a new event.
+- Events are written to the terminal and the log file in the format `[PERSON_DETECTED] ID=3 | confidence=0.91 | time=22:30:15`.
+- For each new event, if `ENABLE_SNAPSHOT=true` the image is saved to `SNAPSHOT_DIR`. If `ENABLE_TELEGRAM=true`, the image is sent with a caption, or only a text message is sent when there is no image.
 
-## Cảnh báo Telegram
+## Telegram alerts
 
-1. Tạo bot với BotFather và lấy token. Không đưa token lên git.
-2. Lấy chat ID (ID người dùng hoặc nhóm). Có thể dùng bot hỗ trợ như `@get_id_bot`, hoặc xem trong `getUpdates`.
-3. Trong `.env`, đặt `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` và `ENABLE_TELEGRAM=true`:
+1. Create a bot with BotFather and get its token. Never commit the token to git.
+2. Get the chat ID (a user or group ID). You can use a helper bot such as `@get_id_bot`, or look at `getUpdates`.
+3. In `.env`, set `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` and `ENABLE_TELEGRAM=true`:
 
    ```
    TELEGRAM_BOT_TOKEN=123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11
    TELEGRAM_CHAT_ID=987654321
    ```
 
-Mỗi lần có sự kiện mới, ứng dụng gửi một ảnh kèm chú thích đến chat đã cấu hình. Nếu gửi lỗi, lỗi được ghi log và video vẫn tiếp tục chạy.
+For every new event, the application sends one photo with a caption to the configured chat. If sending fails, the error is logged and the video keeps running.
 
-## Quản lý dung lượng snapshot
+## Snapshot storage management
 
-Khi `ENABLE_SNAPSHOT=true`, ứng dụng tự xóa snapshot cũ để tránh đầy ổ đĩa:
+When `ENABLE_SNAPSHOT=true`, the application deletes old snapshots automatically to avoid filling the disk:
 
-- `SNAPSHOT_RETENTION_DAYS` (mặc định 7): giữ snapshot mới hơn số ngày này, xóa snapshot cũ hơn.
-- `SNAPSHOT_CLEANUP_INTERVAL` (mặc định 100): quét thư mục sau mỗi N snapshot mới được lưu, để tránh quét quá thường xuyên khi có nhiều sự kiện.
+- `SNAPSHOT_RETENTION_DAYS` (default 7): keep snapshots newer than this many days and delete older ones.
+- `SNAPSHOT_CLEANUP_INTERVAL` (default 100): scan the directory after every N newly saved snapshots, to avoid scanning too often when there are many events.
 
-Việc xóa không chặn pipeline. Nếu xóa lỗi (ví dụ file đã bị xóa từ bên ngoài), lỗi được ghi log và ứng dụng tiếp tục chạy.
+Deletion does not block the pipeline. If a deletion fails (for example the file was removed externally), the error is logged and the application keeps running.
 
-## Ghi log
+## Logging
 
-Log được ghi ra terminal và đồng thời ra file xoay vòng (`RotatingFileHandler`), mặc định tại `logs/app.log`. Điều này cần thiết khi chạy headless hoặc như service, vì khi đó không có ai xem terminal.
+Logs go to the terminal and also to a rotating file (`RotatingFileHandler`), by default `logs/app.log`. This matters when running headless or as a service, because nobody is watching the terminal.
 
-Cấu hình trong `.env`:
+Configure it in `.env`:
 
 ```
 LOG_LEVEL=INFO           # DEBUG, INFO, WARNING, ERROR
-LOG_FILE=logs/app.log    # đường dẫn file log
-LOG_MAX_BYTES=5242880    # dung lượng tối đa trước khi xoay vòng (mặc định 5MB)
-LOG_BACKUP_COUNT=3       # số file log cũ giữ lại
+LOG_FILE=logs/app.log    # log file path
+LOG_MAX_BYTES=5242880    # maximum size before rotation (default 5 MB)
+LOG_BACKUP_COUNT=3       # number of old log files to keep
 ```
 
-Khi chạy như service, ứng dụng tắt sạch khi nhận Ctrl+C hoặc `SIGTERM`. Vì vậy có thể dùng `systemctl stop` hoặc `docker stop` mà không cần kill cứng.
+When run as a service, the application shuts down cleanly on Ctrl+C or `SIGTERM`, so you can use `systemctl stop` or `docker stop` without a hard kill.
 
-## Chạy unit test
+## Run the unit tests
 
-Dự án dùng `pytest` (đã có trong `requirements.txt`). Chạy từ thư mục gốc:
+The project uses `pytest` (already in `requirements.txt`). Run it from the repository root:
 
 ```bash
 pytest
 ```
 
-Bộ test gồm:
+The test suite contains:
 
-- `tests/test_person_detected_event_manager.py`: logic chống trùng lặp sự kiện `PERSON_DETECTED`.
-- `tests/test_player.py`: vòng lặp video (`stop_event`, `on_frame`).
-- `tests/test_person_tracker_events.py`: callback sự kiện của `PersonTracker`, dùng detector giả nên không nạp YOLO.
-- `tests/test_env_file.py`: đọc và ghi `.env`, chỉ dùng file tạm.
+- `tests/test_person_detected_event_manager.py`: the `PERSON_DETECTED` de-duplication logic.
+- `tests/test_player.py`: the video loop (`stop_event`, `on_frame`).
+- `tests/test_person_tracker_events.py`: the `PersonTracker` event callback, using a fake detector so YOLO is not loaded.
+- `tests/test_env_file.py`: reading and writing `.env`, using temporary files only.
 
-Các test dùng video tổng hợp do fixture tạo ra, không cần camera, model YOLO, mạng hay màn hình.
+The tests use synthetic videos created by a fixture and need no camera, YOLO model, network or display.
+
+## DeepStream engine (work in progress)
+
+The `engine/` directory holds a C engine built on NVIDIA DeepStream, intended to eventually replace the Python
+inference/tracking path with one pipeline that processes several cameras in a single batch. It is currently a
+skeleton: it parses `--camera ID=URI` and handles the GStreamer bus, but the pipeline itself is not built yet, so
+`ds_engine` exits with code 3 ("pipeline not implemented").
+
+Build it inside the DeepStream container (`nvcr.io/nvidia/deepstream:7.1-triton-multiarch`, run with `--gpus all`):
+
+```bash
+cd engine && make CUDA_VER=12.6
+./build/ds_engine --camera 1=file:///path/to/a.mp4
+```
+
+Run the tests of the pure-C code on the host (no DeepStream or GPU needed; built with AddressSanitizer and UBSan):
+
+```bash
+cd engine && make test-core
+```
+
+The DeepStream sample sources are under NVIDIA's proprietary license, so they are not copied into this repository.

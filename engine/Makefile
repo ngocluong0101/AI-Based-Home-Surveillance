@@ -1,7 +1,7 @@
-# Engine DeepStream (C). Build trong DeepStream container:
+# DeepStream engine (C). Build inside the DeepStream container:
 #   make CUDA_VER=12.6        -> build/ds_engine
-# Test C thuần (không cần DeepStream/GPU), chạy được trên host bằng gcc:
-#   make test-core            -> build + chạy build/test_core dưới ASan/UBSan
+# Tests for the pure-C code (no DeepStream/GPU needed), run on the host with gcc:
+#   make test-core            -> build and run build/test_core under ASan/UBSan
 
 CUDA_VER ?= 12.6
 DS_DIR   ?= /opt/nvidia/deepstream/deepstream
@@ -19,20 +19,20 @@ TEST_SRCS := $(wildcard tests/*.c)
 
 WARN      := -Wall -Wextra
 
-# ---- engine (cần GStreamer + DeepStream) ----
-# Dùng `=` (không phải `:=`) để pkg-config chỉ chạy khi build engine, không chạy với `make test-core`.
+# ---- engine (needs GStreamer + DeepStream) ----
+# Recursive `=` (not `:=`) so pkg-config only runs when building the engine, not for `make test-core`.
 APP_CFLAGS = -std=gnu11 -g -O2 $(WARN) -Iinclude -Isrc/core \
-              -I$(DS_DIR)/sources/includes \
-              -I/usr/local/cuda-$(CUDA_VER)/include \
-              $(shell pkg-config --cflags $(PKGS))
+             -I$(DS_DIR)/sources/includes \
+             -I/usr/local/cuda-$(CUDA_VER)/include \
+             $(shell pkg-config --cflags $(PKGS))
 APP_LIBS   = $(shell pkg-config --libs $(PKGS)) \
-              -L/usr/local/cuda-$(CUDA_VER)/lib64 -lcudart -lcuda \
-              -L$(DS_DIR)/lib -lnvdsgst_meta -lnvds_meta \
-              -Wl,-rpath,$(DS_DIR)/lib
+             -L/usr/local/cuda-$(CUDA_VER)/lib64 -lcudart -lcuda \
+             -L$(DS_DIR)/lib -lnvdsgst_meta -lnvds_meta \
+             -Wl,-rpath,$(DS_DIR)/lib
 
 APP_OBJS := $(patsubst src/%.c,$(BUILD)/%.o,$(DS_SRCS) $(CORE_SRCS))
 
-# ---- test core (C thuần, host) ----
+# ---- test-core (pure C, host) ----
 TEST_CFLAGS := -std=gnu11 -g -O1 $(WARN) -fsanitize=address,undefined \
                -fno-omit-frame-pointer -Iinclude -Isrc/core -Itests
 

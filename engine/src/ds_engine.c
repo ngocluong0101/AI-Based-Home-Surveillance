@@ -1,15 +1,16 @@
 /*
- * ds_engine.c - engine DeepStream: N nguồn video trong 1 pipeline batch.
+ * ds_engine.c - DeepStream engine: N video sources in one batched pipeline.
  *
- * Đây là KHUNG khởi đầu (ROADMAP Phase 1.0/1.1). Đã có: đọc CLI (--camera ID=URI),
- * bảng nguồn SourceCtx[N], xử lý bus (ERROR/WARNING/EOS) và mã thoát. Chưa có: dựng pipeline
- * (build_pipeline), pad probe thật. Các chỗ cần làm đánh dấu TODO(mục roadmap).
+ * This is the STARTING SKELETON (ROADMAP Phase 1.0/1.1). Already here: CLI parsing
+ * (--camera ID=URI), the SourceCtx[N] table, bus handling (ERROR/WARNING/EOS) and exit codes.
+ * Not here yet: building the pipeline (build_pipeline) and a real pad probe. Things still to do
+ * are marked TODO(roadmap item).
  *
- * Quy ước (xem CLAUDE.md / ROADMAP.md):
- *  - Mọi trạng thái theo nguồn nằm trong SourceCtx[N], không dùng biến global đơn lẻ.
- *  - Không giữ con trỏ NvDs*Meta ra ngoài callback probe; probe luôn trả GST_PAD_PROBE_OK nhanh.
- *  - Không log nguyên URI (RTSP có thể chứa mật khẩu); chỉ log scheme.
- *  - Một file duy nhất cho phần DeepStream; chỉ tách khi chủ repo yêu cầu.
+ * Conventions (see CLAUDE.md / ROADMAP.md):
+ *  - All per-source state lives in SourceCtx[N]; no single global per-source variables.
+ *  - Never keep NvDs*Meta pointers outside a probe callback; a probe returns GST_PAD_PROBE_OK fast.
+ *  - Never log a full URI (an RTSP URL may contain a password); log only the scheme.
+ *  - The DeepStream part is a single file; split it only when the repo owner asks for it.
  */
 #include <glib.h>
 #include <gst/gst.h>
@@ -21,13 +22,13 @@
 #define EXIT_BAD_ARGS 2
 #define EXIT_NOT_IMPLEMENTED 3
 
-/* Trạng thái của một nguồn. source_id = thứ tự khai báo --camera. */
+/* State of one source. source_id = declaration order of --camera. */
 typedef struct {
     guint source_id;
     gint camera_id;
     gchar *uri;
-    /* TODO(2.1): EventManager của nguồn này.
-     * TODO(3.6): fps, last_frame time, state (RUNNING / RECONNECTING). */
+    /* TODO(2.1): this source's EventManager.
+     * TODO(3.6): fps, last-frame time, state (RUNNING / RECONNECTING). */
 } SourceCtx;
 
 typedef struct {
@@ -43,14 +44,14 @@ static gchar *opt_config = NULL;
 
 static GOptionEntry option_entries[] = {
     { "camera", 'c', 0, G_OPTION_ARG_STRING_ARRAY, &opt_cameras,
-      "Nguon video dang ID=URI, lap lai cho moi camera "
-      "(vd. --camera 1=file:///a.mp4 --camera 2=rtsp://...)", "ID=URI" },
+      "Video source as ID=URI, repeat for each camera "
+      "(e.g. --camera 1=file:///a.mp4 --camera 2=rtsp://...)", "ID=URI" },
     { "config", 0, 0, G_OPTION_ARG_FILENAME, &opt_config,
-      "File cau hinh nvinfer (TODO 1.2)", "FILE" },
+      "nvinfer config file (TODO 1.2)", "FILE" },
     { NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, NULL },
 };
 
-/* Tách "ID=URI". Trả FALSE nếu sai định dạng hoặc ID không phải số nguyên không âm. */
+/* Split "ID=URI". Returns FALSE on a bad format or when ID is not a non-negative integer. */
 static gboolean parse_camera_arg(const gchar *arg, gint *camera_id, gchar **uri)
 {
     const gchar *eq = strchr(arg, '=');
@@ -70,7 +71,7 @@ static gboolean parse_camera_arg(const gchar *arg, gint *camera_id, gchar **uri)
     return TRUE;
 }
 
-/* Dựng SourceCtx[N] từ các --camera. Trả FALSE (và in lý do) nếu có lỗi. */
+/* Build SourceCtx[N] from the --camera options. Returns FALSE (and prints why) on error. */
 static gboolean init_sources(AppCtx *app)
 {
     app->num_sources = g_strv_length(opt_cameras);
@@ -81,13 +82,13 @@ static gboolean init_sources(AppCtx *app)
         src->source_id = i;
 
         if (!parse_camera_arg(opt_cameras[i], &src->camera_id, &src->uri)) {
-            g_printerr("--camera '%s' sai dinh dang, can ID=URI voi ID la so nguyen >= 0\n",
+            g_printerr("--camera '%s' has a bad format, expected ID=URI with ID an integer >= 0\n",
                        opt_cameras[i]);
             return FALSE;
         }
         for (guint j = 0; j < i; j++) {
             if (app->sources[j].camera_id == src->camera_id) {
-                g_printerr("camera_id %d bi khai bao trung\n", src->camera_id);
+                g_printerr("camera_id %d is declared more than once\n", src->camera_id);
                 return FALSE;
             }
         }
@@ -115,7 +116,7 @@ static void print_sources(const AppCtx *app)
     }
 }
 
-/* Bus: ERROR -> exit_code=1 và dừng; WARNING -> log; EOS -> dừng (exit 0). */
+/* Bus: ERROR -> exit_code=1 and stop; WARNING -> log; EOS -> stop (exit 0). */
 static gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data)
 {
     (void)bus;
@@ -124,8 +125,8 @@ static gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data)
     switch (GST_MESSAGE_TYPE(msg)) {
     case GST_MESSAGE_EOS:
         g_print("EOS\n");
-        /* TODO(2.7): lỗi/EOS của MỘT nguồn không được dừng cả pipeline khi còn nguồn khác;
-         * hiện chỉ xử lý EOS của cả pipeline. */
+        /* TODO(2.7): an error/EOS of ONE source must not stop the whole pipeline while other
+         * sources are still running; for now only the EOS of the whole pipeline is handled. */
         g_main_loop_quit(app->loop);
         break;
     case GST_MESSAGE_WARNING: {
@@ -157,8 +158,8 @@ static gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data)
 }
 
 /*
- * Pad probe: đọc NvDsBatchMeta -> NvDsFrameMeta -> NvDsObjectMeta.
- * Gắn trên src pad của nvtracker (TODO 1.5). Hiện chưa được gắn nên đánh dấu unused.
+ * Pad probe: reads NvDsBatchMeta -> NvDsFrameMeta -> NvDsObjectMeta.
+ * To be attached on the src pad of nvtracker (TODO 1.5). Not attached yet, hence marked unused.
  */
 static G_GNUC_UNUSED GstPadProbeReturn detection_probe(GstPad *pad, GstPadProbeInfo *info,
                                                        gpointer user_data)
@@ -171,21 +172,23 @@ static G_GNUC_UNUSED GstPadProbeReturn detection_probe(GstPad *pad, GstPadProbeI
     if (batch_meta == NULL)
         return GST_PAD_PROBE_OK;
 
-    /* TODO(1.4/1.5): duyệt batch_meta->frame_meta_list; với mỗi frame lấy source_id, buf_pts;
-     * duyệt obj_meta_list, bỏ UNTRACKED_OBJECT_ID, chỉ lấy class person; copy giá trị sang
-     * Detection (struct riêng) rồi đưa vào EventManager[source_id]. */
+    /* TODO(1.4/1.5): walk batch_meta->frame_meta_list; for each frame read source_id and buf_pts;
+     * walk obj_meta_list, skip UNTRACKED_OBJECT_ID, keep only the person class; copy the values
+     * into a Detection (own struct) and feed it to EventManager[source_id]. */
     return GST_PAD_PROBE_OK;
 }
 
 /*
- * Dựng pipeline N nguồn -> nvstreammux -> nvinfer -> fakesink. Trả NULL nếu chưa làm/lỗi.
+ * Build the pipeline N sources -> nvstreammux -> nvinfer -> fakesink. Returns NULL when not
+ * implemented yet or on error.
  *
- * TODO(1.1), làm với N = 1 rồi 2 rồi 4 trên CÙNG một đường code:
- *   1. gst_pipeline_new; tạo nvstreammux, set batch-size = app->num_sources, width/height, live-source.
- *   2. Với mỗi SourceCtx: tạo nguồn (nvurisrcbin hoặc uridecodebin), xin pad "sink_%u" từ
- *      nvstreammux với %u = source_id, link pad nguồn -> pad đó. Bỏ qua track audio.
+ * TODO(1.1), do it with N = 1, then 2, then 4 on the SAME code path:
+ *   1. gst_pipeline_new; create nvstreammux, set batch-size = app->num_sources, width/height,
+ *      live-source.
+ *   2. For each SourceCtx: create the source (nvurisrcbin or uridecodebin), request a "sink_%u"
+ *      pad from nvstreammux with %u = source_id, link the source pad to it. Ignore audio tracks.
  *   3. nvstreammux -> nvinfer (config-file-path = opt_config, batch-size = N) -> fakesink.
- *   4. Kiểm tra mọi gst_element_factory_make != NULL; unref/free cân bằng khi lỗi.
+ *   4. Check that every gst_element_factory_make != NULL; keep unref/free balanced on errors.
  */
 static GstElement *build_pipeline(AppCtx *app)
 {
@@ -198,11 +201,11 @@ int main(int argc, char *argv[])
     AppCtx app = { 0 };
     GError *error = NULL;
 
-    GOptionContext *ctx = g_option_context_new("- engine DeepStream (N nguon, 1 pipeline)");
+    GOptionContext *ctx = g_option_context_new("- DeepStream engine (N sources, 1 pipeline)");
     g_option_context_add_main_entries(ctx, option_entries, NULL);
     g_option_context_add_group(ctx, gst_init_get_option_group());
     if (!g_option_context_parse(ctx, &argc, &argv, &error)) {
-        g_printerr("Loi tham so: %s\n", error->message);
+        g_printerr("Option error: %s\n", error->message);
         g_error_free(error);
         g_option_context_free(ctx);
         return EXIT_BAD_ARGS;
@@ -210,11 +213,11 @@ int main(int argc, char *argv[])
     g_option_context_free(ctx);
 
     if (opt_cameras == NULL || opt_cameras[0] == NULL) {
-        g_printerr("Can it nhat mot --camera ID=URI\n");
+        g_printerr("At least one --camera ID=URI is required\n");
         return EXIT_BAD_ARGS;
     }
-    /* TODO(1.1): RTSP co mat khau thi doc tu file config (quyen 600) hoac bien moi truong,
-     * KHONG de trong argv (lo qua `ps`). */
+    /* TODO(1.1): read an RTSP password from a config file (mode 600) or an environment
+     * variable, NOT from argv (it leaks through `ps`). */
 
     if (!init_sources(&app)) {
         free_sources(&app);
@@ -226,7 +229,7 @@ int main(int argc, char *argv[])
     app.loop = g_main_loop_new(NULL, FALSE);
     app.pipeline = build_pipeline(&app);
     if (app.pipeline == NULL) {
-        g_printerr("Pipeline chua duoc trien khai (TODO 1.1 trong build_pipeline)\n");
+        g_printerr("Pipeline not implemented yet (TODO 1.1 in build_pipeline)\n");
         app.exit_code = EXIT_NOT_IMPLEMENTED;
     } else {
         GstBus *bus = gst_pipeline_get_bus(GST_PIPELINE(app.pipeline));
