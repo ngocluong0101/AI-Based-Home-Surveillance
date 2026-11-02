@@ -140,6 +140,32 @@ the environment variable `DS_ENGINE_TOKEN` (not on the command line, where `ps` 
 Events of a camera that does not exist in the backend are refused, so create the cameras first, with ids equal to the
 `--camera ID=URI` ids. You normally do not start the engine yourself: the engine manager does (next section).
 
+### Live video
+
+The engine can publish every camera, with the boxes and track IDs drawn on it, to [MediaMTX](https://github.com/bluenviron/mediamtx),
+which serves it to browsers over WebRTC. Run MediaMTX on the same machine (its default configuration is enough on a LAN; it
+lets anyone who can reach it publish and watch):
+
+```bash
+docker run -d --rm --name mediamtx --network host bluenviron/mediamtx:latest   # RTMP 1935, WebRTC 8889, RTSP 8554
+```
+
+and set, in `.env`:
+
+```
+ENGINE_STREAM_URL=rtmp://127.0.0.1:1935/live     # the engine publishes camera N at <this>/cam<N>
+MEDIAMTX_WEBRTC_URL=http://192.168.1.20:8889     # how the BROWSER reaches MediaMTX
+```
+
+`GET /api/cameras/{id}/stream` then answers `{camera_id, whep_url, player_url, available}`: `whep_url` for a player that speaks
+WHEP, `player_url` for MediaMTX's own page with a player (try it in a browser, with the engine running:
+`http://HOST:8889/live/cam1`), `available` is true while the engine reports that camera in its heartbeat. The answer never
+holds the camera's own address; it answers 503 until `MEDIAMTX_WEBRTC_URL` is set. Measured on the development machine
+(RTX 4060 Laptop, two 1080p cameras at 30 fps, detection and streaming together): Chrome shows 29.8 frames/s without dropping any,
+the GPU is 12-22 % busy (NVENC 7 %, NVDEC 5-8 %), the engine uses about 360 MiB of VRAM more than an idle GPU, 489 MiB of RAM and
+38 % of one CPU core, MediaMTX 27 MiB and under 2 % of a core. Twelve simultaneous NVENC sessions all ran; of 24 attempted
+only 12 started (the others failed with "Error in initializing nvenc context"), so about 12 cameras can be streamed with this card. The glass-to-glass latency, Firefox and a phone have not been measured yet.
+
 ### Engine manager
 
 `engine_manager/` runs the engine for the backend: **one `ds_engine` process serves all running cameras**, so the manager
@@ -153,6 +179,7 @@ uvicorn engine_manager.service:create_app --factory --host 127.0.0.1 --port 8100
 | Backend endpoint | |
 |---|---|
 | `POST /api/cameras/{id}/start`, `POST .../stop` | record that the camera should (not) run. A disabled camera cannot be started (409). The answer comes at once; the engine is (re)started in the background, a few seconds later |
+| `GET /api/cameras/{id}/stream` | where to watch the camera live: `{camera_id, whep_url, player_url, available}` (see [Live video](#live-video)); 503 when `MEDIAMTX_WEBRTC_URL` is not set |
 | `GET /api/cameras/{id}/status` | `desired_state`, `should_run`, and `engine`: whether the manager is reachable, the state of the engine process (`stopped`, `running`, `stopping`, `backoff`, `exited`), `in_engine` (the running process serves this camera), `applied` (the manager has the current list), `starts`, `last_exit_code`; and `stream`, what the engine itself reports in its heartbeat: `reporting` (a heartbeat no older than `HEARTBEAT_STALE_AFTER`, default 15 s, names this camera), `state` (`RUNNING` or `RECONNECTING`), `fps`, `last_frame_age` (seconds without a frame), `heartbeat_age`. `reporting: false` means the engine is down, still starting, or not serving the camera; the other fields are then empty |
 
 How it works. The database says which cameras should run (enabled, not deleted, `desired_state = running`). A background thread in
@@ -309,6 +336,8 @@ Options:
 - `--snapshot-quality Q`: JPEG quality 1-100 (default 85).
 - `--backend-url URL`: POST every event as JSON to URL (e.g. `http://127.0.0.1:8000/internal/events`); must be given together with `--spool-file`. Without both, events are printed on stdout.
 - `--spool-file FILE`: JSON-lines file in which events wait while the backend cannot be reached (at most 256 MB, then events are lost and counted as `lost=`).
+- `--stream-url BASE`: publish every camera, with boxes and track IDs, over RTMP to `BASE/cam<ID>` (e.g. `rtmp://127.0.0.1:1935/live`; the URL must have an application part such as `/live`, `rtmp2sink` refuses a bare host). One H.264 encoder per camera; cannot be combined with `--output`. See [Streaming](#streaming).
+- `--stream-bitrate KBPS`: bit rate of each published stream, 100-50000 (default 4000).
 - `--heartbeat-url URL`: POST the state of every camera to URL (e.g. `http://127.0.0.1:8000/internal/heartbeat`) every `--heartbeat-interval` seconds (1-3600, default 5); needs `--backend-url`. Off without it.
 - `--absence-timeout SEC`: how long a person must be out of sight before the same track ID raises a new event (default 10, same as `ABSENCE_TIMEOUT`).
 - `--fps-interval SEC`: how often the frame rate of each source is printed (default 5, 0 turns it off).
@@ -319,6 +348,26 @@ Options:
 
 Exit codes: `0` all sources reached EOS, or the engine was stopped with SIGINT/SIGTERM, `1` a pipeline error, `2` bad arguments, `3` the pipeline could not be built.
 The program never prints a full URI, only its scheme.
+
+### Streaming
+
+With `--stream-url` the tail of the pipeline is not a `fakesink` but `nvstreamdemux`, which splits the batch into one branch per
+camera: `queue ! nvvideoconvert ! nvdsosd ! nvvideoconvert ! I420 ! nvv4l2h264enc ! h264parse ! appsink`. `nvdsosd` draws the
+boxes and track IDs from the metadata. The branch ends in an `appsink` that hands the encoded frames to a small **publisher pipeline of
+its own** per camera (`appsrc ! h264parse ! flvmux ! rtmp2sink`), so nothing that happens at the media server can reach detection:
+
+- MediaMTX down, unreachable or restarted: the publisher reports an error, is thrown away and built again every 5 s (it joins at the next
+  key frame, within a second). Detection, events and the frame rate of every camera are untouched (measured: 30 fps throughout), and the
+  stream is back by itself when the server is (measured, with the boxes and track IDs).
+- The first version put `rtspclientsink` in the branch; it deadlocks in its state change after a failed connection (GStreamer 1.20.3), and a
+  branch that is restarted in place does not work with `nvstreamdemux` either (after the new bin is linked to the same pad only one frame
+  arrives). Hence RTMP, and a publisher that lives outside the main pipeline.
+- Frame buffers: every frame of the queue is a whole `nvstreammux` batch buffer, and that pool holds 4 by default, so the queue keeps one
+  and the muxer pool is made `4 + number of cameras` (at most 16). With the first sizes (4 per queue) a stuck branch starved the pool and
+  stopped the detection of all cameras for several seconds.
+- Pacing: with live (RTSP) sources frames go out as they come and an overloaded stream drops the oldest. With only files the `appsink`
+  waits for the clock, so a file plays in real time for the viewer (48 s for a 48 s video) instead of finishing in 4 s, also while the
+  server is down.
 
 ### RTSP cameras
 

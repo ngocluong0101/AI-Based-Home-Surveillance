@@ -13,7 +13,7 @@ from backend.db import get_db
 from backend.engine_client import EngineManagerError
 from backend.models import Camera
 from backend.reconciler import desired_cameras, revision_of
-from backend.schemas import CameraCreate, CameraOut, CameraStatus, CameraUpdate, EngineInfo, StreamInfo
+from backend.schemas import CameraCreate, CameraOut, CameraStatus, CameraUpdate, EngineInfo, StreamInfo, StreamLink
 
 router = APIRouter(prefix="/api/cameras", tags=["cameras"])
 
@@ -134,3 +134,15 @@ def stop_camera(camera_id: int, request: Request, db: Session = Depends(get_db))
 @router.get("/{camera_id}/status", response_model=CameraStatus)
 def camera_status(camera_id: int, request: Request, db: Session = Depends(get_db)) -> CameraStatus:
     return _status(request, db, _get_active(db, camera_id))
+
+
+@router.get("/{camera_id}/stream", response_model=StreamLink)
+def camera_stream(camera_id: int, request: Request, db: Session = Depends(get_db)) -> StreamLink:
+    """The URLs to watch the camera live (video with boxes and track IDs, WebRTC through MediaMTX)."""
+    camera = _get_active(db, camera_id)
+    settings = request.app.state.settings
+    if not settings.mediamtx_webrtc_url:
+        raise HTTPException(503, "live video is not configured (MEDIAMTX_WEBRTC_URL)")
+    base = f"{settings.mediamtx_webrtc_url.rstrip('/')}/{settings.stream_path_prefix.strip('/')}/cam{camera.id}"
+    available = request.app.state.heartbeats.health(camera.id).reporting
+    return StreamLink(camera_id=camera.id, whep_url=f"{base}/whep", player_url=base, available=available)

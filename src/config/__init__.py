@@ -71,6 +71,12 @@ _EVENTS_PATH = "/internal/events"
 ENGINE_HEARTBEAT_URL: str = os.getenv("ENGINE_HEARTBEAT_URL") or (
     ENGINE_BACKEND_URL[: -len(_EVENTS_PATH)] + "/internal/heartbeat" if ENGINE_BACKEND_URL.endswith(_EVENTS_PATH) else ""
 )
+# Live video (ROADMAP 4): the engine publishes every camera over RTMP to MediaMTX at
+# ENGINE_STREAM_URL/cam<ID> (empty = no video; the URL must end with the path prefix, e.g.
+# rtmp://127.0.0.1:1935/live), and browsers watch it with WebRTC (WHEP) at MEDIAMTX_WEBRTC_URL/<prefix>/cam<ID>.
+ENGINE_STREAM_URL: str = os.getenv("ENGINE_STREAM_URL") or ""
+MEDIAMTX_WEBRTC_URL: Optional[str] = os.getenv("MEDIAMTX_WEBRTC_URL") or None   # e.g. http://192.168.1.20:8889
+MEDIAMTX_PATH_PREFIX: str = os.getenv("MEDIAMTX_PATH_PREFIX") or "live"
 ENGINE_EXTRA_ARGS: str = os.getenv("ENGINE_EXTRA_ARGS") or ""
 # Where the backend finds the manager; unset = the backend does not manage an engine
 ENGINE_MANAGER_URL: Optional[str] = os.getenv("ENGINE_MANAGER_URL") or None
@@ -116,6 +122,9 @@ __all__ = [
     "HEARTBEAT_STALE_AFTER",
     "NOTIFY_MAX_AGE",
     "ENGINE_EXTRA_ARGS",
+    "ENGINE_STREAM_URL",
+    "MEDIAMTX_WEBRTC_URL",
+    "MEDIAMTX_PATH_PREFIX",
     "ENGINE_MANAGER_URL",
     "CONFIDENCE_THRESHOLD",
     "RECONNECT_DELAY",

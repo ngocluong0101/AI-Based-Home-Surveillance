@@ -13,7 +13,7 @@ CC       ?= gcc
 APP       := $(BUILD)/ds_engine
 TEST_BIN  := $(BUILD)/test_core
 
-PKGS      := gstreamer-1.0 libcurl json-glib-1.0
+PKGS      := gstreamer-1.0 gstreamer-app-1.0 libcurl json-glib-1.0
 
 CORE_SRCS := $(wildcard src/core/*.c)
 DS_SRCS   := src/ds_engine.c

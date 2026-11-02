@@ -246,3 +246,14 @@ def test_the_heartbeat_url_follows_the_events_url_by_default():
             assert config.ENGINE_HEARTBEAT_URL == ""   # cannot guess where it would be
     finally:
         importlib.reload(config)
+
+
+def test_from_env_passes_the_stream_url_only_when_set(monkeypatch):
+    from src import config
+
+    monkeypatch.setattr(config, "ENGINE_STREAM_URL", "rtmp://127.0.0.1:1935/live")
+    args = ManagerConfig.from_env().engine_args
+    assert args[args.index("--stream-url") + 1] == "rtmp://127.0.0.1:1935/live"
+
+    monkeypatch.setattr(config, "ENGINE_STREAM_URL", "")
+    assert "--stream-url" not in ManagerConfig.from_env().engine_args

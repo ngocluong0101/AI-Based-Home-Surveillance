@@ -17,6 +17,8 @@ class Settings:
     reconcile_interval: float = 5.0         # seconds between looks at the manager; 0 = no background thread
     heartbeat_stale_after: float = 15.0     # a heartbeat older than this says nothing about a camera any more
     status_check_interval: float = 1.0      # how often silent heartbeats are looked for (to push camera.status)
+    mediamtx_webrtc_url: str | None = None   # None = GET /api/cameras/{id}/stream answers 503
+    stream_path_prefix: str = "live"        # MediaMTX path of camera N is <prefix>/cam<N>
     notify_interval: float = 5.0            # seconds between Telegram rounds; 0 = no notifier thread
     notify_max_age: float = 600.0           # an alert undeliverable for longer than this is marked failed
     snapshot_retention_days: int = 7
@@ -36,6 +38,8 @@ class Settings:
             engine_manager_url=config.ENGINE_MANAGER_URL,
             heartbeat_stale_after=config.HEARTBEAT_STALE_AFTER,
             notify_max_age=config.NOTIFY_MAX_AGE,
+            mediamtx_webrtc_url=config.MEDIAMTX_WEBRTC_URL,
+            stream_path_prefix=config.MEDIAMTX_PATH_PREFIX,
             snapshot_retention_days=config.SNAPSHOT_RETENTION_DAYS,
             snapshot_cleanup_every=config.SNAPSHOT_CLEANUP_INTERVAL,
         )

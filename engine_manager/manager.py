@@ -63,6 +63,8 @@ class ManagerConfig:
             "--absence-timeout", str(config.ABSENCE_TIMEOUT),
             "--fps-interval", "0",
         ]
+        if config.ENGINE_STREAM_URL:
+            args += ["--stream-url", config.ENGINE_STREAM_URL]
         if config.ENGINE_HEARTBEAT_URL:
             args += ["--heartbeat-url", config.ENGINE_HEARTBEAT_URL]
         if config.ENABLE_SNAPSHOT:

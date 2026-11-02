@@ -18,6 +18,8 @@
 #include <glib-unix.h>
 #include <glib.h>
 #include <glib/gstdio.h>
+#include <gst/app/gstappsink.h>
+#include <gst/app/gstappsrc.h>
 #include <gst/gst.h>
 #include <signal.h>
 #include <stdatomic.h>
@@ -104,6 +106,23 @@
 /* Class id of "person" in the nvinfer output (the YOLOv8 parser reports only this class). */
 #define PERSON_CLASS_ID 0
 
+/* Live stream of each camera to MediaMTX (ROADMAP 4.1): the encoder settings of the stream branch. A
+ * key frame every second at 30 fps lets a browser that joins late start within a second. */
+#define STREAM_BITRATE_DEFAULT_KBPS 4000
+#define STREAM_KEYFRAME_INTERVAL 30
+/* Frames the stream branch may hold while the stream cannot keep up (live pipelines drop the oldest
+ * instead of stalling detection). Every one of them is a whole batch buffer of nvstreammux, taken from
+ * its small fixed pool (STREAM_POOL_EXTRA + one per camera, at most 16): a branch that holds more
+ * than its share while it is stuck, e.g. just after it reconnected, starves the pool and stops
+ * the detection of every camera. */
+#define STREAM_QUEUE_BUFFERS 1
+#define STREAM_POOL_EXTRA 4
+#define MUXER_POOL_MAX 16
+/* Seconds before a failed stream publisher is built again. */
+#define STREAM_RETRY_S 5
+/* Encoded video the publisher may hold while the server is slow; beyond it the oldest is dropped. */
+#define STREAM_PUBLISH_QUEUE_BYTES (4 * 1024 * 1024)
+
 /* --output: size of the tiled video that holds all sources. */
 #define TILER_WIDTH 1920
 #define TILER_HEIGHT 1080
@@ -149,6 +168,21 @@ typedef struct {
     gboolean have_stream_start;
     guint64 event_count;   /* PERSON_DETECTED events emitted */
     guint64 event_errors;  /* frames dropped from event processing because memory ran out */
+    /* Stream (--stream-url). Two parts that never touch each other's state: the encoding branch inside the
+     * main pipeline (nvstreamdemux ! queue ! ... ! H.264 ! appsink; it never fails, so the encoder is never
+     * restarted) and, per camera, a small publisher pipeline of its own (appsrc ! h264parse ! flvmux !
+     * rtmp2sink) that is thrown away and built again when the server fails. The appsink callback (a
+     * streaming thread) hands the encoded frames to the publisher under pub_lock; the rest is main thread. */
+    GstElement *stream_bin;   /* the encoding branch, owned by the main pipeline; NULL without --stream-url */
+    GMutex pub_lock;
+    GstElement *pub_appsrc;   /* NULL while no publisher takes frames; guarded by pub_lock */
+    gboolean pub_need_key;    /* guarded by pub_lock: a new publisher starts at the next key frame */
+    GstClockTime pub_pts_base;   /* guarded by pub_lock: PTS of the first frame it was given */
+    GstElement *pub_pipeline;
+    guint pub_bus_watch;
+    gboolean pub_failed;      /* the publisher reported an error; it is built again after a pause */
+    gint64 pub_failed_us;
+    guint64 pub_failures;
     guint64 hb_prev_frames;   /* frame_count at the previous heartbeat (main thread only) */
 } SourceCtx;
 
@@ -208,6 +242,8 @@ static gint opt_snapshot_quality = SNAPSHOT_QUALITY_DEFAULT;
 static gchar *opt_backend_url = NULL;
 static gchar *opt_spool_file = NULL;
 static gchar *opt_heartbeat_url = NULL;
+static gchar *opt_stream_url = NULL;
+static gint opt_stream_bitrate = STREAM_BITRATE_DEFAULT_KBPS;
 static gint opt_heartbeat_interval = HEARTBEAT_INTERVAL_DEFAULT_S;
 static gint opt_rtsp_timeout = RTSP_TIMEOUT_DEFAULT_S;
 static gdouble opt_absence_timeout = 10.0;  /* same default as ABSENCE_TIMEOUT in src/config */
@@ -230,6 +266,12 @@ static GOptionEntry option_entries[] = {
       "each --heartbeat-interval seconds. Needs --backend-url; uses the same DS_ENGINE_TOKEN", "URL" },
     { "heartbeat-interval", 0, 0, G_OPTION_ARG_INT, &opt_heartbeat_interval,
       "Seconds between two heartbeats, 1-3600 (default 5)", "SEC" },
+    { "stream-url", 0, 0, G_OPTION_ARG_STRING, &opt_stream_url,
+      "Publish every camera, with boxes and track IDs drawn on it, over RTMP to a media server such as "
+      "MediaMTX at BASE/cam<ID> (e.g. rtmp://127.0.0.1:1935). One H.264 encoder per camera. Cannot be "
+      "combined with --output", "BASE" },
+    { "stream-bitrate", 0, 0, G_OPTION_ARG_INT, &opt_stream_bitrate,
+      "Bit rate of each published stream in kbit/s, 100-50000 (default 4000)", "KBPS" },
     { "rtsp-timeout", 0, 0, G_OPTION_ARG_INT, &opt_rtsp_timeout,
       "Seconds without a frame after which an RTSP camera is switched off and on again, 0 = only "
       "react to errors (default 10)", "SEC" },
@@ -331,6 +373,8 @@ static gboolean init_sources(AppCtx *app, const GPtrArray *specs)
         src->app = app;
         src->source_id = i;
         src->track_frames = g_hash_table_new(g_direct_hash, g_direct_equal);
+        g_mutex_init(&src->pub_lock);
+        src->pub_pts_base = GST_CLOCK_TIME_NONE;
         event_manager_init(&src->events, opt_absence_timeout);
 
         /* Do not echo the spec: it may hold a password. */
@@ -360,6 +404,7 @@ static void free_sources(AppCtx *app)
             g_hash_table_destroy(app->sources[i].track_frames);
         if (app->sources[i].mux_sinkpad != NULL)
             gst_object_unref(app->sources[i].mux_sinkpad);
+        g_mutex_clear(&app->sources[i].pub_lock);
     }
     g_free(app->sources);
     app->sources = NULL;
@@ -410,6 +455,9 @@ static void print_stats(const AppCtx *app)
         if (src->is_rtsp)
             g_print("source_id=%u camera_id=%d state=%s reconnects=%" G_GUINT64_FORMAT "\n",
                     src->source_id, src->camera_id, source_state_name(src->state), src->reconnects);
+        if (src->stream_bin != NULL)
+            g_print("source_id=%u camera_id=%d stream failures=%" G_GUINT64_FORMAT "\n", src->source_id,
+                    src->camera_id, src->pub_failures);
         if (src->event_errors > 0)
             g_printerr("source_id=%u: %" G_GUINT64_FORMAT " frames skipped by the event manager "
                        "(out of memory)\n", src->source_id, src->event_errors);
@@ -463,6 +511,159 @@ static SourceCtx *source_of_message(AppCtx *app, GstMessage *msg, const gchar *d
             return &app->sources[i];
     }
     return NULL;
+}
+
+/*
+ * appsink callback of the encoding branch (a streaming thread): hand the encoded frame to the publisher of
+ * this camera. A publisher starts at a key frame, and its time stamps start at 0, whatever the stream time
+ * is when it is built. The copy shares the memory of the original; nothing is encoded twice.
+ */
+static GstFlowReturn stream_new_sample(GstAppSink *sink, gpointer data)
+{
+    SourceCtx *src = (SourceCtx *)data;
+    GstSample *sample = gst_app_sink_pull_sample(sink);
+    if (sample == NULL)
+        return GST_FLOW_OK;   /* the appsink is shutting down */
+    GstBuffer *buf = gst_sample_get_buffer(sample);
+
+    g_mutex_lock(&src->pub_lock);
+    if (src->pub_appsrc != NULL) {
+        if (src->pub_need_key && !GST_BUFFER_FLAG_IS_SET(buf, GST_BUFFER_FLAG_DELTA_UNIT))
+            src->pub_need_key = FALSE;
+        if (!src->pub_need_key) {
+            GstBuffer *out = gst_buffer_copy(buf);
+            if (src->pub_pts_base == GST_CLOCK_TIME_NONE && GST_BUFFER_PTS_IS_VALID(buf))
+                src->pub_pts_base = GST_BUFFER_PTS(buf);
+            GST_BUFFER_PTS(out) = (GST_BUFFER_PTS_IS_VALID(buf) && GST_BUFFER_PTS(buf) >= src->pub_pts_base)
+                                      ? GST_BUFFER_PTS(buf) - src->pub_pts_base : GST_CLOCK_TIME_NONE;
+            GST_BUFFER_DTS(out) = (GST_BUFFER_DTS_IS_VALID(buf) && GST_BUFFER_DTS(buf) >= src->pub_pts_base)
+                                      ? GST_BUFFER_DTS(buf) - src->pub_pts_base : GST_CLOCK_TIME_NONE;
+            gst_app_src_push_buffer(GST_APP_SRC(src->pub_appsrc), out);   /* takes the buffer */
+        }
+    }
+    g_mutex_unlock(&src->pub_lock);
+    gst_sample_unref(sample);
+    return GST_FLOW_OK;
+}
+
+/* Stop giving frames to the publisher of `src`. */
+static void pub_stop_feeding(SourceCtx *src)
+{
+    g_mutex_lock(&src->pub_lock);
+    src->pub_appsrc = NULL;
+    g_mutex_unlock(&src->pub_lock);
+}
+
+/* Take the publisher of `src` down. rtmp2sink goes to NULL without trouble, which rtspclientsink does not
+ * after a failed connection (it deadlocks). Main thread. */
+static void pub_destroy(SourceCtx *src)
+{
+    pub_stop_feeding(src);
+    if (src->pub_bus_watch != 0)
+        g_source_remove(src->pub_bus_watch);
+    src->pub_bus_watch = 0;
+    if (src->pub_pipeline != NULL) {
+        gst_element_set_state(src->pub_pipeline, GST_STATE_NULL);
+        gst_object_unref(src->pub_pipeline);
+    }
+    src->pub_pipeline = NULL;
+}
+
+/* Bus watch of one publisher pipeline (main thread). An error means the server is gone or refuses us:
+ * stop feeding it and build a new publisher later. Nothing else is touched: detection and events go on. */
+static gboolean pub_bus_call(GstBus *bus, GstMessage *msg, gpointer data)
+{
+    (void)bus;
+    SourceCtx *src = (SourceCtx *)data;
+
+    if (GST_MESSAGE_TYPE(msg) != GST_MESSAGE_ERROR)
+        return TRUE;
+    GError *err = NULL;
+    gst_message_parse_error(msg, &err, NULL);   /* not the debug text: it can hold the server address */
+    if (!src->pub_failed) {
+        g_printerr("source_id=%u camera_id=%d: stream failed (%s), trying again in %d s\n", src->source_id,
+                   src->camera_id, err->message, STREAM_RETRY_S);
+        src->pub_failed = TRUE;
+        src->pub_failed_us = g_get_monotonic_time();
+        src->pub_failures++;
+    }
+    g_error_free(err);
+    pub_stop_feeding(src);
+    src->pub_bus_watch = 0;
+    return G_SOURCE_REMOVE;
+}
+
+/* Build and start the publisher of `src`: appsrc ! h264parse ! flvmux ! rtmp2sink to BASE/cam<ID>. */
+static gboolean pub_create(SourceCtx *src)
+{
+    GstElement *pipeline = gst_pipeline_new(NULL);
+    GstElement *appsrc = gst_element_factory_make("appsrc", "publisher-source");
+    GstElement *parser = gst_element_factory_make("h264parse", "publisher-parser");
+    GstElement *flv = gst_element_factory_make("flvmux", "publisher-muxer");
+    GstElement *sink = gst_element_factory_make("rtmp2sink", "publisher-sink");
+    if (pipeline == NULL || appsrc == NULL || parser == NULL || flv == NULL || sink == NULL) {
+        g_printerr("Could not create the stream publisher of camera %d\n", src->camera_id);
+        for (GstElement **e = (GstElement *[]){ pipeline, appsrc, parser, flv, sink, NULL }; *e != NULL; e++)
+            gst_object_unref(*e);
+        return FALSE;
+    }
+    gst_bin_add_many(GST_BIN(pipeline), appsrc, parser, flv, sink, NULL);
+
+    GstCaps *caps = gst_caps_from_string("video/x-h264, stream-format=(string)byte-stream, "
+                                         "alignment=(string)au");
+    g_object_set(appsrc, "caps", caps, "format", GST_FORMAT_TIME, "is-live", TRUE, "block", FALSE,
+                 "max-bytes", (guint64)STREAM_PUBLISH_QUEUE_BYTES, NULL);
+    gst_caps_unref(caps);
+    if (g_object_class_find_property(G_OBJECT_GET_CLASS(appsrc), "leaky-type") != NULL)
+        gst_util_set_object_arg(G_OBJECT(appsrc), "leaky-type", "downstream");
+    g_object_set(parser, "config-interval", -1, NULL);   /* SPS/PPS before every key frame */
+    g_object_set(flv, "streamable", TRUE, NULL);
+    gchar *location = g_strdup_printf("%s/cam%d", opt_stream_url, src->camera_id);
+    g_object_set(sink, "location", location, "sync", FALSE, NULL);   /* the frames are already paced */
+    g_free(location);
+
+    if (!gst_element_link_many(appsrc, parser, flv, sink, NULL)) {
+        g_printerr("Could not link the stream publisher of camera %d\n", src->camera_id);
+        gst_object_unref(pipeline);
+        return FALSE;
+    }
+
+    GstBus *bus = gst_pipeline_get_bus(GST_PIPELINE(pipeline));
+    src->pub_bus_watch = gst_bus_add_watch(bus, pub_bus_call, src);
+    gst_object_unref(bus);
+    src->pub_pipeline = pipeline;
+
+    g_mutex_lock(&src->pub_lock);
+    src->pub_need_key = TRUE;
+    src->pub_pts_base = GST_CLOCK_TIME_NONE;
+    src->pub_appsrc = appsrc;   /* the pipeline owns it */
+    g_mutex_unlock(&src->pub_lock);
+
+    if (gst_element_set_state(pipeline, GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
+        pub_destroy(src);
+        return FALSE;
+    }
+    return TRUE;
+}
+
+/* Timer (main thread): build the failed publishers again after a pause. */
+static gboolean stream_retry_tick(gpointer data)
+{
+    AppCtx *app = (AppCtx *)data;
+    gint64 now = g_get_monotonic_time();
+
+    for (guint i = 0; i < app->num_sources; i++) {
+        SourceCtx *src = &app->sources[i];
+        if (src->stream_bin == NULL || !src->pub_failed ||
+            now - src->pub_failed_us < (gint64)STREAM_RETRY_S * G_USEC_PER_SEC)
+            continue;
+        pub_destroy(src);
+        if (pub_create(src))
+            src->pub_failed = FALSE;
+        else
+            src->pub_failed_us = now;
+    }
+    return G_SOURCE_CONTINUE;
 }
 
 /*
@@ -1300,6 +1501,80 @@ static void on_source_pad_added(GstElement *bin, GstPad *new_pad, gpointer user_
  * probe stays on nvtracker, before the tiler. batch-size of nvstreammux and nvinfer = N.
  * Returns NULL (after printing why) on error.
  */
+/*
+ * The encoding branch of one camera (ROADMAP 4.1), fed by the "src_<source_id>" pad of nvstreamdemux:
+ *   queue ! nvvideoconvert ! nvdsosd ! nvvideoconvert ! I420 ! nvv4l2h264enc ! h264parse ! appsink
+ * nvdsosd draws the boxes and track IDs from the metadata the demux keeps with each frame. The appsink
+ * only passes the frames on (stream_new_sample), so nothing the server does can stop this branch or
+ * the pipeline: the publisher (RTMP) is a pipeline of its own, see pub_create(). The queue drops its
+ * oldest frames for live sources and the appsink does not wait for the clock; with files the queue
+ * blocks and the appsink waits for the clock, which paces a file to real time for the viewer.
+ */
+static gboolean build_stream_branch(GstElement *pipeline, GstElement *demux, SourceCtx *src, gboolean live)
+{
+    gchar *bin_name = g_strdup_printf("stream-%u", src->source_id);
+    GstElement *bin = gst_bin_new(bin_name);
+    g_free(bin_name);
+    if (bin == NULL)
+        return FALSE;
+
+    GstElement *queue = make_element(bin, "queue", "queue");
+    GstElement *conv_osd = make_element(bin, "nvvideoconvert", "convert-for-osd");
+    GstElement *osd = make_element(bin, "nvdsosd", "osd");
+    GstElement *conv_enc = make_element(bin, "nvvideoconvert", "convert-for-encoder");
+    GstElement *caps = make_element(bin, "capsfilter", "encoder-caps");
+    GstElement *encoder = make_element(bin, "nvv4l2h264enc", "encoder");
+    GstElement *parser = make_element(bin, "h264parse", "parser");
+    GstElement *out_caps = make_element(bin, "capsfilter", "output-caps");
+    GstElement *sink = make_element(bin, "appsink", "frames");
+    if (queue == NULL || conv_osd == NULL || osd == NULL || conv_enc == NULL || caps == NULL ||
+        encoder == NULL || parser == NULL || out_caps == NULL || sink == NULL) {
+        gst_object_unref(bin);   /* the elements added so far go with it */
+        return FALSE;
+    }
+
+    g_object_set(queue, "max-size-buffers", STREAM_QUEUE_BUFFERS, "max-size-bytes", 0,
+                 "max-size-time", (guint64)0, "leaky", live ? 2 : 0, NULL);
+    GstCaps *i420 = gst_caps_from_string("video/x-raw(memory:NVMM), format=I420");
+    g_object_set(caps, "caps", i420, NULL);
+    gst_caps_unref(i420);
+    g_object_set(encoder, "bitrate", (guint)opt_stream_bitrate * 1000, "iframeinterval",
+                 STREAM_KEYFRAME_INTERVAL, "idrinterval", STREAM_KEYFRAME_INTERVAL, NULL);
+    g_object_set(parser, "config-interval", -1, NULL);
+    GstCaps *annexb = gst_caps_from_string("video/x-h264, stream-format=(string)byte-stream, "
+                                           "alignment=(string)au");
+    g_object_set(out_caps, "caps", annexb, NULL);
+    gst_caps_unref(annexb);
+    g_object_set(sink, "sync", !live, "max-buffers", 4, "drop", FALSE, "emit-signals", FALSE, NULL);
+    GstAppSinkCallbacks callbacks = { .new_sample = stream_new_sample };
+    gst_app_sink_set_callbacks(GST_APP_SINK(sink), &callbacks, src, NULL);
+
+    GstPad *queue_sink = gst_element_get_static_pad(queue, "sink");
+    GstPad *ghost = gst_ghost_pad_new("sink", queue_sink);
+    gst_object_unref(queue_sink);
+    gboolean ok = gst_element_link_many(queue, conv_osd, osd, conv_enc, caps, encoder, parser, out_caps,
+                                        sink, NULL) &&
+                  gst_element_add_pad(bin, ghost) && gst_bin_add(GST_BIN(pipeline), bin);
+    if (!ok) {
+        g_printerr("Could not build the stream branch of camera %d\n", src->camera_id);
+        gst_object_unref(bin);
+        return FALSE;
+    }
+
+    gchar *pad_name = g_strdup_printf("src_%u", src->source_id);
+    GstPad *demux_src = gst_element_request_pad_simple(demux, pad_name);
+    g_free(pad_name);
+    if (demux_src == NULL || gst_pad_link(demux_src, ghost) != GST_PAD_LINK_OK) {
+        g_printerr("Could not link nvstreamdemux to the stream branch of camera %d\n", src->camera_id);
+        if (demux_src != NULL)
+            gst_object_unref(demux_src);
+        return FALSE;   /* the bin belongs to the pipeline now */
+    }
+    gst_object_unref(demux_src);
+    src->stream_bin = bin;
+    return TRUE;
+}
+
 static GstElement *build_pipeline(AppCtx *app)
 {
     GstElement *pipeline = gst_pipeline_new("ds-engine");
@@ -1313,7 +1588,7 @@ static GstElement *build_pipeline(AppCtx *app)
     GstElement *streammux = make_element(pipeline, "nvstreammux", "stream-muxer");
     GstElement *pgie = make_element(pipeline, "nvinfer", "primary-infer");
     GstElement *tracker = make_element(pipeline, "nvtracker", "tracker");
-    GstElement *sink = NULL;
+    GstElement *sink = NULL, *demux = NULL;
     if (streammux == NULL || pgie == NULL || tracker == NULL)
         goto fail;
 
@@ -1329,6 +1604,10 @@ static GstElement *build_pipeline(AppCtx *app)
         sink = make_element(pipeline, "filesink", "sink");
         if (tiler == NULL || conv_osd == NULL || osd == NULL || conv_enc == NULL ||
             enc_caps == NULL || encoder == NULL || parser == NULL || mux == NULL || sink == NULL)
+            goto fail;
+    } else if (opt_stream_url != NULL) {
+        demux = make_element(pipeline, "nvstreamdemux", "stream-demux");
+        if (demux == NULL)
             goto fail;
     } else {
         sink = make_element(pipeline, "fakesink", "sink");
@@ -1346,6 +1625,9 @@ static GstElement *build_pipeline(AppCtx *app)
     g_object_set(streammux, "batch-size", app->num_sources, "width", MUXER_WIDTH, "height",
                  MUXER_HEIGHT, "batched-push-timeout", MUXER_BATCH_TIMEOUT_USEC, "live-source",
                  live, NULL);
+    if (opt_stream_url != NULL)
+        g_object_set(streammux, "buffer-pool-size",
+                     MIN((guint)MUXER_POOL_MAX, (guint)STREAM_POOL_EXTRA + app->num_sources), NULL);
 
     /* batch-size after config-file-path, so it overrides any batch-size in the config. */
     g_object_set(pgie, "config-file-path", opt_config, "batch-size", app->num_sources, NULL);
@@ -1353,7 +1635,8 @@ static GstElement *build_pipeline(AppCtx *app)
                  "tracker-width", TRACKER_WIDTH, "tracker-height", TRACKER_HEIGHT, NULL);
     /* sync=FALSE: files run as fast as the GPU allows. The event logic uses the stream PTS, not
      * the wall clock, so results do not depend on this. */
-    g_object_set(sink, "sync", FALSE, NULL);
+    if (sink != NULL)
+        g_object_set(sink, "sync", FALSE, NULL);
 
     if (opt_output != NULL) {
         /* smallest rows x columns grid that holds all sources */
@@ -1404,10 +1687,16 @@ static GstElement *build_pipeline(AppCtx *app)
         (opt_output != NULL)
             ? gst_element_link_many(tracker, tiler, conv_osd, osd, conv_enc, enc_caps, encoder,
                                     parser, mux, sink, NULL)
-            : gst_element_link_many(tracker, sink, NULL);
+            : (demux != NULL) ? gst_element_link(tracker, demux)
+                              : gst_element_link_many(tracker, sink, NULL);
     if (!tail_linked) {
         g_printerr("Could not link the end of the pipeline after nvtracker\n");
         goto fail;
+    }
+
+    for (guint i = 0; demux != NULL && i < app->num_sources; i++) {
+        if (!build_stream_branch(pipeline, demux, &app->sources[i], live))
+            goto fail;
     }
 
     /* Before the tiler (or any demux), while the batch is still whole. */
@@ -1423,8 +1712,10 @@ static GstElement *build_pipeline(AppCtx *app)
 
 fail:
     gst_object_unref(pipeline);
-    for (guint i = 0; i < app->num_sources; i++)
+    for (guint i = 0; i < app->num_sources; i++) {
         app->sources[i].bin = NULL;
+        app->sources[i].stream_bin = NULL;
+    }
     return NULL;
 }
 
@@ -1499,6 +1790,25 @@ int main(int argc, char *argv[])
         g_ptr_array_free(specs, TRUE);
         return EXIT_BAD_ARGS;
     }
+    if (opt_stream_url != NULL && opt_output != NULL) {
+        g_printerr("--stream-url and --output cannot be used together (one tiles the cameras, the other "
+                   "keeps them apart)\n");
+        g_ptr_array_free(specs, TRUE);
+        return EXIT_BAD_ARGS;
+    }
+    if (opt_stream_url != NULL && !g_str_has_prefix(opt_stream_url, "rtmp://") &&
+        !g_str_has_prefix(opt_stream_url, "rtmps://")) {
+        g_printerr("--stream-url must start with rtmp:// or rtmps://\n");
+        g_ptr_array_free(specs, TRUE);
+        return EXIT_BAD_ARGS;
+    }
+    if (opt_stream_url != NULL && opt_stream_url[strlen(opt_stream_url) - 1] == '/')
+        opt_stream_url[strlen(opt_stream_url) - 1] = '\0';   /* BASE/cam<ID>, one slash */
+    if (opt_stream_bitrate < 100 || opt_stream_bitrate > 50000) {
+        g_printerr("--stream-bitrate must be between 100 and 50000 kbit/s\n");
+        g_ptr_array_free(specs, TRUE);
+        return EXIT_BAD_ARGS;
+    }
     if (opt_rtsp_timeout < 0 || opt_rtsp_timeout > 3600) {
         g_printerr("--rtsp-timeout must be between 0 and 3600 seconds\n");
         g_ptr_array_free(specs, TRUE);
@@ -1557,10 +1867,19 @@ int main(int argc, char *argv[])
             g_printerr("Could not set the pipeline to PLAYING\n");
             app.exit_code = 1;
         } else {
-            guint fps_timer_id = 0, watchdog_id = 0, heartbeat_id = 0;
+            guint fps_timer_id = 0, watchdog_id = 0, heartbeat_id = 0, stream_id = 0;
             if (opt_fps_interval > 0)
                 fps_timer_id = g_timeout_add_seconds((guint)opt_fps_interval, report_fps, &app);
             app.start_us = g_get_monotonic_time();
+            if (opt_stream_url != NULL) {
+                for (guint i = 0; i < app.num_sources; i++) {
+                    if (!pub_create(&app.sources[i])) {   /* tried again by the timer */
+                        app.sources[i].pub_failed = TRUE;
+                        app.sources[i].pub_failed_us = g_get_monotonic_time();
+                    }
+                }
+                stream_id = g_timeout_add_seconds(1, stream_retry_tick, &app);
+            }
             if (opt_heartbeat_url != NULL) {
                 app.hb_prev_us = app.start_us;
                 heartbeat_id = g_timeout_add_seconds((guint)opt_heartbeat_interval, heartbeat_tick, &app);
@@ -1583,9 +1902,13 @@ int main(int argc, char *argv[])
                 g_source_remove(watchdog_id);
             if (heartbeat_id != 0)
                 g_source_remove(heartbeat_id);
+            if (stream_id != 0)
+                g_source_remove(stream_id);
 
         }
 
+        for (guint i = 0; i < app.num_sources; i++)
+            pub_destroy(&app.sources[i]);
         gst_element_set_state(app.pipeline, GST_STATE_NULL);
         gst_object_unref(app.pipeline);
         g_source_remove(bus_watch_id);
@@ -1607,6 +1930,7 @@ int main(int argc, char *argv[])
     g_free(opt_backend_url);
     g_free(opt_spool_file);
     g_free(opt_heartbeat_url);
+    g_free(opt_stream_url);
     curl_global_cleanup();
     return app.exit_code;
 }

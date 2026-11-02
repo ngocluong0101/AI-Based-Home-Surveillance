@@ -115,6 +115,16 @@ class StreamInfo(BaseModel):
     heartbeat_age: float | None = None    # seconds since that heartbeat arrived; None = the engine never reported
 
 
+class StreamLink(BaseModel):
+    """Where a browser watches the camera. Never the camera's own address: the engine publishes the video to
+    MediaMTX and only MediaMTX is named here."""
+
+    camera_id: int
+    whep_url: str     # WebRTC-HTTP egress protocol endpoint, for a player that speaks WHEP
+    player_url: str   # MediaMTX's own page with a player, for a quick look or an <iframe>
+    available: bool   # the engine is running this camera right now (a recent heartbeat names it)
+
+
 class CameraStatus(BaseModel):
     camera_id: int
     enabled: bool
