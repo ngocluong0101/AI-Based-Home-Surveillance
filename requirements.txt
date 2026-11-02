@@ -3,4 +3,11 @@ ultralytics==8.4.106
 requests==2.34.2
 python-dotenv==1.2.2
 pytest==9.0.3
-# web frameworks removed; keep only AI/runtime dependencies
+# backend (FastAPI + PostgreSQL)
+fastapi==0.128.5
+uvicorn==0.40.0
+pydantic==2.12.5
+sqlalchemy==2.0.51
+alembic==1.18.5
+psycopg[binary]==3.3.2
+httpx==0.28.1

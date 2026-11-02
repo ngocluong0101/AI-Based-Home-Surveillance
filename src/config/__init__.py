@@ -52,6 +52,10 @@ def _parse_log_level(value: Optional[str], default: str) -> str:
 RTSP_URL: Optional[str] = os.getenv("RTSP_URL") or None
 TELEGRAM_BOT_TOKEN: Optional[str] = os.getenv("TELEGRAM_BOT_TOKEN") or None
 TELEGRAM_CHAT_ID: Optional[str] = os.getenv("TELEGRAM_CHAT_ID") or None
+# Backend (FastAPI): PostgreSQL URL (the password may also come from ~/.pgpass / PGPASSWORD) and the
+# shared secret the engine sends as X-Internal-Token (unset = the internal endpoints are open, LAN only)
+DATABASE_URL: Optional[str] = os.getenv("DATABASE_URL") or None
+INTERNAL_TOKEN: Optional[str] = os.getenv("INTERNAL_TOKEN") or None
 
 # Typed values with defaults
 CONFIDENCE_THRESHOLD: float = _parse_float(os.getenv("CONFIDENCE_THRESHOLD"), 0.5)
@@ -79,6 +83,8 @@ __all__ = [
     "RTSP_URL",
     "TELEGRAM_BOT_TOKEN",
     "TELEGRAM_CHAT_ID",
+    "DATABASE_URL",
+    "INTERNAL_TOKEN",
     "CONFIDENCE_THRESHOLD",
     "RECONNECT_DELAY",
     "ABSENCE_TIMEOUT",

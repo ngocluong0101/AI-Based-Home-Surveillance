@@ -8,6 +8,9 @@ Current state of the repository:
 
 - `engine/`: the DeepStream engine in C. The N-source pipeline (`nvstreammux` -> `nvinfer` with YOLOv8n -> `nvtracker`)
   runs and raises `PERSON_DETECTED` events per source (with a JPEG snapshot of the frame each; queued and then POSTed to a backend with retry and a spool file, or printed as JSON lines when no backend is given), and can write a debug video with the boxes and track IDs drawn (see [DeepStream engine](#deepstream-engine)).
+- `backend/`: the FastAPI backend (REST API for cameras and events, the endpoint the engine posts events to), storing
+  everything in PostgreSQL. Start/stop of cameras, the WebSocket, Telegram alerts and the engine manager are not built
+  yet (see [Backend](#backend)).
 - `src/events/`: the Python `PERSON_DETECTED` de-duplication logic. It is the reference specification; the C engine
   has a port of it (`engine/src/core/event_manager.c`) that passes the same test vectors.
 - `src/notifications/`, `src/snapshot_management.py`, `src/config/`, `src/logging_config.py`: Python building blocks
@@ -87,6 +90,44 @@ LOG_MAX_BYTES=5242880    # maximum size before rotation (default 5 MB)
 LOG_BACKUP_COUNT=3       # number of old log files to keep
 ```
 
+## Backend
+
+FastAPI + SQLAlchemy 2 + Alembic on **PostgreSQL**. Layout: `backend/main.py` (`create_app`), `models.py` (tables),
+`schemas.py`, `routers/` (`health`, `cameras`, `events`, `internal`), `migrations/` (Alembic).
+
+Create the database once (as the PostgreSQL superuser; pick your own password, and keep it out of the URL by putting it
+in `~/.pgpass` or `PGPASSWORD`):
+
+```bash
+sudo -u postgres psql -c "CREATE ROLE surveillance LOGIN PASSWORD '<password>'" \
+                      -c "CREATE DATABASE surveillance OWNER surveillance"
+```
+
+Set `DATABASE_URL` in `.env` (see `.env.example`), create the tables, and run the server:
+
+```bash
+alembic -c backend/alembic.ini upgrade head
+uvicorn backend.main:create_app --factory --host 0.0.0.0 --port 8000     # API docs at /docs
+```
+
+| Endpoint | |
+|---|---|
+| `GET /api/health` | 200, or 503 when the database cannot be reached |
+| `GET/POST /api/cameras`, `GET/PATCH/DELETE /api/cameras/{id}` | cameras. The id is the `camera_id` the engine puts in its events. `source_uri` is stored as given (the engine needs the password) but every response shows it masked (`rtsp://***@host/path?***`). DELETE is a soft delete that frees the name. |
+| `GET /api/events` | newest first. Filters `camera_id`, `from` (inclusive), `to` (exclusive), `type`, `status`; pagination `limit` (1-200, default 50) and `offset`; answers `{items, total, limit, offset}` |
+| `GET /api/events/{id}`, `GET /api/events/{id}/snapshot` | one event; its JPEG from `SNAPSHOT_DIR` (404 when the event has none or the cleaner removed the file) |
+| `POST /internal/events` | for the engine, not for browsers. Idempotent on `event_id`: 201 stored, 200 already had it, 422 can never be stored (unknown camera, bad values), which makes the engine drop it instead of retrying. With `INTERNAL_TOKEN` set it needs the header `X-Internal-Token`. |
+
+Run the engine against it with `--backend-url http://HOST:8000/internal/events --spool-file FILE --snapshot-dir DIR`, where
+`DIR` is the backend's `SNAPSHOT_DIR` (same machine for now; the engine does not send the header yet, so leave
+`INTERNAL_TOKEN` empty for the time being). Events of a camera that does not exist in the backend are refused, so create the
+cameras first, with ids equal to the `--camera ID=URI` ids.
+
+The backend tests (`tests/backend_api/`) start a throwaway PostgreSQL cluster of their own (`initdb` + `pg_ctl` from the
+installed PostgreSQL, a unix socket in a temp directory, removed afterwards) and never touch an existing server. To
+use another server set `TEST_DATABASE_URL` to a database whose name ends with `_test`: its tables are emptied before
+every test.
+
 ## Run the unit tests
 
 The project uses `pytest` (already in `requirements.txt`). Run it from the repository root:
@@ -100,8 +141,10 @@ The test suite contains:
 - `tests/test_person_detected_event_manager.py`: the `PERSON_DETECTED` de-duplication logic.
 - `tests/test_event_manager_vectors.py`: the shared event manager vectors (see above).
 - `tests/test_env_file.py`: reading and writing `.env`, using temporary files only.
+- `tests/backend_api/`: the backend (cameras, events, the internal endpoint, health, migrations) against a throwaway PostgreSQL.
 
-The tests need no camera, model, network or display.
+The tests need no camera, model, network or display; the backend tests need the PostgreSQL server programs installed
+(they are skipped otherwise).
 
 ## DeepStream engine
 
