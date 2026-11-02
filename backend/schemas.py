@@ -182,6 +182,14 @@ class EventOut(BaseModel):
     notify_status: str
 
 
+class EventPatch(BaseModel):
+    """What a user may change on an event: whether it was looked at."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: Literal["new", "acknowledged"]
+
+
 class EventPage(BaseModel):
     items: list[EventOut]
     total: int

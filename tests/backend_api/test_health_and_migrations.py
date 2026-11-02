@@ -18,7 +18,8 @@ def test_health_ok(client):
 
 
 def test_health_is_503_when_the_database_is_unreachable():
-    settings = Settings(database_url="postgresql+psycopg://nobody@127.0.0.1:1/none", configure_logging=False)
+    settings = Settings(database_url="postgresql+psycopg://nobody@127.0.0.1:1/none", configure_logging=False,
+                        notify_interval=0, cleanup_check_interval=0)
     with TestClient(create_app(settings)) as client:
         resp = client.get("/api/health")
     assert resp.status_code == 503

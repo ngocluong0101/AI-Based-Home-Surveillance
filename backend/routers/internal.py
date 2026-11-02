@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from backend.db import get_db
 from backend.models import Event
 from backend.heartbeats import CameraBeat
-from backend.routers.events import to_out
+from backend.routers.events import publish_event
 from backend.schemas import EventIn, HeartbeatIn
 
 router = APIRouter(prefix="/internal", tags=["internal"])
@@ -63,7 +63,10 @@ def post_event(body: EventIn, request: Request, response: Response, db: Session 
     else:
         stored = db.get(Event, body.event_id)
         if stored is not None:
-            request.app.state.hub.publish("event.created", to_out(stored).model_dump(mode="json"))
+            publish_event(request.app.state.hub, "event.created", stored)
+        if body.snapshot:
+            request.app.state.janitor.note_snapshot()
+        request.app.state.notifier.trigger()
     return {"event_id": str(body.event_id), "duplicate": not inserted}
 
 

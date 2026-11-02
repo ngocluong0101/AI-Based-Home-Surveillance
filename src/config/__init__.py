@@ -77,6 +77,8 @@ ENGINE_MANAGER_URL: Optional[str] = os.getenv("ENGINE_MANAGER_URL") or None
 
 # Typed values with defaults
 # Seconds after which a heartbeat of the engine no longer says anything about a camera (it sends one every 5)
+# Seconds an event may wait for its Telegram alert; after that it is marked failed instead of sent late
+NOTIFY_MAX_AGE: float = _parse_float(os.getenv("NOTIFY_MAX_AGE"), 600.0)
 HEARTBEAT_STALE_AFTER: float = _parse_float(os.getenv("HEARTBEAT_STALE_AFTER"), 15.0)
 CONFIDENCE_THRESHOLD: float = _parse_float(os.getenv("CONFIDENCE_THRESHOLD"), 0.5)
 RECONNECT_DELAY: float = _parse_float(os.getenv("RECONNECT_DELAY"), 5.0)
@@ -112,6 +114,7 @@ __all__ = [
     "ENGINE_BACKEND_URL",
     "ENGINE_HEARTBEAT_URL",
     "HEARTBEAT_STALE_AFTER",
+    "NOTIFY_MAX_AGE",
     "ENGINE_EXTRA_ARGS",
     "ENGINE_MANAGER_URL",
     "CONFIDENCE_THRESHOLD",

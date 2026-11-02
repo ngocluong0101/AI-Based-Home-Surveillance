@@ -100,15 +100,27 @@ def snapshot_dir(tmp_path):
     return d
 
 
+class NoTelegram:
+    enabled = False
+
+    def send_person_detected(self, event):
+        raise AssertionError("a test reached Telegram")
+
+    send_person_detected_photo = send_person_detected
+
+
 @pytest.fixture
 def make_client(database_url, db_engine, snapshot_dir):
     clients = []
 
-    def factory(engine_client=None, **overrides) -> TestClient:
+    def factory(engine_client=None, telegram=None, **overrides) -> TestClient:
         overrides.setdefault("reconcile_interval", 0)   # no background thread unless a test asks for it
+        overrides.setdefault("notify_interval", 0)
+        overrides.setdefault("cleanup_check_interval", 0)
+        telegram = telegram or NoTelegram()   # never the real one: .env of the developer may hold a token
         settings = Settings(database_url=database_url, snapshot_dir=str(snapshot_dir),
                             configure_logging=False, **overrides)
-        client = TestClient(create_app(settings, engine_client=engine_client))
+        client = TestClient(create_app(settings, engine_client=engine_client, telegram=telegram))
         client.__enter__()
         clients.append(client)
         return client

@@ -176,12 +176,14 @@ def test_with_a_real_uvicorn_server_and_a_real_websocket_client(database_url, db
     from backend.main import create_app
     from backend.settings import Settings
 
+    from .conftest import NoTelegram
+
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
     settings = Settings(database_url=database_url, snapshot_dir=str(snapshot_dir), configure_logging=False,
-                        reconcile_interval=0)
-    server = uvicorn.Server(uvicorn.Config(create_app(settings), host="127.0.0.1", port=port, log_level="warning"))
+                        reconcile_interval=0, notify_interval=0, cleanup_check_interval=0)
+    server = uvicorn.Server(uvicorn.Config(create_app(settings, telegram=NoTelegram()), host="127.0.0.1", port=port, log_level="warning"))
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
     try:

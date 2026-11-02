@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from backend.db import get_db
 from backend.models import Event
-from backend.schemas import EventOut, EventPage
+from backend.schemas import EventOut, EventPage, EventPatch
 
 router = APIRouter(prefix="/api/events", tags=["events"])
 
@@ -32,6 +32,11 @@ def to_out(event: Event) -> EventOut:
         status=event.status,
         notify_status=event.notify_status,
     )
+
+
+def publish_event(hub, type_: str, event: Event) -> None:
+    """Push an event to the WebSocket clients ("event.created" / "event.updated")."""
+    hub.publish(type_, to_out(event).model_dump(mode="json"))
 
 
 @router.get("", response_model=EventPage)
@@ -79,6 +84,19 @@ def _get(db: Session, event_id: uuid.UUID) -> Event:
 @router.get("/{event_id}", response_model=EventOut)
 def get_event(event_id: uuid.UUID, db: Session = Depends(get_db)) -> EventOut:
     return to_out(_get(db, event_id))
+
+
+@router.patch("/{event_id}", response_model=EventOut)
+def patch_event(event_id: uuid.UUID, body: EventPatch, request: Request, db: Session = Depends(get_db)) -> EventOut:
+    """Acknowledge an event (or mark it new again). Pushes `event.updated` when the status changed."""
+    event = _get(db, event_id)
+    changed = event.status != body.status
+    if changed:
+        event.status = body.status
+        db.commit()
+        db.refresh(event)
+        publish_event(request.app.state.hub, "event.updated", event)
+    return to_out(event)
 
 
 @router.get("/{event_id}/snapshot")

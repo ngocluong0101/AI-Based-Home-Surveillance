@@ -9,12 +9,13 @@ Current state of the repository:
 - `engine/`: the DeepStream engine in C. The N-source pipeline (`nvstreammux` -> `nvinfer` with YOLOv8n -> `nvtracker`)
   runs and raises `PERSON_DETECTED` events per source (with a JPEG snapshot of the frame each; queued and then POSTed to a backend with retry and a spool file, or printed as JSON lines when no backend is given), and can write a debug video with the boxes and track IDs drawn (see [DeepStream engine](#deepstream-engine)).
 - `backend/`: the FastAPI backend (REST API for cameras and events, the endpoint the engine posts events to), storing
-  everything in PostgreSQL, and starts/stops the engine for the cameras that should run through `engine_manager/`. The
-  heartbeat, the WebSocket and Telegram alerts are not built yet (see [Backend](#backend)).
+  everything in PostgreSQL, starts/stops the engine for the cameras that should run through `engine_manager/`, shows the
+  camera states the engine reports, pushes events and states to browsers over a WebSocket, sends the Telegram alerts and
+  deletes old snapshots (see [Backend](#backend)). There is no frontend yet.
 - `src/events/`: the Python `PERSON_DETECTED` de-duplication logic. It is the reference specification; the C engine
   has a port of it (`engine/src/core/event_manager.c`) that passes the same test vectors.
 - `src/notifications/`, `src/snapshot_management.py`, `src/config/`, `src/logging_config.py`: Python building blocks
-  (Telegram notifier, snapshot cleanup, `.env` configuration, logging) for the future backend. No Python program
+  (Telegram notifier, snapshot cleanup, `.env` configuration, logging), used by the backend. No Python program
   runs a video pipeline any more: the old Ultralytics/OpenCV command line was removed.
 
 ## Installation
@@ -62,6 +63,14 @@ create when unconfigured: it disables itself, every send becomes a no-op returni
    TELEGRAM_CHAT_ID=987654321
    ```
 
+The backend sends the alerts (the engine never talks to Telegram): `POST /internal/events` only stores the event, and a
+background thread (`backend/notifier.py`) sends the pending ones, oldest first, as a photo when the snapshot file exists and as
+text otherwise. The result is in the event's `notify_status`: `sent`; `disabled` when Telegram is not configured; `failed` when
+the alert stayed undeliverable for more than `NOTIFY_MAX_AGE` seconds (default 600), because an alert that late is noise. While
+Telegram fails the event stays `pending` and is retried with a growing pause (1 s doubling to 60 s), so a Telegram outage never
+loses or delays an event, and a restart of the backend picks up the events still pending. The time in the message is the
+server's local time.
+
 Try it with a fake snapshot:
 
 ```bash
@@ -77,6 +86,10 @@ python scripts/test_telegram_snapshot.py
   (`SNAPSHOT_DIR` in `.env`), so the engine must name its snapshots that way.
 
 A failed deletion is logged and never raises.
+
+The backend runs it for you (`backend/janitor.py`): once at start-up, then after every `SNAPSHOT_CLEANUP_INTERVAL` (default 100)
+newly stored snapshots, and at least once an hour. Afterwards the events older than the retention stop pointing at the deleted
+images (`snapshot_url` becomes `null` instead of leading to a 404).
 
 ## Logging
 
@@ -116,8 +129,9 @@ uvicorn backend.main:create_app --factory --host 0.0.0.0 --port 8000     # API d
 | `GET/POST /api/cameras`, `GET/PATCH/DELETE /api/cameras/{id}` | cameras. The id is the `camera_id` the engine puts in its events. `source_uri` is stored as given (the engine needs the password) but every response shows it masked (`rtsp://***@host/path?***`). DELETE is a soft delete that frees the name. |
 | `GET /api/events` | newest first. Filters `camera_id`, `from` (inclusive), `to` (exclusive), `type`, `status`; pagination `limit` (1-200, default 50) and `offset`; answers `{items, total, limit, offset}` |
 | `GET /api/events/{id}`, `GET /api/events/{id}/snapshot` | one event; its JPEG from `SNAPSHOT_DIR` (404 when the event has none or the cleaner removed the file) |
+| `PATCH /api/events/{id}` | body `{"status": "new" \| "acknowledged"}` (nothing else may be changed); answers the event and pushes `event.updated` when the status changed |
 | `POST /internal/events` | for the engine, not for browsers. Idempotent on `event_id`: 201 stored, 200 already had it, 422 can never be stored (unknown camera, bad values), which makes the engine drop it instead of retrying. With `INTERNAL_TOKEN` set it needs the header `X-Internal-Token`. |
-| `WS /api/ws` | live updates for the browser, server to client only (what the client sends is ignored, there is no replay: read the current state with the REST calls). Each message is `{"type", "data"}`. `event.created`: a newly stored event, `data` the same object as `GET /api/events/{id}` (not sent for a repeated delivery). `camera.status`: `data` is `{camera_id, reporting, state, fps, last_frame_age, heartbeat_age}`, sent for each camera in every heartbeat, and once with `reporting: false` when a camera stops reporting (it left the heartbeat, or the heartbeats stopped, found within about a second). A client more than 100 messages behind is closed with code 1013, so a stuck browser cannot slow the backend down |
+| `WS /api/ws` | live updates for the browser, server to client only (what the client sends is ignored, there is no replay: read the current state with the REST calls). Each message is `{"type", "data"}`. `event.created`: a newly stored event, `data` the same object as `GET /api/events/{id}` (not sent for a repeated delivery). `camera.status`: `data` is `{camera_id, reporting, state, fps, last_frame_age, heartbeat_age}`, sent for each camera in every heartbeat, and once with `reporting: false` when a camera stops reporting (it left the heartbeat, or the heartbeats stopped, found within about a second). `event.updated`: the same object after a change of `status` (PATCH) or of `notify_status` (the Telegram result). A client more than 100 messages behind is closed with code 1013, so a stuck browser cannot slow the backend down |
 | `POST /internal/heartbeat` | for the engine too: every few seconds it says which cameras it serves and what each is doing (`{"schema_version":1,"run_id":...,"cameras":[{"camera_id","state":"RUNNING"\|"RECONNECTING","fps","last_frame_age"}]}`). 204 on success, 422 for a malformed body. Kept in memory only (nothing is stored) and shown by `GET /api/cameras/{id}/status`; the same token rule as for events. |
 
 Run the engine against it with `--backend-url http://HOST:8000/internal/events --spool-file FILE --snapshot-dir DIR`, where
@@ -184,7 +198,7 @@ The test suite contains:
 - `tests/test_person_detected_event_manager.py`: the `PERSON_DETECTED` de-duplication logic.
 - `tests/test_event_manager_vectors.py`: the shared event manager vectors (see above).
 - `tests/test_env_file.py`: reading and writing `.env`, using temporary files only.
-- `tests/backend_api/`: the backend (cameras, events, the internal endpoints, heartbeat, the WebSocket, health, migrations, start/stop and the reconciler) against a throwaway PostgreSQL.
+- `tests/backend_api/`: the backend (cameras, events, the internal endpoints, heartbeat, the WebSocket, Telegram alerts, snapshot cleanup, health, migrations, start/stop and the reconciler) against a throwaway PostgreSQL.
 - `tests/engine_manager_tests/`: the engine manager, with a stand-in program for the engine.
 
 The tests need no camera, model, network or display; the backend tests need the PostgreSQL server programs installed
