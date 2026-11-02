@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from backend.db import get_db
 from backend.models import Event
 from backend.heartbeats import CameraBeat
+from backend.routers.events import to_out
 from backend.schemas import EventIn, HeartbeatIn
 
 router = APIRouter(prefix="/internal", tags=["internal"])
@@ -28,7 +29,7 @@ def require_token(request: Request, x_internal_token: str | None = Header(defaul
 
 
 @router.post("/events", status_code=201, dependencies=[Depends(require_token)])
-def post_event(body: EventIn, response: Response, db: Session = Depends(get_db)) -> dict[str, object]:
+def post_event(body: EventIn, request: Request, response: Response, db: Session = Depends(get_db)) -> dict[str, object]:
     """Store an event of the engine. Idempotent on event_id: the engine resends what it is not sure
     arrived (after a timeout, or from its spool file after a restart), so a repeat answers 200
     "duplicate" and changes nothing. Answers 422 for an event that can never be stored (unknown
@@ -59,6 +60,10 @@ def post_event(body: EventIn, response: Response, db: Session = Depends(get_db))
 
     if not inserted:
         response.status_code = 200
+    else:
+        stored = db.get(Event, body.event_id)
+        if stored is not None:
+            request.app.state.hub.publish("event.created", to_out(stored).model_dump(mode="json"))
     return {"event_id": str(body.event_id), "duplicate": not inserted}
 
 
@@ -70,4 +75,5 @@ def post_heartbeat(body: HeartbeatIn, request: Request) -> Response:
         body.run_id,
         {c.camera_id: CameraBeat(c.state, c.fps, c.last_frame_age) for c in body.cameras},
     )
+    request.app.state.camera_status.on_heartbeat({c.camera_id for c in body.cameras})
     return Response(status_code=204)

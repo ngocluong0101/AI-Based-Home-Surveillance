@@ -117,6 +117,7 @@ uvicorn backend.main:create_app --factory --host 0.0.0.0 --port 8000     # API d
 | `GET /api/events` | newest first. Filters `camera_id`, `from` (inclusive), `to` (exclusive), `type`, `status`; pagination `limit` (1-200, default 50) and `offset`; answers `{items, total, limit, offset}` |
 | `GET /api/events/{id}`, `GET /api/events/{id}/snapshot` | one event; its JPEG from `SNAPSHOT_DIR` (404 when the event has none or the cleaner removed the file) |
 | `POST /internal/events` | for the engine, not for browsers. Idempotent on `event_id`: 201 stored, 200 already had it, 422 can never be stored (unknown camera, bad values), which makes the engine drop it instead of retrying. With `INTERNAL_TOKEN` set it needs the header `X-Internal-Token`. |
+| `WS /api/ws` | live updates for the browser, server to client only (what the client sends is ignored, there is no replay: read the current state with the REST calls). Each message is `{"type", "data"}`. `event.created`: a newly stored event, `data` the same object as `GET /api/events/{id}` (not sent for a repeated delivery). `camera.status`: `data` is `{camera_id, reporting, state, fps, last_frame_age, heartbeat_age}`, sent for each camera in every heartbeat, and once with `reporting: false` when a camera stops reporting (it left the heartbeat, or the heartbeats stopped, found within about a second). A client more than 100 messages behind is closed with code 1013, so a stuck browser cannot slow the backend down |
 | `POST /internal/heartbeat` | for the engine too: every few seconds it says which cameras it serves and what each is doing (`{"schema_version":1,"run_id":...,"cameras":[{"camera_id","state":"RUNNING"\|"RECONNECTING","fps","last_frame_age"}]}`). 204 on success, 422 for a malformed body. Kept in memory only (nothing is stored) and shown by `GET /api/cameras/{id}/status`; the same token rule as for events. |
 
 Run the engine against it with `--backend-url http://HOST:8000/internal/events --spool-file FILE --snapshot-dir DIR`, where
@@ -183,7 +184,7 @@ The test suite contains:
 - `tests/test_person_detected_event_manager.py`: the `PERSON_DETECTED` de-duplication logic.
 - `tests/test_event_manager_vectors.py`: the shared event manager vectors (see above).
 - `tests/test_env_file.py`: reading and writing `.env`, using temporary files only.
-- `tests/backend_api/`: the backend (cameras, events, the internal endpoints, heartbeat, health, migrations, start/stop and the reconciler) against a throwaway PostgreSQL.
+- `tests/backend_api/`: the backend (cameras, events, the internal endpoints, heartbeat, the WebSocket, health, migrations, start/stop and the reconciler) against a throwaway PostgreSQL.
 - `tests/engine_manager_tests/`: the engine manager, with a stand-in program for the engine.
 
 The tests need no camera, model, network or display; the backend tests need the PostgreSQL server programs installed

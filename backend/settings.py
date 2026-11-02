@@ -16,6 +16,7 @@ class Settings:
     engine_manager_url: str | None = None   # None = no engine is managed from here
     reconcile_interval: float = 5.0         # seconds between looks at the manager; 0 = no background thread
     heartbeat_stale_after: float = 15.0     # a heartbeat older than this says nothing about a camera any more
+    status_check_interval: float = 1.0      # how often silent heartbeats are looked for (to push camera.status)
 
     @classmethod
     def from_env(cls) -> "Settings":
