@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
-import { Activity, Camera as CameraIcon, Clock, Gauge, UserRound } from "lucide-react";
+import { Activity, Camera as CameraIcon, Clock, Gauge, UserRound, Users } from "lucide-react";
 import { CircleAlert, CircleCheck } from "lucide-react";
 import { EventItem } from "../components/EventItem";
 import { VideoPlayer } from "../components/VideoPlayer";
@@ -89,9 +89,15 @@ function Stage({ item }: { item: FleetItem }) {
 
       <div className="strip">
         <StatCard icon={Gauge} label="FPS" value={fps} tone={health.tone === "ok" ? "ok" : "idle"} />
-        <StatCard icon={UserRound} label="People today" value={today.data} hint="events today" loading={today.isPending} />
+        <StatCard
+          icon={Users}
+          label="People now"
+          value={stream?.reporting && stream.people != null ? stream.people : "-"}
+          hint={stream?.reporting && stream.people == null ? "no recent frame" : "in view right now"}
+          tone={stream?.people ? "warn" : "idle"}
+        />
+        <StatCard icon={UserRound} label="Events today" value={today.data} hint="people detected" loading={today.isPending} />
         <StatCard icon={Activity} label="Status" value={health.label} tone={health.tone === "ok" ? "ok" : health.tone === "idle" ? "idle" : "warn"} />
-        <StatCard icon={Clock} label="Last frame" value={stream?.reporting ? `${seconds(stream.last_frame_age)}` : "-"} hint="ago" />
       </div>
 
       <div className="detail-grid">
@@ -100,6 +106,8 @@ function Stage({ item }: { item: FleetItem }) {
           <dl>
             <dt>Engine</dt>
             <dd>{engine ? (engine.manager === "reachable" ? engine.state : engine.manager.replace("_", " ")) : "-"}</dd>
+            <dt>Last frame</dt>
+            <dd>{stream?.reporting ? `${seconds(stream.last_frame_age)} ago` : "-"}</dd>
             <dt>Heartbeat</dt>
             <dd>{stream?.heartbeat_age != null ? `${seconds(stream.heartbeat_age)} ago` : "never"}</dd>
             <dt>Starts</dt>

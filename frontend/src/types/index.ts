@@ -23,6 +23,8 @@ export interface StreamInfo {
   fps: number | null;
   last_frame_age: number | null;
   heartbeat_age: number | null;
+  /** Tracked persons in the latest frame; null = the engine cannot tell (no recent frame, or an older engine). */
+  people: number | null;
 }
 
 export interface EngineInfo {

@@ -19,6 +19,7 @@ class CameraBeat:
     state: str
     fps: float
     last_frame_age: float
+    people: int | None = None   # persons in the latest frame; None = not reported
 
 
 @dataclass(frozen=True)
@@ -30,6 +31,7 @@ class CameraHealth:
     fps: float | None = None
     last_frame_age: float | None = None   # seconds since the engine last saw a frame, as of the heartbeat
     heartbeat_age: float | None = None    # seconds since the heartbeat arrived; None = none yet
+    people: int | None = None             # persons the camera showed in its latest frame; None = not known
 
 
 class HeartbeatStore:
@@ -63,4 +65,4 @@ class HeartbeatStore:
         if age > self._stale_after or beat is None:
             return CameraHealth(reporting=False, heartbeat_age=round(age, 3))
         return CameraHealth(reporting=True, state=beat.state, fps=beat.fps,
-                            last_frame_age=beat.last_frame_age, heartbeat_age=round(age, 3))
+                            last_frame_age=beat.last_frame_age, heartbeat_age=round(age, 3), people=beat.people)

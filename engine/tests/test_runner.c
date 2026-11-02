@@ -49,6 +49,7 @@ void test_backoff_doubles_and_is_capped(void);
 /* tests/test_heartbeat_record.c */
 void test_heartbeat_golden_json(void);
 void test_heartbeat_json_parses_back(void);
+void test_heartbeat_people_is_a_number_or_absent(void);
 void test_heartbeat_numbers_are_always_valid_json(void);
 void test_heartbeat_escapes_the_run_id(void);
 void test_heartbeat_capacity_formula_suffices(void);
@@ -77,6 +78,7 @@ static const TestCase TESTS[] = {
     { "backoff_doubles_and_is_capped", test_backoff_doubles_and_is_capped },
     { "heartbeat_golden_json", test_heartbeat_golden_json },
     { "heartbeat_json_parses_back", test_heartbeat_json_parses_back },
+    { "heartbeat_people_is_a_number_or_absent", test_heartbeat_people_is_a_number_or_absent },
     { "heartbeat_numbers_are_always_valid_json", test_heartbeat_numbers_are_always_valid_json },
     { "heartbeat_escapes_the_run_id", test_heartbeat_escapes_the_run_id },
     { "heartbeat_capacity_formula_suffices", test_heartbeat_capacity_formula_suffices },

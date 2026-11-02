@@ -113,6 +113,7 @@ class StreamInfo(BaseModel):
     fps: float | None = None
     last_frame_age: float | None = None   # seconds without a frame, as of the heartbeat
     heartbeat_age: float | None = None    # seconds since that heartbeat arrived; None = the engine never reported
+    people: int | None = None             # tracked persons in the latest frame; None = the engine cannot tell (no recent frame)
 
 
 class StreamLink(BaseModel):
@@ -204,6 +205,7 @@ class HeartbeatCameraIn(BaseModel):
     state: Literal["RUNNING", "RECONNECTING"]
     fps: float = Field(ge=0, le=1e9)
     last_frame_age: float = Field(ge=0, le=1e9)
+    people: int | None = Field(default=None, ge=0, le=100000)   # absent: older engine, or it cannot tell right now
 
 
 class HeartbeatIn(BaseModel):

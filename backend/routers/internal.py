@@ -76,7 +76,7 @@ def post_heartbeat(body: HeartbeatIn, request: Request) -> Response:
     for GET /api/cameras/{id}/status; nothing is stored. A camera listed twice keeps its last entry."""
     request.app.state.heartbeats.update(
         body.run_id,
-        {c.camera_id: CameraBeat(c.state, c.fps, c.last_frame_age) for c in body.cameras},
+        {c.camera_id: CameraBeat(c.state, c.fps, c.last_frame_age, c.people) for c in body.cameras},
     )
     request.app.state.camera_status.on_heartbeat({c.camera_id for c in body.cameras})
     return Response(status_code=204)

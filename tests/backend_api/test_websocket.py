@@ -97,13 +97,14 @@ def test_what_the_client_sends_is_ignored(client):
 
 def test_a_heartbeat_pushes_the_status_of_each_camera(client):
     with client.websocket_connect(WS) as ws:
-        body = beat(cam(1, fps=28.4, age=0.03), cam(2, "RECONNECTING", fps=0.0, age=9.0))
+        body = beat(cam(1, fps=28.4, age=0.03, people=3), cam(2, "RECONNECTING", fps=0.0, age=9.0))
         assert client.post("/internal/heartbeat", json=body).status_code == 204
         one, two = recv(ws), recv(ws)
 
     assert one["type"] == "camera.status"
     assert (one["data"]["camera_id"], one["data"]["reporting"], one["data"]["state"]) == (1, True, "RUNNING")
     assert one["data"]["fps"] == 28.4 and one["data"]["last_frame_age"] == 0.03
+    assert one["data"]["people"] == 3 and two["data"]["people"] is None
     assert (two["data"]["camera_id"], two["data"]["state"]) == (2, "RECONNECTING")
 
 

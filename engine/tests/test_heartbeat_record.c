@@ -17,19 +17,21 @@ static HeartbeatCamera cam(int id, const char *state, double fps, double age)
     strcpy(c.state, state);
     c.fps = fps;
     c.last_frame_age = age;
+    c.people = -1;   /* unknown unless a test says otherwise */
     return c;
 }
 
 void test_heartbeat_golden_json(void)
 {
     HeartbeatCamera cams[2] = { cam(1, "RUNNING", 28.43, 0.03), cam(2, "RECONNECTING", 0.0, 12.5) };
+    cams[0].people = 2;   /* the second camera does not know how many people it sees */
     char json[512];
 
     int n = heartbeat_to_json(RUN_ID, cams, 2, json, sizeof(json));
     CHECK(n > 0 && (size_t)n == strlen(json));
     CHECK(strcmp(json,
                  "{\"schema_version\":1,\"run_id\":\"" RUN_ID "\",\"cameras\":["
-                 "{\"camera_id\":1,\"state\":\"RUNNING\",\"fps\":28.4,\"last_frame_age\":0.030},"
+                 "{\"camera_id\":1,\"state\":\"RUNNING\",\"fps\":28.4,\"last_frame_age\":0.030,\"people\":2},"
                  "{\"camera_id\":2,\"state\":\"RECONNECTING\",\"fps\":0.0,\"last_frame_age\":12.500}]}") == 0);
 
     /* no camera at all is still a valid heartbeat */
@@ -64,6 +66,32 @@ void test_heartbeat_json_parses_back(void)
     json_free(doc);
 }
 
+void test_heartbeat_people_is_a_number_or_absent(void)
+{
+    HeartbeatCamera cams[4] = { cam(1, "RUNNING", 30.0, 0.0), cam(2, "RUNNING", 30.0, 0.0),
+                                cam(3, "RUNNING", 30.0, 0.0), cam(4, "RUNNING", 30.0, 0.0) };
+    cams[0].people = 0;                      /* an empty room is 0, not "unknown" */
+    cams[1].people = 17;
+    cams[2].people = -1;                     /* unknown: no field */
+    cams[3].people = 2147483647;             /* absurd: clamped, still valid */
+    char json[1024];
+    CHECK(heartbeat_to_json(RUN_ID, cams, 4, json, sizeof(json)) > 0);
+
+    JsonValue *doc = json_parse(json);
+    CHECK(doc != NULL);
+    if (doc == NULL)
+        return;
+    const JsonValue *list = json_get(doc, "cameras");
+    CHECK(list != NULL && list->count == 4);
+    if (list != NULL && list->count == 4) {
+        CHECK(json_get(&list->items[0], "people") != NULL && json_get(&list->items[0], "people")->integer == 0);
+        CHECK(json_get(&list->items[1], "people")->integer == 17);
+        CHECK(json_get(&list->items[2], "people") == NULL);
+        CHECK(json_get(&list->items[3], "people")->integer == HEARTBEAT_PEOPLE_MAX);
+    }
+    json_free(doc);
+}
+
 void test_heartbeat_numbers_are_always_valid_json(void)
 {
     HeartbeatCamera cams[3] = { cam(1, "RUNNING", NAN, -5.0), cam(2, "RUNNING", INFINITY, 1e300),
@@ -92,8 +120,10 @@ void test_heartbeat_capacity_formula_suffices(void)
 {
     enum { COUNT = 64 };
     HeartbeatCamera cams[COUNT];
-    for (int i = 0; i < COUNT; i++)
-        cams[i] = cam(2147483647 - i, "RECONNECTING", 999999999.9, 999999999.999);
+    for (int i = 0; i < COUNT; i++) {
+        cams[i] = cam(-2147483647 - 1 + i, "RECONNECTING", 999999999.9, 999999999.999);
+        cams[i].people = 2147483647;   /* the longest line there can be */
+    }
 
     size_t cap = heartbeat_json_capacity(COUNT);
     char *json = malloc(cap);

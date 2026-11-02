@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
-import { Activity, Bell, Camera as CameraIcon, CircleAlert, Play, Square, Video, Wifi } from "lucide-react";
+import { Activity, Bell, Camera as CameraIcon, CircleAlert, Play, Square, Users, Video, Wifi } from "lucide-react";
 import { EventItem } from "../components/EventItem";
 import { Badge } from "../components/ui/Badge";
 import { Skeleton } from "../components/ui/Skeleton";
@@ -14,12 +14,11 @@ import {
   useEventsToday,
   useEventsTodayByCamera,
   useFleet,
-  useUnreviewedCount,
   type FleetItem,
 } from "../hooks/queries";
 import { useOpenEvent } from "../hooks/useEventDrawer";
 import { useNow } from "../hooks/useNow";
-import { seconds } from "../utils/format";
+import { totalPeople } from "../utils/health";
 import { useHighlighted } from "../websocket/recentEvents";
 
 function CameraCard({ item, today, onWatch }: { item: FleetItem; today: number | undefined; onWatch: (id: number) => void }) {
@@ -41,12 +40,12 @@ function CameraCard({ item, today, onWatch }: { item: FleetItem; today: number |
           <span>FPS</span>
         </div>
         <div className="metric">
-          <b>{today ?? "-"}</b>
-          <span>Today</span>
+          <b>{stream?.reporting && stream.people != null ? stream.people : "-"}</b>
+          <span>People now</span>
         </div>
         <div className="metric">
-          <b>{stream?.reporting ? seconds(stream.last_frame_age) : "-"}</b>
-          <span>Last frame</span>
+          <b>{today ?? "-"}</b>
+          <span>Events today</span>
         </div>
       </div>
       {lastError && (
@@ -144,12 +143,12 @@ export function DashboardPage({ onOpenCamera }: { onOpenCamera: (id: number) => 
   const fleet = useFleet(cameras.data);
   const perCamera = useEventsTodayByCamera(cameras.data ?? []);
   const today = useEventsToday();
-  const unreviewed = useUnreviewedCount();
 
   const total = cameras.data?.length;
   const online = fleet.filter((f) => f.health.tone === "ok").length;
   const maxToday = Math.max(1, ...perCamera.map((n) => n ?? 0));
   const loading = cameras.isPending;
+  const people = totalPeople(fleet.map((f) => f.stream));
 
   return (
     <div className="page">
@@ -170,15 +169,15 @@ export function DashboardPage({ onOpenCamera }: { onOpenCamera: (id: number) => 
           tone={online > 0 ? "ok" : "idle"}
           loading={loading}
         />
-        <StatCard icon={Activity} label="Events today" value={today.data} hint="people detected" loading={today.isPending} />
         <StatCard
-          icon={Bell}
-          label="To review"
-          value={unreviewed.data}
-          hint="not acknowledged"
-          tone={unreviewed.data ? "warn" : "idle"}
-          loading={unreviewed.isPending}
+          icon={Users}
+          label="People now"
+          value={people ?? "-"}
+          hint={people === null ? "no camera is reporting" : "in view right now"}
+          tone={people ? "warn" : "idle"}
+          loading={loading}
         />
+        <StatCard icon={Activity} label="Events today" value={today.data} hint="people detected" loading={today.isPending} />
       </div>
 
       <div className="dash-grid">

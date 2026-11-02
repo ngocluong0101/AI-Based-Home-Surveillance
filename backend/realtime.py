@@ -8,7 +8,7 @@ slows down `POST /internal/events`.
 
 Messages are `{"type": "event.created", "data": {...EventOut...}}` and
 `{"type": "camera.status", "data": {"camera_id", "reporting", "state", "fps", "last_frame_age",
-"heartbeat_age"}}`. Nothing is replayed: a client that connects later reads the current state with
+"heartbeat_age", "people"}}`. Nothing is replayed: a client that connects later reads the current state with
 the REST API.
 """
 

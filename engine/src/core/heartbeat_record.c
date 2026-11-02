@@ -86,6 +86,11 @@ int heartbeat_to_json(const char *run_id, const HeartbeatCamera *cameras, size_t
         put_fixed(&w, c->fps, 1);
         put(&w, ",\"last_frame_age\":");
         put_fixed(&w, c->last_frame_age, 3);
+        if (c->people >= 0) {
+            snprintf(tmp, sizeof(tmp), ",\"people\":%d",
+                     c->people > HEARTBEAT_PEOPLE_MAX ? HEARTBEAT_PEOPLE_MAX : (int)c->people);
+            put(&w, tmp);
+        }
         put(&w, "}");
     }
     put(&w, "]}");

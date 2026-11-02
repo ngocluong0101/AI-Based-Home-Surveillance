@@ -4,7 +4,7 @@ import { eventsQuery } from "./api";
 import { parseHash } from "./hooks/useHashRoute";
 import type { CameraStatus, EventPage, PersonEvent, StreamInfo } from "./types";
 import { localDayStart, relativeTime } from "./utils/format";
-import { healthOf, lastErrorOf } from "./utils/health";
+import { healthOf, lastErrorOf, totalPeople } from "./utils/health";
 import { applyMessage, liveKey, parseMessage } from "./websocket/messages";
 import { resetRecentEvents } from "./websocket/recentEvents";
 
@@ -14,6 +14,7 @@ const stream = (over: Partial<StreamInfo> = {}): StreamInfo => ({
   fps: 30,
   last_frame_age: 0.03,
   heartbeat_age: 1,
+  people: 2,
   ...over,
 });
 
@@ -23,7 +24,7 @@ const status = (over: Partial<CameraStatus["engine"]> = {}, should_run = true): 
   desired_state: should_run ? "running" : "stopped",
   should_run,
   engine: { manager: "reachable", state: "running", in_engine: true, applied: true, starts: 1, last_exit_code: null, ...over },
-  stream: stream({ reporting: false, state: null, fps: null, last_frame_age: null, heartbeat_age: null }),
+  stream: stream({ reporting: false, state: null, fps: null, last_frame_age: null, heartbeat_age: null, people: null }),
 });
 
 const event = (over: Partial<PersonEvent> = {}): PersonEvent => ({
@@ -63,6 +64,22 @@ describe("healthOf", () => {
   });
   it("is Unknown before the first status arrives", () => {
     expect(healthOf(undefined, undefined).label).toBe("Unknown");
+  });
+});
+
+describe("totalPeople", () => {
+  it("adds up the cameras that can tell", () => {
+    expect(totalPeople([stream({ people: 2 }), stream({ people: 3 })])).toBe(5);
+  });
+  it("counts an empty room as 0, not as unknown", () => {
+    expect(totalPeople([stream({ people: 0 })])).toBe(0);
+  });
+  it("skips cameras that are not reporting or cannot tell", () => {
+    expect(totalPeople([stream({ people: 4 }), stream({ reporting: false, people: 9 }), stream({ people: null }), undefined])).toBe(4);
+  });
+  it("is unknown when nothing can tell", () => {
+    expect(totalPeople([])).toBeNull();
+    expect(totalPeople([stream({ people: null }), stream({ reporting: false }), undefined])).toBeNull();
   });
 });
 

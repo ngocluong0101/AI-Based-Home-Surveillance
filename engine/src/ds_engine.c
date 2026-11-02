@@ -127,6 +127,10 @@
 #define TILER_WIDTH 1920
 #define TILER_HEIGHT 1080
 
+/* The people count of a camera is reported only while its latest frame is at most this old: after that
+ * the number describes a scene we no longer see, and "0" would claim an empty room. */
+#define PEOPLE_FRESH_US (2 * G_USEC_PER_SEC)
+
 /* Where a source is (ROADMAP 2.7). Only RTSP sources ever leave RUNNING, for RECONNECTING. */
 typedef enum { SOURCE_RUNNING, SOURCE_RECONNECTING } SourceState;
 
@@ -153,6 +157,7 @@ typedef struct {
      * it while the pipeline runs; the other counters are read only after it stopped, so they
      * need no lock. */
     _Atomic guint64 frame_count;
+    _Atomic gint people_now;   /* tracked persons in the latest frame (probe); meaningless while frame_count is 0 */
     guint64 fps_prev_frames;  /* frame_count at the previous FPS report (main thread only) */
     guint64 object_count;
     guint64 untracked_count;  /* objects that came out of the tracker without an ID */
@@ -1318,6 +1323,7 @@ static GstPadProbeReturn detection_probe(GstPad *pad, GstPadProbeInfo *info, gpo
         size_t n = extract_person_detections(frame_meta, dets, G_N_ELEMENTS(dets), &total,
                                              &untracked);
         atomic_fetch_add_explicit(&src->frame_count, 1, memory_order_relaxed);
+        atomic_store_explicit(&src->people_now, (gint)n, memory_order_relaxed);
         atomic_store_explicit(&src->last_frame_us, g_get_monotonic_time(), memory_order_relaxed);
         src->object_count += total;
         src->untracked_count += untracked;
@@ -1433,6 +1439,8 @@ static gboolean heartbeat_tick(gpointer data)
         g_strlcpy(cameras[i].state, source_state_name(src->state), sizeof(cameras[i].state));
         cameras[i].fps = seconds > 0.0 ? (double)(frames - src->hb_prev_frames) / seconds : 0.0;
         cameras[i].last_frame_age = (double)(now - last) / G_USEC_PER_SEC;
+        gint people = atomic_load_explicit(&src->people_now, memory_order_relaxed);
+        cameras[i].people = (frames > 0 && now - last <= PEOPLE_FRESH_US) ? people : -1;
         src->hb_prev_frames = frames;
     }
     app->hb_prev_us = now;

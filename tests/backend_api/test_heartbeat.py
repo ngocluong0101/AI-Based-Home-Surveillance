@@ -16,7 +16,7 @@ RUN = "0f8fad5b-d9cb-469f-a165-70867728950e"
 # Byte for byte what the engine writes (engine/tests/test_heartbeat_record.c, golden JSON).
 ENGINE_HEARTBEAT = (
     '{"schema_version":1,"run_id":"' + RUN + '","cameras":['
-    '{"camera_id":1,"state":"RUNNING","fps":28.4,"last_frame_age":0.030},'
+    '{"camera_id":1,"state":"RUNNING","fps":28.4,"last_frame_age":0.030,"people":2},'
     '{"camera_id":2,"state":"RECONNECTING","fps":0.0,"last_frame_age":12.500}]}'
 )
 
@@ -27,8 +27,11 @@ def beat(*cameras, run=RUN, **extra) -> dict:
     return body
 
 
-def cam(camera_id=1, state="RUNNING", fps=25.0, age=0.04) -> dict:
-    return {"camera_id": camera_id, "state": state, "fps": fps, "last_frame_age": age}
+def cam(camera_id=1, state="RUNNING", fps=25.0, age=0.04, people=None) -> dict:
+    body = {"camera_id": camera_id, "state": state, "fps": fps, "last_frame_age": age}
+    if people is not None:   # an older engine does not send it at all
+        body["people"] = people
+    return body
 
 
 def stream(client, camera_id) -> dict:
@@ -93,6 +96,25 @@ def test_the_engines_own_json_is_accepted(client):
     assert (one["reporting"], one["state"], one["fps"], one["last_frame_age"]) == (True, "RUNNING", 28.4, 0.03)
     assert (two["reporting"], two["state"], two["fps"], two["last_frame_age"]) == (True, "RECONNECTING", 0.0, 12.5)
     assert 0 <= one["heartbeat_age"] < 5
+    assert one["people"] == 2 and two["people"] is None   # camera 2 could not tell (no frames)
+
+
+def test_people_in_the_frame_reaches_the_status(client):
+    make_camera(client, "a")
+    make_camera(client, "b", source_uri="rtsp://10.0.0.2/stream")
+    body = beat(cam(1, people=0), cam(2, people=7))
+    assert client.post(URL, json=body).status_code == 204
+    assert stream(client, 1)["people"] == 0   # an empty room is 0, which is not "unknown"
+    assert stream(client, 2)["people"] == 7
+    # the next heartbeat replaces the count; a camera whose heartbeat has none goes back to unknown
+    assert client.post(URL, json=beat(cam(1, people=3), cam(2))).status_code == 204
+    assert stream(client, 1)["people"] == 3 and stream(client, 2)["people"] is None
+
+
+def test_an_older_engine_without_people_is_accepted(client):
+    make_camera(client)
+    assert client.post(URL, json=beat(cam(1))).status_code == 204
+    assert stream(client, 1)["reporting"] is True and stream(client, 1)["people"] is None
 
 
 def test_a_camera_the_engine_does_not_mention_is_not_reporting(client):
@@ -107,7 +129,7 @@ def test_a_camera_the_engine_does_not_mention_is_not_reporting(client):
 def test_status_without_any_heartbeat(client):
     make_camera(client)
     assert stream(client, 1) == {"reporting": False, "state": None, "fps": None, "last_frame_age": None,
-                                 "heartbeat_age": None}
+                                 "heartbeat_age": None, "people": None}
 
 
 def test_an_old_heartbeat_stops_counting(make_client):
@@ -146,6 +168,9 @@ def test_unknown_fields_are_ignored(client):
         lambda b: b["cameras"][0].update(camera_id=-1),
         lambda b: b["cameras"][0].update(camera_id=2**31),
         lambda b: b["cameras"][0].update(fps=None),
+        lambda b: b["cameras"][0].update(people=-1),
+        lambda b: b["cameras"][0].update(people=100001),
+        lambda b: b["cameras"][0].update(people="two"),
     ],
 )
 def test_bad_bodies_are_refused_with_422(client, mutate):

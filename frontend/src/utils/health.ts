@@ -9,6 +9,19 @@ export interface Health {
 
 const NO_FRAMES_AFTER_S = 5;
 
+/** People in view across the cameras that can tell; null when none of them can (nothing to add up). */
+export function totalPeople(streams: (StreamInfo | undefined)[]): number | null {
+  let total = 0;
+  let known = false;
+  for (const s of streams) {
+    if (s?.reporting && s.people !== null && s.people !== undefined) {
+      total += s.people;
+      known = true;
+    }
+  }
+  return known ? total : null;
+}
+
 /** The stream view to show: the pushed heartbeat when there is one, else what the last poll saw. */
 export function streamOf(status: CameraStatus | undefined, live: StreamInfo | undefined): StreamInfo | undefined {
   return live ?? status?.stream;
