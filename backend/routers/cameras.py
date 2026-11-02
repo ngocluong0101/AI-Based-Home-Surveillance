@@ -13,7 +13,18 @@ from backend.db import get_db
 from backend.engine_client import EngineManagerError
 from backend.models import Camera
 from backend.reconciler import desired_cameras, revision_of
-from backend.schemas import CameraCreate, CameraOut, CameraStatus, CameraUpdate, EngineInfo, StreamInfo, StreamLink
+from backend.schemas import (
+    CameraCreate,
+    CameraOut,
+    CameraStatus,
+    CameraUpdate,
+    ConnectionCheckIn,
+    ConnectionCheckOut,
+    EngineInfo,
+    StreamInfo,
+    StreamLink,
+)
+from backend.source_probe import probe_source
 
 router = APIRouter(prefix="/api/cameras", tags=["cameras"])
 
@@ -53,6 +64,20 @@ def create_camera(body: CameraCreate, db: Session = Depends(get_db)) -> Camera:
     _commit_or_conflict(db)
     db.refresh(camera)
     return camera
+
+
+@router.post("/test-connection", response_model=ConnectionCheckOut)
+def test_connection(body: ConnectionCheckIn, db: Session = Depends(get_db)) -> ConnectionCheckOut:
+    """Tries a camera address (or a saved camera) without starting the engine: reachable, login, codec, resolution.
+    A failing camera is a normal answer (`ok: false`, the reason in `summary`), not an HTTP error. Neither the
+    address nor the password appears in the answer."""
+    if body.camera_id is not None:
+        camera = _get_active(db, body.camera_id)
+        source_type, source_uri = camera.source_type, camera.source_uri
+    else:
+        source_type, source_uri = body.source_type, body.source_uri
+    db.close()   # the probe can take seconds; do not hold a connection meanwhile
+    return ConnectionCheckOut(**asdict(probe_source(source_type, source_uri, body.timeout)))
 
 
 @router.get("/{camera_id}", response_model=CameraOut)

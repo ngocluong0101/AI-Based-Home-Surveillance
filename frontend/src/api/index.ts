@@ -1,6 +1,10 @@
 import type {
   Camera,
+  CameraCreate,
   CameraStatus,
+  CameraUpdate,
+  ConnectionCheckBody,
+  ConnectionCheckResult,
   EventFilters,
   EventPage,
   EventStatus,
@@ -22,6 +26,13 @@ export function eventsQuery(f: EventFilters): string {
 
 export const api = {
   cameras: () => request<Camera[]>("/api/cameras"),
+  createCamera: (body: CameraCreate) =>
+    request<Camera>("/api/cameras", { method: "POST", body: JSON.stringify(body) }),
+  updateCamera: (id: number, body: CameraUpdate) =>
+    request<Camera>(`/api/cameras/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+  deleteCamera: (id: number) => request<void>(`/api/cameras/${id}`, { method: "DELETE" }),
+  testConnection: (body: ConnectionCheckBody) =>
+    request<ConnectionCheckResult>("/api/cameras/test-connection", { method: "POST", body: JSON.stringify(body) }),
   cameraStatus: (id: number) => request<CameraStatus>(`/api/cameras/${id}/status`),
   cameraStream: (id: number) => request<StreamLink>(`/api/cameras/${id}/stream`),
   startCamera: (id: number) => request<CameraStatus>(`/api/cameras/${id}/start`, { method: "POST" }),

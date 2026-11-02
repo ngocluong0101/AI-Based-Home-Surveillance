@@ -178,6 +178,7 @@ uvicorn engine_manager.service:create_app --factory --host 127.0.0.1 --port 8100
 
 | Backend endpoint | |
 |---|---|
+| `POST /api/cameras/test-connection` | tries a camera without starting the engine: body is either `{source_type, source_uri}` or `{camera_id}` (a saved camera, whose password the API never shows), plus an optional `timeout` (1-15 s, default 5). Answers 200 with `{ok, summary, checks[], codec, width, height, latency_ms}`; `checks` run in order (`connect`, `auth`, `stream`, `codec`, `resolution`) and the last one is the one that failed. A camera that does not work is `ok: false` with the reason in `summary`, not an HTTP error. RTSP: connects, answers a Basic or Digest login, reads the stream description for the codec and, for H.264, the announced SPS for the resolution (H.265 and cameras that do not announce it give no resolution, which is not a failure; only H.264 and H.265 pass the codec check). A `file://` source is checked for being readable by the backend. Neither the address nor the password appears in the answer; the backend connects to whatever host it is given, so this is for a LAN |
 | `POST /api/cameras/{id}/start`, `POST .../stop` | record that the camera should (not) run. A disabled camera cannot be started (409). The answer comes at once; the engine is (re)started in the background, a few seconds later |
 | `GET /api/cameras/{id}/stream` | where to watch the camera live: `{camera_id, whep_url, player_url, available}` (see [Live video](#live-video)); 503 when `MEDIAMTX_WEBRTC_URL` is not set |
 | `GET /api/cameras/{id}/status` | `desired_state`, `should_run`, and `engine`: whether the manager is reachable, the state of the engine process (`stopped`, `running`, `stopping`, `backoff`, `exited`), `in_engine` (the running process serves this camera), `applied` (the manager has the current list), `starts`, `last_exit_code`; and `stream`, what the engine itself reports in its heartbeat: `reporting` (a heartbeat no older than `HEARTBEAT_STALE_AFTER`, default 15 s, names this camera), `state` (`RUNNING` or `RECONNECTING`), `fps`, `last_frame_age` (seconds without a frame), `heartbeat_age`. `reporting: false` means the engine is down, still starting, or not serving the camera; the other fields are then empty |
@@ -221,6 +222,9 @@ every test.
   today, Start/Stop) and a bar chart of events today by camera.
 - **Monitoring**: camera list with a status dot, live WebRTC video (boxes and track IDs drawn by the engine), FPS, events today,
   pipeline status, last error, last update time and the latest events of the selected camera.
+- **Cameras**: list with Start/Stop, Test, Edit and Delete (with a confirmation), and an *Add camera* drawer: name, IP camera (RTSP) or video file, address,
+  optional username and password in their own fields (special characters need no escaping; the password is stored on the server and never shown),
+  and **Test connection**, which shows what works (reachable, login, video stream, codec, resolution). When editing, an empty address keeps the saved one.
 - **Events**: filters (camera, status, date range), paging, confidence bars and an event drawer with the snapshot, the detection
   box and Acknowledge. Opening any event (from any list or a toast) shows the same drawer.
 
@@ -242,8 +246,7 @@ Source layout: `src/api` (REST calls), `src/websocket` (socket, message handling
 `src/types`, `src/utils`, `src/components` (+ `ui/` building blocks), `src/layouts` (sidebar shell), `src/pages`.
 
 The browser only talks to one origin, so the backend needs no CORS setup; `npm run dev` does the forwarding. Live video needs
-MediaMTX and `MEDIAMTX_WEBRTC_URL` (see "Live video"); that URL must be reachable from the browser itself. Cameras are created
-with `POST /api/cameras` for now (the camera form is the next phase). The built `frontend/dist` is not served by the backend yet.
+MediaMTX and `MEDIAMTX_WEBRTC_URL` (see "Live video"); that URL must be reachable from the browser itself. The built `frontend/dist` is not served by the backend yet.
 There is no "people in frame right now" number yet (the engine does not report it): the dashboard shows events today instead.
 
 ## Run the unit tests

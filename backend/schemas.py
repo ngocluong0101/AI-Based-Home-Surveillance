@@ -134,6 +134,44 @@ class CameraStatus(BaseModel):
     stream: StreamInfo
 
 
+class ConnectionCheckIn(BaseModel):
+    """Either the address to try, or the id of a saved camera (whose address the API never shows, password included)."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    camera_id: int | None = None
+    source_type: SourceType | None = None
+    source_uri: str | None = Field(default=None, min_length=1, max_length=2000)
+    timeout: float = Field(default=5.0, ge=1, le=15)
+
+    @model_validator(mode="after")
+    def _one_of(self) -> "ConnectionCheckIn":
+        if self.camera_id is not None:
+            if self.source_type is not None or self.source_uri is not None:
+                raise ValueError("give either camera_id or source_type with source_uri, not both")
+        else:
+            if self.source_type is None or self.source_uri is None:
+                raise ValueError("give camera_id, or source_type together with source_uri")
+            _check_uri(self.source_type, self.source_uri)
+        return self
+
+
+class ConnectionCheck(BaseModel):
+    name: Literal["connect", "auth", "stream", "codec", "resolution", "file"]
+    ok: bool
+    message: str
+
+
+class ConnectionCheckOut(BaseModel):
+    ok: bool
+    summary: str
+    checks: list[ConnectionCheck]
+    codec: str | None = None
+    width: int | None = None
+    height: int | None = None
+    latency_ms: int | None = None
+
+
 class EventIn(BaseModel):
     """What the engine POSTs (event schema v1, ROADMAP 2.3). Unknown fields are ignored so that a
     newer engine can add some without breaking an older backend."""

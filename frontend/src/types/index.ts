@@ -84,3 +84,33 @@ export interface EventFilters {
   limit: number;
   offset: number;
 }
+
+export interface CameraCreate {
+  name: string;
+  source_type: "rtsp" | "file";
+  source_uri: string;
+  enabled: boolean;
+}
+
+export type CameraUpdate = Partial<CameraCreate>;
+
+/** Either an address to try, or a saved camera (its address, password included, never leaves the server). */
+export type ConnectionCheckBody =
+  | { camera_id: number; timeout?: number }
+  | { source_type: "rtsp" | "file"; source_uri: string; timeout?: number };
+
+export interface ConnectionCheckItem {
+  name: "connect" | "auth" | "stream" | "codec" | "resolution" | "file";
+  ok: boolean;
+  message: string;
+}
+
+export interface ConnectionCheckResult {
+  ok: boolean;
+  summary: string;
+  checks: ConnectionCheckItem[];
+  codec: string | null;
+  width: number | null;
+  height: number | null;
+  latency_ms: number | null;
+}

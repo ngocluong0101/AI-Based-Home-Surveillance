@@ -192,7 +192,9 @@ export function DashboardPage({ onOpenCamera }: { onOpenCamera: (id: number) => 
           ) : !cameras.data ? (
             <ErrorState title="Failed to load cameras" message={cameras.error.message} onRetry={() => void cameras.refetch()} />
           ) : cameras.data.length === 0 ? (
-            <EmptyState icon={CameraIcon} title="No cameras found" hint={<>Add one with <code>POST /api/cameras</code>; the camera form comes in a later phase.</>} />
+            <EmptyState icon={CameraIcon} title="No cameras found" hint="Add an IP camera or a video file to start detecting people.">
+              <a className="btn btn-primary" href="#/cameras">Add a camera</a>
+            </EmptyState>
           ) : (
             <>
               <div className="cam-grid">

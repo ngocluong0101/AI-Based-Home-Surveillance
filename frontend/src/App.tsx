@@ -1,5 +1,6 @@
 import { AppLayout } from "./layouts/AppLayout";
 import { useHashRoute } from "./hooks/useHashRoute";
+import { CamerasPage } from "./pages/CamerasPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { EventsPage } from "./pages/EventsPage";
 import { MonitoringPage } from "./pages/MonitoringPage";
@@ -11,6 +12,7 @@ export function App() {
       {route.page === "dashboard" && <DashboardPage onOpenCamera={(id) => go("monitoring", id)} />}
       {route.page === "monitoring" && <MonitoringPage cameraId={route.cameraId} onSelect={(id) => go("monitoring", id)} />}
       {route.page === "events" && <EventsPage />}
+      {route.page === "cameras" && <CamerasPage />}
     </AppLayout>
   );
 }

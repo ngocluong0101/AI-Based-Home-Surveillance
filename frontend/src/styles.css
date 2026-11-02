@@ -244,3 +244,49 @@ dd { margin: 0; text-align: right; }
 
 /* ---------- Toasts ---------- */
 [data-sonner-toaster] { --normal-bg: var(--surface-2); --normal-border: var(--line-strong); --normal-text: var(--fg); --border-radius: 10px; }
+
+/* ---------- Camera management ---------- */
+a.btn { text-decoration: none; }
+.btn-danger { background: var(--bad); border-color: var(--bad); color: #fff; }
+.btn-danger:hover:not(:disabled) { background: #fb8a8a; border-color: #fb8a8a; }
+.btn-danger-ghost:hover:not(:disabled) { color: var(--bad); border-color: var(--bad); }
+.cell-name { display: flex; align-items: center; gap: 0.6rem; }
+.src { display: inline-block; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; font-size: 0.8rem; }
+.row-actions { display: flex; gap: 0.4rem; justify-content: flex-end; flex-wrap: wrap; }
+.spin { animation: spin 0.8s linear infinite; }
+
+.drawer form .drawer-body { gap: 1rem; }
+.field.wide, .wide { width: 100%; }
+.field input.mono { font-size: 0.85rem; }
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; }
+.field-row .wide { grid-column: 1 / -1; }
+.field-error { color: var(--bad); font-size: 0.8rem; }
+.field-hint { color: var(--faint); font-size: 0.78rem; word-break: break-all; }
+.segmented { display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1fr; padding: 3px; gap: 3px; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--line-strong); }
+.segmented button { padding: 0.4rem 0.8rem; border: 0; border-radius: 6px; background: transparent; color: var(--muted); cursor: pointer; transition: background 0.15s, color 0.15s; }
+.segmented button.on { background: var(--accent-soft); color: var(--fg); box-shadow: inset 0 0 0 1px rgba(79, 140, 255, 0.45); }
+.switch { display: grid; grid-template-columns: auto 1fr; column-gap: 0.6rem; align-items: center; cursor: pointer; }
+.switch small { grid-column: 2; }
+.switch input { width: 2.3rem; height: 1.3rem; appearance: none; border-radius: 999px; background: var(--surface-3); border: 1px solid var(--line-strong); position: relative; cursor: pointer; transition: background 0.15s; margin: 0; }
+.switch input::after { content: ""; position: absolute; top: 2px; left: 2px; width: 0.95rem; height: 0.95rem; border-radius: 50%; background: var(--muted); transition: transform 0.15s, background 0.15s; }
+.switch input:checked { background: var(--ok-soft); border-color: var(--ok); }
+.switch input:checked::after { transform: translateX(1rem); background: var(--ok); }
+.test-box { display: flex; flex-direction: column; align-items: flex-start; gap: 0.6rem; padding: 0.9rem; border: 1px dashed var(--line-strong); border-radius: var(--radius-sm); }
+.conn-result { width: 100%; padding: 0.7rem 0.8rem; border-radius: var(--radius-sm); background: var(--surface-2); border: 1px solid var(--line); }
+.conn-result.ok { border-color: rgba(52, 211, 153, 0.4); }
+.conn-result.bad { border-color: rgba(248, 113, 113, 0.4); }
+.conn-summary { display: flex; align-items: flex-start; gap: 0.5rem; font-weight: 550; margin-bottom: 0.5rem; }
+.conn-result.ok .conn-summary { color: var(--ok); }
+.conn-result.bad .conn-summary { color: var(--bad); }
+.conn-result ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.85rem; }
+.conn-result li { display: flex; gap: 0.5rem; align-items: flex-start; color: var(--muted); }
+.conn-result li svg { flex: none; margin-top: 2px; }
+.conn-result li.ok svg { color: var(--ok); }
+.conn-result li.bad svg { color: var(--bad); }
+.conn-result li b { color: var(--fg); font-weight: 550; margin-right: 0.25rem; }
+
+.modal-backdrop { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 1rem; background: rgba(2, 4, 8, 0.65); backdrop-filter: blur(2px); }
+.dialog { width: min(420px, 100%); padding: 1.4rem; display: flex; flex-direction: column; gap: 0.6rem; box-shadow: var(--shadow); }
+.dialog h2 { font-size: 1.1rem; }
+.dialog-icon { display: grid; place-items: center; width: 2.6rem; height: 2.6rem; border-radius: 50%; background: var(--bad-soft); color: var(--bad); }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 0.6rem; }

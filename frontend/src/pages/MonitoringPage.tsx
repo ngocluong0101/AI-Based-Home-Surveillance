@@ -145,7 +145,9 @@ export function MonitoringPage({ cameraId, onSelect }: { cameraId: number | null
   } else if (!cameras.data) {
     content = <ErrorState title="Failed to load cameras" message={cameras.error.message} onRetry={() => void cameras.refetch()} />;
   } else if (cameras.data.length === 0) {
-    content = <EmptyState icon={CameraIcon} title="No cameras found" hint={<>Add one with <code>POST /api/cameras</code>.</>} />;
+    content = <EmptyState icon={CameraIcon} title="No cameras found" hint="Add a camera to watch it here.">
+        <a className="btn btn-primary" href="#/cameras">Add a camera</a>
+      </EmptyState>;
   } else {
     const selected = fleet.find((f) => f.camera.id === cameraId) ?? fleet[0];
     if (selected) {

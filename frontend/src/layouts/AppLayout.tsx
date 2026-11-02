@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
-import { Bell, LayoutDashboard, PanelLeftClose, PanelLeftOpen, ShieldCheck, UserRound, Video, WifiOff } from "lucide-react";
+import { Bell, Cctv, LayoutDashboard, PanelLeftClose, PanelLeftOpen, ShieldCheck, UserRound, Video, WifiOff } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Toaster, toast } from "sonner";
 import { EventDrawer } from "../components/EventDrawer";
@@ -17,6 +17,7 @@ const NAV: { page: Page; label: string; icon: typeof Bell }[] = [
   { page: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { page: "monitoring", label: "Monitoring", icon: Video },
   { page: "events", label: "Events", icon: Bell },
+  { page: "cameras", label: "Cameras", icon: Cctv },
 ];
 
 const CONNECTION: Record<Connection, { label: string; tone: "ok" | "warn" }> = {

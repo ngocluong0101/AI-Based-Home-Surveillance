@@ -1,9 +1,9 @@
-import { AnimatePresence, motion } from "motion/react";
-import { Check, ImageOff, RotateCcw, Video, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Check, ImageOff, RotateCcw, Video } from "lucide-react";
+import { useState } from "react";
 import { useCameraName, useEvent, useSetEventStatus } from "../hooks/queries";
 import { formatTime, percent, relativeTime } from "../utils/format";
 import { Badge } from "./ui/Badge";
+import { Drawer } from "./ui/Drawer";
 import { Spinner } from "./ui/Spinner";
 import { EmptyState, ErrorState } from "./ui/States";
 
@@ -92,7 +92,7 @@ function Body({ eventId, onOpenCamera }: { eventId: string; onOpenCamera: (camer
   );
 }
 
-/** Slide-in panel with everything about one event. Closes on Esc or a click outside. */
+/** Slide-in panel with everything about one event. */
 export function EventDrawer({
   eventId,
   onClose,
@@ -102,47 +102,9 @@ export function EventDrawer({
   onClose: () => void;
   onOpenCamera: (cameraId: number) => void;
 }) {
-  useEffect(() => {
-    if (!eventId) return;
-    const onKey = (k: KeyboardEvent) => k.key === "Escape" && onClose();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [eventId, onClose]);
-
   return (
-    <AnimatePresence>
-      {eventId && (
-        <>
-          <motion.div
-            key="backdrop"
-            className="backdrop"
-            onClick={onClose}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.18 }}
-          />
-          <motion.aside
-            key="drawer"
-            className="drawer"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Event details"
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "tween", duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
-          >
-            <div className="drawer-head">
-              <h2>Event details</h2>
-              <button className="btn btn-ghost btn-icon" onClick={onClose} aria-label="Close">
-                <X size={18} />
-              </button>
-            </div>
-            <Body eventId={eventId} onOpenCamera={onOpenCamera} />
-          </motion.aside>
-        </>
-      )}
-    </AnimatePresence>
+    <Drawer open={eventId !== null} title="Event details" onClose={onClose}>
+      {eventId && <Body eventId={eventId} onOpenCamera={onOpenCamera} />}
+    </Drawer>
   );
 }

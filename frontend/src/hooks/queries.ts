@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
-import type { Camera, CameraStatus, EventFilters, EventStatus, LiveStatus, PersonEvent } from "../types";
+import type { Camera, CameraStatus, CameraUpdate, EventFilters, EventStatus, LiveStatus, PersonEvent } from "../types";
 import { healthOf, lastErrorOf, streamOf, type Health } from "../utils/health";
 import { liveKey } from "../websocket/messages";
 
@@ -135,3 +135,39 @@ export function useCameraName(): (id: number) => string {
   const names = new Map((data ?? []).map((c) => [c.id, c.name]));
   return (id) => names.get(id) ?? `Camera #${id}`;
 }
+
+function useInvalidateCameras() {
+  const qc = useQueryClient();
+  return () => {
+    void qc.invalidateQueries({ queryKey: ["cameras"] });
+    void qc.invalidateQueries({ queryKey: ["status"] });
+  };
+}
+
+export function useCreateCamera() {
+  const refresh = useInvalidateCameras();
+  return useMutation({ mutationFn: api.createCamera, onSuccess: refresh });
+}
+
+export function useUpdateCamera() {
+  const refresh = useInvalidateCameras();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: number; body: CameraUpdate }) => api.updateCamera(id, body),
+    onSuccess: refresh,
+  });
+}
+
+export function useDeleteCamera() {
+  const qc = useQueryClient();
+  const refresh = useInvalidateCameras();
+  return useMutation({
+    mutationFn: (id: number) => api.deleteCamera(id),
+    onSuccess: (_, id) => {
+      qc.removeQueries({ queryKey: ["status", id] });
+      qc.removeQueries({ queryKey: liveKey(id) });
+      refresh();
+    },
+  });
+}
+
+export const useTestConnection = () => useMutation({ mutationFn: api.testConnection });
