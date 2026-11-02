@@ -7,6 +7,7 @@ answers with 2xx to --log (one JSON event per line), and can misbehave on purpos
   --delay SEC         wait SEC before answering (a slow backend)
   --status CODE       answer with this HTTP status instead of 200 ...
   --status-for SEC    ... but only for the first SEC seconds after start, then answer 200
+  --token TOKEN       answer 401 unless the request carries the header X-Internal-Token: TOKEN
 
 Not part of the product: an offline test tool.
 """
@@ -24,6 +25,7 @@ def main() -> int:
     ap.add_argument("--delay", type=float, default=0.0)
     ap.add_argument("--status", type=int, default=200)
     ap.add_argument("--status-for", type=float, default=None)
+    ap.add_argument("--token", default=None)
     ap.add_argument("--log", required=True, help="file that receives the accepted events")
     args = ap.parse_args()
 
@@ -40,6 +42,8 @@ def main() -> int:
                 args.status_for is None or time.monotonic() - started < args.status_for
             )
             status = args.status if failing else 200
+            if args.token is not None and self.headers.get("X-Internal-Token") != args.token:
+                status = 401
             if self.path != "/internal/events":
                 status = 404
             if status == 200:

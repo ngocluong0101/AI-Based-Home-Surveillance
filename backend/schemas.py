@@ -96,6 +96,23 @@ class CameraOut(BaseModel):
         return mask_uri(value)
 
 
+class EngineInfo(BaseModel):
+    manager: Literal["reachable", "unreachable", "not_configured"]
+    state: str | None = None   # stopped | running | stopping | backoff | exited (the engine process)
+    in_engine: bool | None = None   # the running process serves this camera
+    applied: bool | None = None   # the manager has the current camera list
+    starts: int | None = None
+    last_exit_code: int | None = None
+
+
+class CameraStatus(BaseModel):
+    camera_id: int
+    enabled: bool
+    desired_state: Literal["running", "stopped"]
+    should_run: bool   # enabled and desired_state is running
+    engine: EngineInfo
+
+
 class EventIn(BaseModel):
     """What the engine POSTs (event schema v1, ROADMAP 2.3). Unknown fields are ignored so that a
     newer engine can add some without breaking an older backend."""

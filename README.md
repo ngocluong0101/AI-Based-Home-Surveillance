@@ -9,8 +9,8 @@ Current state of the repository:
 - `engine/`: the DeepStream engine in C. The N-source pipeline (`nvstreammux` -> `nvinfer` with YOLOv8n -> `nvtracker`)
   runs and raises `PERSON_DETECTED` events per source (with a JPEG snapshot of the frame each; queued and then POSTed to a backend with retry and a spool file, or printed as JSON lines when no backend is given), and can write a debug video with the boxes and track IDs drawn (see [DeepStream engine](#deepstream-engine)).
 - `backend/`: the FastAPI backend (REST API for cameras and events, the endpoint the engine posts events to), storing
-  everything in PostgreSQL. Start/stop of cameras, the WebSocket, Telegram alerts and the engine manager are not built
-  yet (see [Backend](#backend)).
+  everything in PostgreSQL, and starts/stops the engine for the cameras that should run through `engine_manager/`. The
+  heartbeat, the WebSocket and Telegram alerts are not built yet (see [Backend](#backend)).
 - `src/events/`: the Python `PERSON_DETECTED` de-duplication logic. It is the reference specification; the C engine
   has a port of it (`engine/src/core/event_manager.c`) that passes the same test vectors.
 - `src/notifications/`, `src/snapshot_management.py`, `src/config/`, `src/logging_config.py`: Python building blocks
@@ -119,9 +119,50 @@ uvicorn backend.main:create_app --factory --host 0.0.0.0 --port 8000     # API d
 | `POST /internal/events` | for the engine, not for browsers. Idempotent on `event_id`: 201 stored, 200 already had it, 422 can never be stored (unknown camera, bad values), which makes the engine drop it instead of retrying. With `INTERNAL_TOKEN` set it needs the header `X-Internal-Token`. |
 
 Run the engine against it with `--backend-url http://HOST:8000/internal/events --spool-file FILE --snapshot-dir DIR`, where
-`DIR` is the backend's `SNAPSHOT_DIR` (same machine for now; the engine does not send the header yet, so leave
-`INTERNAL_TOKEN` empty for the time being). Events of a camera that does not exist in the backend are refused, so create the
-cameras first, with ids equal to the `--camera ID=URI` ids.
+`DIR` is the backend's `SNAPSHOT_DIR` (same machine for now). When `INTERNAL_TOKEN` is set, give the engine the same value in
+the environment variable `DS_ENGINE_TOKEN` (not on the command line, where `ps` would show it); it sends it as `X-Internal-Token`.
+Events of a camera that does not exist in the backend are refused, so create the cameras first, with ids equal to the
+`--camera ID=URI` ids. You normally do not start the engine yourself: the engine manager does (next section).
+
+### Engine manager
+
+`engine_manager/` runs the engine for the backend: **one `ds_engine` process serves all running cameras**, so the manager
+keeps the process in step with the list of cameras that should run. It is a separate small service (it can stay up while the
+backend restarts), listening on the loopback interface only, without authentication:
+
+```bash
+uvicorn engine_manager.service:create_app --factory --host 127.0.0.1 --port 8100
+```
+
+| Backend endpoint | |
+|---|---|
+| `POST /api/cameras/{id}/start`, `POST .../stop` | record that the camera should (not) run. A disabled camera cannot be started (409). The answer comes at once; the engine is (re)started in the background, a few seconds later |
+| `GET /api/cameras/{id}/status` | `desired_state`, `should_run`, and `engine`: whether the manager is reachable, the state of the engine process (`stopped`, `running`, `stopping`, `backoff`, `exited`), `in_engine` (the running process serves this camera), `applied` (the manager has the current list), `starts`, `last_exit_code` |
+
+How it works. The database says which cameras should run (enabled, not deleted, `desired_state = running`). A background thread in
+the backend compares that list with the one the manager reports (by a hash) and pushes it when they differ, right after a camera
+changes and every few seconds anyway, so a manager that was down or restarted gets the list when it is back, and the API calls
+never wait for it. The manager starts the engine with the list, and when the list changes (a camera started, stopped, disabled,
+deleted, or its URI changed) it stops the engine with SIGTERM (the engine prints its summary and flushes its spool, up to
+`stop_timeout` 25 s, then SIGKILL) and starts it again; everything that is not a camera setting (renaming, thresholds) does not restart
+it. All cameras lose a few seconds of video at each change. If the engine crashes it is started again after 1 s, 2 s, ... up to 60 s
+(a run longer than 30 s resets the delay). Exit code 0 means every source ended (video files): it is not restarted until the list changes.
+
+RTSP URLs hold passwords, so they never appear on the engine's command line: the manager writes them to
+`ENGINE_RUNTIME_DIR/cameras.ini` (mode 600) and passes `--cameras-file`; the token goes in `DS_ENGINE_TOKEN`. What the engine prints
+is logged (passwords in URLs replaced) to `logs/engine_manager.log`. The settings are the `ENGINE_*` entries of `.env.example`.
+`ABSENCE_TIMEOUT` is passed to the engine as one value for all cameras; the per-camera `absence_timeout` and `conf_threshold` of the
+camera table are stored but not applied yet (the engine has no per-camera settings).
+
+To run the engine in the DeepStream container, make `ENGINE_COMMAND` the whole prefix, with the runtime directory, the snapshot directory
+and the config files mounted at the same absolute paths, for example:
+
+```bash
+ENGINE_COMMAND="docker run --rm --network host --gpus all -u 1000:1000 -e DS_ENGINE_TOKEN -v $PWD:$PWD -w $PWD --entrypoint $PWD/engine/build/ds_engine nvcr.io/nvidia/deepstream:7.1-triton-multiarch"
+```
+
+The TensorRT engine file is built for 2 sources; up to 2 cameras start at once, and a third makes `nvinfer` rebuild it (about 150 s)
+at every start until `model-engine-file` in `engine/configs/pgie_yolov8n.txt` is changed.
 
 The backend tests (`tests/backend_api/`) start a throwaway PostgreSQL cluster of their own (`initdb` + `pg_ctl` from the
 installed PostgreSQL, a unix socket in a temp directory, removed afterwards) and never touch an existing server. To
@@ -141,7 +182,8 @@ The test suite contains:
 - `tests/test_person_detected_event_manager.py`: the `PERSON_DETECTED` de-duplication logic.
 - `tests/test_event_manager_vectors.py`: the shared event manager vectors (see above).
 - `tests/test_env_file.py`: reading and writing `.env`, using temporary files only.
-- `tests/backend_api/`: the backend (cameras, events, the internal endpoint, health, migrations) against a throwaway PostgreSQL.
+- `tests/backend_api/`: the backend (cameras, events, the internal endpoint, health, migrations, start/stop and the reconciler) against a throwaway PostgreSQL.
+- `tests/engine_manager_tests/`: the engine manager, with a stand-in program for the engine.
 
 The tests need no camera, model, network or display; the backend tests need the PostgreSQL server programs installed
 (they are skipped otherwise).
@@ -175,7 +217,7 @@ event goes out. A file that cannot be written (directory not writable, disk full
 with `"snapshot":null`.
 
 Delivery. Without `--backend-url` the worker prints each event as a line `event {json}` on stdout (for debugging). With
-`--backend-url URL --spool-file FILE` it POSTs the JSON to the backend with libcurl (connect timeout 2 s, 5 s in total).
+`--backend-url URL --spool-file FILE` it POSTs the JSON to the backend with libcurl (connect timeout 2 s, 5 s in total; the environment variable `DS_ENGINE_TOKEN`, if set, is sent as the header `X-Internal-Token`).
 HTTP 2xx, or 409 (the backend already has this `event_id`), counts as delivered; 400/413/422 means the backend refuses the
 event for good (counted as `rejected`); anything else (no connection, 5xx, 429, even 404/401/403 from a misconfigured
 backend) is retried later. After a failure the backend is not tried again for 1 s, then 2 s, 4 s ... up to 60 s, and in the

@@ -25,6 +25,9 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
+# Engine manager runtime files (camera URIs with passwords, the engine's spool)
+data/run/
+
 # Local environment files
 .env
 .env.*

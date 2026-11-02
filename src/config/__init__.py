@@ -57,6 +57,19 @@ TELEGRAM_CHAT_ID: Optional[str] = os.getenv("TELEGRAM_CHAT_ID") or None
 DATABASE_URL: Optional[str] = os.getenv("DATABASE_URL") or None
 INTERNAL_TOKEN: Optional[str] = os.getenv("INTERNAL_TOKEN") or None
 
+# Engine manager (ROADMAP 3.5). ENGINE_COMMAND is split like a shell would; when the engine runs in the
+# DeepStream container it is the whole `docker run ... ds_engine` prefix (mount the runtime directory,
+# the snapshot directory and the config files at the same absolute paths inside it, and pass
+# `-e DS_ENGINE_TOKEN` through).
+ENGINE_COMMAND: str = os.getenv("ENGINE_COMMAND") or "engine/build/ds_engine"
+ENGINE_CONFIG: str = os.getenv("ENGINE_CONFIG") or "engine/configs/pgie_yolov8n.txt"
+ENGINE_TRACKER_CONFIG: str = os.getenv("ENGINE_TRACKER_CONFIG") or "engine/configs/tracker_nvdcf.yml"
+ENGINE_RUNTIME_DIR: str = os.getenv("ENGINE_RUNTIME_DIR") or "data/run"
+ENGINE_BACKEND_URL: str = os.getenv("ENGINE_BACKEND_URL") or "http://127.0.0.1:8000/internal/events"
+ENGINE_EXTRA_ARGS: str = os.getenv("ENGINE_EXTRA_ARGS") or ""
+# Where the backend finds the manager; unset = the backend does not manage an engine
+ENGINE_MANAGER_URL: Optional[str] = os.getenv("ENGINE_MANAGER_URL") or None
+
 # Typed values with defaults
 CONFIDENCE_THRESHOLD: float = _parse_float(os.getenv("CONFIDENCE_THRESHOLD"), 0.5)
 RECONNECT_DELAY: float = _parse_float(os.getenv("RECONNECT_DELAY"), 5.0)
@@ -85,6 +98,13 @@ __all__ = [
     "TELEGRAM_CHAT_ID",
     "DATABASE_URL",
     "INTERNAL_TOKEN",
+    "ENGINE_COMMAND",
+    "ENGINE_CONFIG",
+    "ENGINE_TRACKER_CONFIG",
+    "ENGINE_RUNTIME_DIR",
+    "ENGINE_BACKEND_URL",
+    "ENGINE_EXTRA_ARGS",
+    "ENGINE_MANAGER_URL",
     "CONFIDENCE_THRESHOLD",
     "RECONNECT_DELAY",
     "ABSENCE_TIMEOUT",

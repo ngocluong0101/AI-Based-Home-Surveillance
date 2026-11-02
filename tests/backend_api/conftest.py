@@ -104,10 +104,11 @@ def snapshot_dir(tmp_path):
 def make_client(database_url, db_engine, snapshot_dir):
     clients = []
 
-    def factory(**overrides) -> TestClient:
+    def factory(engine_client=None, **overrides) -> TestClient:
+        overrides.setdefault("reconcile_interval", 0)   # no background thread unless a test asks for it
         settings = Settings(database_url=database_url, snapshot_dir=str(snapshot_dir),
                             configure_logging=False, **overrides)
-        client = TestClient(create_app(settings))
+        client = TestClient(create_app(settings, engine_client=engine_client))
         client.__enter__()
         clients.append(client)
         return client

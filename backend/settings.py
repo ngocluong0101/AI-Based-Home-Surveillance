@@ -13,6 +13,8 @@ class Settings:
     internal_token: str | None = None   # None = /internal/* needs no token (LAN only)
     snapshot_dir: str = "data/snapshots"
     configure_logging: bool = True
+    engine_manager_url: str | None = None   # None = no engine is managed from here
+    reconcile_interval: float = 5.0         # seconds between looks at the manager; 0 = no background thread
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -24,4 +26,5 @@ class Settings:
             database_url=config.DATABASE_URL,
             internal_token=config.INTERNAL_TOKEN,
             snapshot_dir=config.SNAPSHOT_DIR,
+            engine_manager_url=config.ENGINE_MANAGER_URL,
         )

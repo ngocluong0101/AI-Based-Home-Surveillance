@@ -67,6 +67,8 @@
 /* Delivery to the backend (ROADMAP 2.6). Every request is bounded by these timeouts. */
 #define HTTP_CONNECT_TIMEOUT_MS 2000
 #define HTTP_TIMEOUT_MS 5000
+/* Environment variable that holds the token for the backend's internal endpoints. */
+#define TOKEN_ENV "DS_ENGINE_TOKEN"
 /* Largest spool file; further events are lost (and counted) once it is full. */
 #define SPOOL_MAX_BYTES (256ull * 1024 * 1024)
 /* Events moved from the spool to the backend between two looks at the queue, so a long spool
@@ -201,7 +203,8 @@ static GOptionEntry option_entries[] = {
       "JPEG quality 1-100 (default 85)", "Q" },
     { "backend-url", 0, 0, G_OPTION_ARG_STRING, &opt_backend_url,
       "POST each event as JSON to this URL (e.g. http://127.0.0.1:8000/internal/events); without "
-      "it events are printed on stdout. Needs --spool-file", "URL" },
+      "it events are printed on stdout. Needs --spool-file. If the environment variable "
+      "DS_ENGINE_TOKEN is set its value is sent as the header X-Internal-Token", "URL" },
     { "spool-file", 0, 0, G_OPTION_ARG_FILENAME, &opt_spool_file,
       "JSON-lines file where events wait while the backend cannot be reached; delivered when it "
       "is back, also after a restart of the engine", "FILE" },
@@ -926,6 +929,14 @@ static gboolean delivery_init(AppCtx *app)
         return FALSE;
     }
     app->curl_headers = curl_slist_append(NULL, "Content-Type: application/json");
+    /* The shared secret of the backend (its internal endpoints) comes from the environment, not argv, where
+     * `ps` would show it. It is never printed. */
+    const char *token = g_getenv(TOKEN_ENV);
+    if (token != NULL && token[0] != '\0') {
+        gchar *header = g_strdup_printf("X-Internal-Token: %s", token);
+        app->curl_headers = curl_slist_append(app->curl_headers, header);   /* curl copies it */
+        g_free(header);
+    }
     curl_easy_setopt(app->curl, CURLOPT_URL, opt_backend_url);
     curl_easy_setopt(app->curl, CURLOPT_POST, 1L);
     curl_easy_setopt(app->curl, CURLOPT_HTTPHEADER, app->curl_headers);
