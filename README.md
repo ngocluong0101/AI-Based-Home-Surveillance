@@ -214,11 +214,20 @@ every test.
 
 ## Frontend
 
-`frontend/` is a React + TypeScript + Vite app (TanStack Query for REST, one WebSocket for pushes). It has three pages:
-**Dashboard** (every camera with Online/Reconnecting/Stopped, FPS, last frame, people today, Start/Stop), **Monitoring**
-(camera selector, live WebRTC video with boxes and track IDs, pipeline status, last error, latest events) and **Events**
-(filters by camera, status and date, paging, snapshot with the detection box, Acknowledge). New events and camera state
-arrive through `WS /api/ws` without reloading; the "Live" badge in the header shows whether that socket is connected.
+`frontend/` is a dark, sidebar-based React + TypeScript + Vite app (TanStack Query for REST, one WebSocket for pushes,
+`motion` for animation, `lucide-react` icons, `sonner` toasts). Pages:
+
+- **Dashboard**: cameras / online / events today / events to review, recent events, one card per camera (state, FPS, events
+  today, Start/Stop) and a bar chart of events today by camera.
+- **Monitoring**: camera list with a status dot, live WebRTC video (boxes and track IDs drawn by the engine), FPS, events today,
+  pipeline status, last error, last update time and the latest events of the selected camera.
+- **Events**: filters (camera, status, date range), paging, confidence bars and an event drawer with the snapshot, the detection
+  box and Acknowledge. Opening any event (from any list or a toast) shows the same drawer.
+
+New events arrive through `WS /api/ws` without reloading: they appear at the top of the lists, are highlighted for a few seconds
+and raise a toast; a duplicate message for the same `event_id` is ignored. The "Live" pill in the sidebar shows the socket state,
+and a banner appears while it reconnects. Every screen has loading (skeleton), empty and error states; when a refresh fails the
+last data stays on screen. Animations follow the OS "reduce motion" setting.
 
 ```bash
 cd frontend
@@ -229,9 +238,13 @@ npm test             # unit tests (vitest)
 npm run build        # type-check, then bundle into frontend/dist
 ```
 
+Source layout: `src/api` (REST calls), `src/websocket` (socket, message handling, duplicate filter), `src/hooks` (queries, route),
+`src/types`, `src/utils`, `src/components` (+ `ui/` building blocks), `src/layouts` (sidebar shell), `src/pages`.
+
 The browser only talks to one origin, so the backend needs no CORS setup; `npm run dev` does the forwarding. Live video needs
 MediaMTX and `MEDIAMTX_WEBRTC_URL` (see "Live video"); that URL must be reachable from the browser itself. Cameras are created
 with `POST /api/cameras` for now (the camera form is the next phase). The built `frontend/dist` is not served by the backend yet.
+There is no "people in frame right now" number yet (the engine does not report it): the dashboard shows events today instead.
 
 ## Run the unit tests
 

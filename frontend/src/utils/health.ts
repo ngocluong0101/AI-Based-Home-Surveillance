@@ -1,4 +1,4 @@
-import type { CameraStatus, StreamInfo } from "./api";
+import type { CameraStatus, StreamInfo } from "../types";
 
 export type Tone = "ok" | "warn" | "bad" | "idle";
 

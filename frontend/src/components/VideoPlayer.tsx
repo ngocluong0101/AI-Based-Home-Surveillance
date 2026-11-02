@@ -1,20 +1,26 @@
-import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { AnimatePresence, motion } from "motion/react";
+import { Maximize2, VideoOff, WifiOff } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../api";
-import { connectWhep } from "../whep";
+import type { Health } from "../utils/health";
+import { connectWhep } from "../utils/whep";
+import { Spinner } from "./ui/Spinner";
+import { ErrorState } from "./ui/States";
 
 const RETRY_MS = 3000;
 
 type Phase = "idle" | "connecting" | "live";
 
 /** Live video of one camera (boxes and track IDs are drawn by the engine). Retries while the camera is expected. */
-export function VideoPlayer({ cameraId, shouldRun }: { cameraId: number; shouldRun: boolean }) {
+export function VideoPlayer({ cameraId, shouldRun, health }: { cameraId: number; shouldRun: boolean; health: Health }) {
   const link = useQuery({
     queryKey: ["stream", cameraId],
     queryFn: () => api.cameraStream(cameraId),
     refetchInterval: 5000,
     retry: false,
   });
+  const box = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [phase, setPhase] = useState<Phase>("idle");
   const [attempt, setAttempt] = useState(0);
@@ -62,15 +68,90 @@ export function VideoPlayer({ cameraId, shouldRun }: { cameraId: number; shouldR
     };
   }, [whepUrl, available, attempt]);
 
-  let message: string | null = null;
-  if (link.isError) message = link.error instanceof Error ? link.error.message : "Live video is unavailable.";
-  else if (!available) message = shouldRun ? "Waiting for the camera to start streaming..." : "The camera is stopped.";
-  else if (phase !== "live") message = error ? `Connecting failed (${error}); retrying...` : "Connecting...";
+  let overlay: React.ReactNode = null;
+  if (link.isError) {
+    overlay = (
+      <ErrorState
+        title="Live video is unavailable"
+        message={link.error instanceof Error ? link.error.message : undefined}
+        onRetry={() => void link.refetch()}
+        compact
+      />
+    );
+  } else if (link.isPending) {
+    overlay = <Spinner label="Loading stream" />;
+  } else if (!available) {
+    if (!shouldRun) {
+      overlay = (
+        <>
+          <VideoOff size={34} />
+          <strong>Camera stopped</strong>
+          <span>Start it from the dashboard to see live video.</span>
+        </>
+      );
+    } else if (health.tone === "bad") {
+      overlay = (
+        <>
+          <WifiOff size={34} />
+          <strong>Camera unavailable</strong>
+          <span>{health.label}. Retrying automatically.</span>
+        </>
+      );
+    } else {
+      overlay = (
+        <>
+          <Spinner label="Starting" />
+          <strong>Waiting for the camera</strong>
+          <span>The engine is starting this camera.</span>
+        </>
+      );
+    }
+  } else if (phase !== "live") {
+    overlay = error ? (
+      <>
+        <WifiOff size={34} />
+        <strong>Could not connect to the video</strong>
+        <span>{error}. Retrying...</span>
+      </>
+    ) : (
+      <>
+        <Spinner label="Connecting" />
+        <span>Connecting to the stream...</span>
+      </>
+    );
+  }
 
   return (
-    <div className="player">
+    <div className={`player ${phase === "live" ? "live" : ""}`} ref={box}>
       <video ref={videoRef} autoPlay muted playsInline />
-      {message && <div className="player-overlay">{message}</div>}
+      {phase === "live" && (
+        <>
+          <span className="player-tag">
+            <span className="dot dot-bad dot-pulse" /> LIVE
+          </span>
+          <button
+            className="btn btn-icon btn-sm player-fs"
+            aria-label="Full screen"
+            onClick={() => void box.current?.requestFullscreen?.()}
+          >
+            <Maximize2 size={16} />
+          </button>
+        </>
+      )}
+      <AnimatePresence>
+        {overlay && (
+          <motion.div
+            key="overlay"
+            className="player-overlay"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+          >
+            {overlay}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

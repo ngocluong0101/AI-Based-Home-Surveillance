@@ -1,0 +1,137 @@
+import { keepPreviousData, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { api } from "../api";
+import type { Camera, CameraStatus, EventFilters, EventStatus, LiveStatus, PersonEvent } from "../types";
+import { healthOf, lastErrorOf, streamOf, type Health } from "../utils/health";
+import { liveKey } from "../websocket/messages";
+
+const STATUS_POLL_MS = 5000;
+
+export const useCameras = () =>
+  useQuery({ queryKey: ["cameras"], queryFn: api.cameras, refetchInterval: 30000 });
+
+export interface FleetItem {
+  camera: Camera;
+  status: CameraStatus | undefined;
+  stream: ReturnType<typeof streamOf>;
+  health: Health;
+  lastError: string | null;
+  /** When the status shown was received (ms since epoch), 0 if never. */
+  updatedAt: number;
+}
+
+/**
+ * Every camera with its health: the polled /status merged with the pushed camera.status.
+ * One hook so the dashboard counts, the camera list and the cards all agree.
+ */
+export function useFleet(cameras: Camera[] | undefined): FleetItem[] {
+  const list = cameras ?? [];
+  const statuses = useQueries({
+    queries: list.map((c) => ({
+      queryKey: ["status", c.id],
+      queryFn: () => api.cameraStatus(c.id),
+      refetchInterval: STATUS_POLL_MS,
+    })),
+  });
+  const lives = useQueries({
+    queries: list.map((c) => ({
+      queryKey: liveKey(c.id),
+      queryFn: (): Promise<LiveStatus> => Promise.reject(new Error("pushed by the WebSocket only")),
+      enabled: false,
+      staleTime: Infinity,
+      gcTime: Infinity,
+    })),
+  });
+  return list.map((camera, i) => {
+    const status = statuses[i]?.data;
+    const live = lives[i]?.data;
+    const stream = streamOf(status, live);
+    return {
+      camera,
+      status,
+      stream,
+      health: healthOf(status, stream),
+      lastError: lastErrorOf(status, stream),
+      updatedAt: Math.max(live ? (lives[i]?.dataUpdatedAt ?? 0) : 0, statuses[i]?.dataUpdatedAt ?? 0),
+    };
+  });
+}
+
+export const useEvents = (filters: EventFilters) =>
+  useQuery({
+    queryKey: ["events", filters],
+    queryFn: () => api.events(filters),
+    placeholderData: keepPreviousData,
+  });
+
+/** One event, for the detail drawer: seeded from the lists, kept fresh by event.updated. */
+export function useEvent(eventId: string | null) {
+  const qc = useQueryClient();
+  return useQuery({
+    queryKey: ["event", eventId],
+    queryFn: () => api.event(eventId!),
+    enabled: eventId !== null,
+    initialData: () => {
+      for (const [, page] of qc.getQueriesData<{ items: PersonEvent[] }>({ queryKey: ["events"] })) {
+        const hit = page?.items?.find((e) => e.event_id === eventId);
+        if (hit) return hit;
+      }
+      return undefined;
+    },
+  });
+}
+
+/** Start of the local day, as ISO. */
+export function startOfToday(now = new Date()): string {
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+}
+
+const todayQuery = (cameraId?: number) => ({
+  queryKey: ["eventsToday", cameraId ?? null],
+  queryFn: () => api.events({ cameraId, from: startOfToday(), limit: 1, offset: 0 }),
+  refetchInterval: 60000,
+  select: (page: { total: number }) => page.total,
+});
+
+export const useEventsToday = (cameraId?: number) => useQuery(todayQuery(cameraId));
+
+/** Events today for each camera, in the order of `cameras` (undefined while loading). */
+export function useEventsTodayByCamera(cameras: Camera[]): (number | undefined)[] {
+  return useQueries({ queries: cameras.map((c) => todayQuery(c.id)) }).map((q) => q.data);
+}
+
+export const useUnreviewedCount = () =>
+  useQuery({
+    queryKey: ["eventsCount", "new"],
+    queryFn: () => api.events({ status: "new", limit: 1, offset: 0 }),
+    select: (page) => page.total,
+  });
+
+export function useCameraControl() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, run }: { id: number; run: boolean }) => (run ? api.startCamera(id) : api.stopCamera(id)),
+    onSuccess: (status) => {
+      qc.setQueryData(["status", status.camera_id], status);
+      void qc.invalidateQueries({ queryKey: ["cameras"] });
+    },
+  });
+}
+
+export function useSetEventStatus() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, status }: { id: string; status: EventStatus }) => api.setEventStatus(id, status),
+    onSuccess: (event) => {
+      qc.setQueryData(["event", event.event_id], event);
+      void qc.invalidateQueries({ queryKey: ["events"] });
+      void qc.invalidateQueries({ queryKey: ["eventsCount"] });
+    },
+  });
+}
+
+/** id -> camera name, for lists of events. Falls back to "Camera #id" (deleted or not loaded yet). */
+export function useCameraName(): (id: number) => string {
+  const { data } = useCameras();
+  const names = new Map((data ?? []).map((c) => [c.id, c.name]));
+  return (id) => names.get(id) ?? `Camera #${id}`;
+}

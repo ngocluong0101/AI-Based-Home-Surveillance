@@ -1,9 +1,12 @@
 import { QueryClient } from "@tanstack/react-query";
-import { describe, expect, it } from "vitest";
-import { eventsQuery, type CameraStatus, type EventPage, type PersonEvent, type StreamInfo } from "./api";
-import { localDayStart } from "./format";
-import { healthOf, lastErrorOf } from "./health";
-import { applyMessage, liveKey, parseMessage } from "./realtime";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { eventsQuery } from "./api";
+import { parseHash } from "./hooks/useHashRoute";
+import type { CameraStatus, EventPage, PersonEvent, StreamInfo } from "./types";
+import { localDayStart, relativeTime } from "./utils/format";
+import { healthOf, lastErrorOf } from "./utils/health";
+import { applyMessage, liveKey, parseMessage } from "./websocket/messages";
+import { resetRecentEvents } from "./websocket/recentEvents";
 
 const stream = (over: Partial<StreamInfo> = {}): StreamInfo => ({
   reporting: true,
@@ -87,29 +90,58 @@ describe("parseMessage", () => {
 });
 
 describe("applyMessage", () => {
+  beforeEach(() => resetRecentEvents());
+
   it("stores the pushed camera status by camera", () => {
     const qc = new QueryClient();
     applyMessage(qc, { type: "camera.status", data: { camera_id: 3, ...stream() } });
     expect(qc.getQueryData<{ fps: number }>(liveKey(3))?.fps).toBe(30);
   });
-  it("replaces an updated event in every cached page", () => {
+
+  it("replaces an updated event in every cached page and in its own cache entry", () => {
     const qc = new QueryClient();
     const page: EventPage = { items: [event(), event({ event_id: "e2" })], total: 2, limit: 25, offset: 0 };
     qc.setQueryData(["events", { limit: 25, offset: 0 }], page);
     applyMessage(qc, { type: "event.updated", data: event({ status: "acknowledged" }) });
     const after = qc.getQueryData<EventPage>(["events", { limit: 25, offset: 0 }])!;
     expect(after.items.map((e) => e.status)).toEqual(["acknowledged", "new"]);
+    expect(qc.getQueryData<PersonEvent>(["event", "e1"])?.status).toBe("acknowledged");
   });
-  it("marks event lists stale when an event is created", () => {
+
+  it("marks event lists and counters stale when an event is created, and tells the caller once", () => {
     const qc = new QueryClient();
     qc.setQueryData(["events", { limit: 25, offset: 0 }], { items: [], total: 0, limit: 25, offset: 0 });
-    applyMessage(qc, { type: "event.created", data: event() });
+    qc.setQueryData(["eventsToday", null], { items: [], total: 0, limit: 1, offset: 0 });
+    const seen = vi.fn();
+    applyMessage(qc, { type: "event.created", data: event() }, seen);
     expect(qc.getQueryState(["events", { limit: 25, offset: 0 }])?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(["eventsToday", null])?.isInvalidated).toBe(true);
+    expect(seen).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores a duplicate event.created (same event_id)", () => {
+    const qc = new QueryClient();
+    const seen = vi.fn();
+    applyMessage(qc, { type: "event.created", data: event() }, seen);
+    applyMessage(qc, { type: "event.created", data: event() }, seen);
+    applyMessage(qc, { type: "event.created", data: event({ event_id: "e2" }) }, seen);
+    expect(seen.mock.calls.map(([e]) => e.event_id)).toEqual(["e1", "e2"]);
   });
 });
 
-describe("query strings", () => {
-  it("only includes the filters that are set", () => {
+describe("route", () => {
+  it("reads the page and camera from the hash", () => {
+    expect(parseHash("#/monitoring/2")).toEqual({ page: "monitoring", cameraId: 2 });
+    expect(parseHash("#/events")).toEqual({ page: "events", cameraId: null });
+  });
+  it("falls back to the dashboard for nothing or nonsense", () => {
+    expect(parseHash("")).toEqual({ page: "dashboard", cameraId: null });
+    expect(parseHash("#/nope/abc")).toEqual({ page: "dashboard", cameraId: null });
+  });
+});
+
+describe("formatting", () => {
+  it("only includes the filters that are set in the query string", () => {
     expect(eventsQuery({ limit: 25, offset: 0 })).toBe("limit=25&offset=0");
     const q = new URLSearchParams(eventsQuery({ cameraId: 2, status: "new", from: "a", to: "b", limit: 5, offset: 10 }));
     expect([q.get("camera_id"), q.get("status"), q.get("from"), q.get("to"), q.get("offset")]).toEqual(["2", "new", "a", "b", "10"]);
@@ -120,5 +152,10 @@ describe("query strings", () => {
     const next = new Date(localDayStart("2026-03-01", 1)!);
     expect([start.getDate(), start.getHours()]).toEqual([1, 0]);
     expect([next.getDate(), next.getHours()]).toEqual([2, 0]);
+  });
+  it("describes how long ago something happened", () => {
+    const now = Date.parse("2026-11-02T10:00:00Z");
+    const ago = (s: number) => relativeTime(new Date(now - s * 1000).toISOString(), now);
+    expect([ago(1), ago(30), ago(300), ago(7200)]).toEqual(["just now", "30 s ago", "5 min ago", "2 h ago"]);
   });
 });
