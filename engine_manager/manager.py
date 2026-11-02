@@ -63,6 +63,8 @@ class ManagerConfig:
             "--absence-timeout", str(config.ABSENCE_TIMEOUT),
             "--fps-interval", "0",
         ]
+        if config.ENGINE_HEARTBEAT_URL:
+            args += ["--heartbeat-url", config.ENGINE_HEARTBEAT_URL]
         if config.ENABLE_SNAPSHOT:
             args += ["--snapshot-dir", str(Path(config.SNAPSHOT_DIR).resolve())]
         args += shlex.split(config.ENGINE_EXTRA_ARGS)

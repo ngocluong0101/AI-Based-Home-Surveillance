@@ -12,7 +12,8 @@ from sqlalchemy.orm import Session
 
 from backend.db import get_db
 from backend.models import Event
-from backend.schemas import EventIn
+from backend.heartbeats import CameraBeat
+from backend.schemas import EventIn, HeartbeatIn
 
 router = APIRouter(prefix="/internal", tags=["internal"])
 log = logging.getLogger(__name__)
@@ -59,3 +60,14 @@ def post_event(body: EventIn, response: Response, db: Session = Depends(get_db))
     if not inserted:
         response.status_code = 200
     return {"event_id": str(body.event_id), "duplicate": not inserted}
+
+
+@router.post("/heartbeat", status_code=204, dependencies=[Depends(require_token)])
+def post_heartbeat(body: HeartbeatIn, request: Request) -> Response:
+    """The engine says it is alive and what each of its cameras is doing (ROADMAP 3.6). Kept in memory
+    for GET /api/cameras/{id}/status; nothing is stored. A camera listed twice keeps its last entry."""
+    request.app.state.heartbeats.update(
+        body.run_id,
+        {c.camera_id: CameraBeat(c.state, c.fps, c.last_frame_age) for c in body.cameras},
+    )
+    return Response(status_code=204)

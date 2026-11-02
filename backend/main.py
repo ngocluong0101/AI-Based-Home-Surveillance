@@ -13,6 +13,7 @@ from fastapi import FastAPI
 
 from backend.db import make_engine, make_session_factory
 from backend.engine_client import EngineClient
+from backend.heartbeats import HeartbeatStore
 from backend.reconciler import Reconciler
 from backend.routers import cameras, events, health, internal
 from backend.settings import Settings
@@ -39,6 +40,7 @@ def create_app(settings: Settings | None = None, engine_client: EngineClient | N
     app.state.settings = settings
     app.state.engine = make_engine(settings.database_url)   # connects lazily, on the first request
     app.state.session_factory = make_session_factory(app.state.engine)
+    app.state.heartbeats = HeartbeatStore(settings.heartbeat_stale_after)
 
     # Without an engine manager the start/stop endpoints still record what should run.
     if engine_client is None and settings.engine_manager_url:

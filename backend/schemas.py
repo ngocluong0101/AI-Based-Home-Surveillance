@@ -105,12 +105,23 @@ class EngineInfo(BaseModel):
     last_exit_code: int | None = None
 
 
+class StreamInfo(BaseModel):
+    """What the engine itself says about the camera, from its heartbeat (ROADMAP 3.6)."""
+
+    reporting: bool   # a recent heartbeat names this camera; False = the engine is down, still starting, or not serving it
+    state: Literal["RUNNING", "RECONNECTING"] | None = None
+    fps: float | None = None
+    last_frame_age: float | None = None   # seconds without a frame, as of the heartbeat
+    heartbeat_age: float | None = None    # seconds since that heartbeat arrived; None = the engine never reported
+
+
 class CameraStatus(BaseModel):
     camera_id: int
     enabled: bool
     desired_state: Literal["running", "stopped"]
     should_run: bool   # enabled and desired_state is running
     engine: EngineInfo
+    stream: StreamInfo
 
 
 class EventIn(BaseModel):
@@ -136,6 +147,25 @@ class EventIn(BaseModel):
         if not all(0.0 <= v <= 1.0 for v in value):
             raise ValueError("bbox values are relative to the frame and must be between 0 and 1")
         return value
+
+
+class HeartbeatCameraIn(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    camera_id: int = Field(ge=0, le=2**31 - 1)
+    state: Literal["RUNNING", "RECONNECTING"]
+    fps: float = Field(ge=0, le=1e9)
+    last_frame_age: float = Field(ge=0, le=1e9)
+
+
+class HeartbeatIn(BaseModel):
+    """What the engine POSTs every few seconds: one per process, all its cameras (ROADMAP 3.6)."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    schema_version: Literal[1]
+    run_id: uuid.UUID
+    cameras: list[HeartbeatCameraIn] = Field(max_length=1024)
 
 
 class EventOut(BaseModel):

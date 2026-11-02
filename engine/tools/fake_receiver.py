@@ -8,6 +8,7 @@ answers with 2xx to --log (one JSON event per line), and can misbehave on purpos
   --status CODE       answer with this HTTP status instead of 200 ...
   --status-for SEC    ... but only for the first SEC seconds after start, then answer 200
   --token TOKEN       answer 401 unless the request carries the header X-Internal-Token: TOKEN
+  --heartbeat-log F   also accept POST /internal/heartbeat and append each body to F
 
 Not part of the product: an offline test tool.
 """
@@ -27,6 +28,7 @@ def main() -> int:
     ap.add_argument("--status-for", type=float, default=None)
     ap.add_argument("--token", default=None)
     ap.add_argument("--log", required=True, help="file that receives the accepted events")
+    ap.add_argument("--heartbeat-log", default=None, help="file that receives the heartbeats (else /internal/heartbeat is 404)")
     args = ap.parse_args()
 
     started = time.monotonic()
@@ -44,7 +46,8 @@ def main() -> int:
             status = args.status if failing else 200
             if args.token is not None and self.headers.get("X-Internal-Token") != args.token:
                 status = 401
-            if self.path != "/internal/events":
+            is_heartbeat = args.heartbeat_log is not None and self.path == "/internal/heartbeat"
+            if self.path != "/internal/events" and not is_heartbeat:
                 status = 404
             if status == 200:
                 try:
@@ -55,7 +58,7 @@ def main() -> int:
                 counts["requests"] += 1
                 if status == 200:
                     counts["accepted"] += 1
-                    with open(args.log, "ab") as f:
+                    with open(args.heartbeat_log if is_heartbeat else args.log, "ab") as f:
                         f.write(body.rstrip(b"\n") + b"\n")
             self.send_response(status)
             self.send_header("Content-Length", "2")

@@ -30,6 +30,7 @@
 #include "event_manager.h"
 #include "event_record.h"
 #include "event_spool.h"
+#include "heartbeat_record.h"
 #include "gstnvdsmeta.h"
 #include "nvbufsurface.h"
 #include "nvds_obj_encode.h"
@@ -80,6 +81,12 @@
 /* The worker wakes up this often even when no event arrives, to empty the spool once the backend
  * is back. */
 #define WORKER_IDLE_US G_USEC_PER_SEC
+
+/* Heartbeat (ROADMAP 3.6): how the backend learns that the engine is alive and what every camera is
+ * doing. Short timeouts: a heartbeat is worth nothing late, and the worker also has events to send. */
+#define HEARTBEAT_INTERVAL_DEFAULT_S 5
+#define HEARTBEAT_CONNECT_TIMEOUT_MS 1000
+#define HEARTBEAT_TIMEOUT_MS 2000
 
 /* How often the main loop looks for RTSP sources that stopped delivering frames. */
 #define WATCHDOG_INTERVAL_S 1
@@ -142,7 +149,7 @@ typedef struct {
     gboolean have_stream_start;
     guint64 event_count;   /* PERSON_DETECTED events emitted */
     guint64 event_errors;  /* frames dropped from event processing because memory ran out */
-    /* TODO(3.6): fps, last-frame time, state (RUNNING / RECONNECTING). */
+    guint64 hb_prev_frames;   /* frame_count at the previous heartbeat (main thread only) */
 } SourceCtx;
 
 typedef struct AppCtx {
@@ -180,6 +187,14 @@ typedef struct AppCtx {
     _Atomic guint64 snapshot_bytes_queued; /* JPEG bytes waiting in the queue */
     guint64 snapshot_block_us;             /* probe only: time in nvds_obj_enc_finish(), total */
     guint64 snapshot_block_max_us;
+    /* Heartbeat (ROADMAP 3.6): the main loop builds it (that is where the source states live) and
+     * the worker POSTs it, on a handle of its own so that it never disturbs the event connection. */
+    gint64 hb_prev_us;                    /* main thread: monotonic time of the previous heartbeat */
+    _Atomic gboolean heartbeat_pending;   /* one is queued or being sent; the next tick is skipped */
+    CURL *hb_curl;                        /* worker only */
+    gboolean hb_failing;                  /* worker only: the last one was refused (reported once) */
+    _Atomic guint64 heartbeats_sent;
+    _Atomic guint64 heartbeats_failed;
 } AppCtx;
 
 static gchar **opt_cameras = NULL;
@@ -192,6 +207,8 @@ static gchar *opt_snapshot_dir = NULL;
 static gint opt_snapshot_quality = SNAPSHOT_QUALITY_DEFAULT;
 static gchar *opt_backend_url = NULL;
 static gchar *opt_spool_file = NULL;
+static gchar *opt_heartbeat_url = NULL;
+static gint opt_heartbeat_interval = HEARTBEAT_INTERVAL_DEFAULT_S;
 static gint opt_rtsp_timeout = RTSP_TIMEOUT_DEFAULT_S;
 static gdouble opt_absence_timeout = 10.0;  /* same default as ABSENCE_TIMEOUT in src/config */
 
@@ -208,6 +225,11 @@ static GOptionEntry option_entries[] = {
     { "spool-file", 0, 0, G_OPTION_ARG_FILENAME, &opt_spool_file,
       "JSON-lines file where events wait while the backend cannot be reached; delivered when it "
       "is back, also after a restart of the engine", "FILE" },
+    { "heartbeat-url", 0, 0, G_OPTION_ARG_STRING, &opt_heartbeat_url,
+      "POST the state of every camera as JSON to this URL (e.g. http://127.0.0.1:8000/internal/heartbeat) "
+      "each --heartbeat-interval seconds. Needs --backend-url; uses the same DS_ENGINE_TOKEN", "URL" },
+    { "heartbeat-interval", 0, 0, G_OPTION_ARG_INT, &opt_heartbeat_interval,
+      "Seconds between two heartbeats, 1-3600 (default 5)", "SEC" },
     { "rtsp-timeout", 0, 0, G_OPTION_ARG_INT, &opt_rtsp_timeout,
       "Seconds without a frame after which an RTSP camera is switched off and on again, 0 = only "
       "react to errors (default 10)", "SEC" },
@@ -401,6 +423,9 @@ static void print_stats(const AppCtx *app)
         g_print("backend spooled=%" G_GUINT64_FORMAT " rejected=%" G_GUINT64_FORMAT " lost=%"
                 G_GUINT64_FORMAT "\n", (guint64)app->events_spooled, (guint64)app->events_rejected,
                 (guint64)app->events_lost);
+    if (opt_heartbeat_url != NULL)
+        g_print("heartbeat sent=%" G_GUINT64_FORMAT " failed=%" G_GUINT64_FORMAT "\n",
+                (guint64)app->heartbeats_sent, (guint64)app->heartbeats_failed);
     if (opt_snapshot_dir != NULL)
         g_print("snapshots written=%" G_GUINT64_FORMAT " failed=%" G_GUINT64_FORMAT
                 " events_with_snapshot=%" G_GUINT64_FORMAT " probe_blocked_ms total=%.1f max=%.1f\n",
@@ -586,7 +611,7 @@ static size_t extract_person_detections(const NvDsFrameMeta *frame_meta, Detecti
 }
 
 /* What travels through the queue to the publisher thread. */
-typedef enum { ITEM_EVENT, ITEM_SNAPSHOT, ITEM_STOP } ItemKind;
+typedef enum { ITEM_EVENT, ITEM_SNAPSHOT, ITEM_HEARTBEAT, ITEM_STOP } ItemKind;
 
 typedef struct {
     ItemKind kind;
@@ -594,6 +619,7 @@ typedef struct {
     gchar *snapshot_name;  /* ITEM_SNAPSHOT: file name inside --snapshot-dir */
     guint8 *jpeg;          /* ITEM_SNAPSHOT: the encoded image */
     gsize jpeg_len;
+    gchar *heartbeat_json; /* ITEM_HEARTBEAT: the body to POST */
 } QueueItem;
 
 /* Pushed after the last item to stop the worker (g_async_queue_push() refuses NULL). */
@@ -603,6 +629,7 @@ static void queue_item_free(QueueItem *item)
 {
     g_free(item->snapshot_name);
     g_free(item->jpeg);
+    g_free(item->heartbeat_json);
     g_free(item);
 }
 
@@ -861,6 +888,40 @@ static void deliver_event(AppCtx *app, const char *json)
     spool_event(app, json);
 }
 
+/* POST one heartbeat. Unlike an event it is never spooled or retried (a late one is worthless; the
+ * next comes in a few seconds) and it does not touch the backoff of the event path: the backend can
+ * answer heartbeats while its database refuses events. Only the first failure after a success is
+ * logged. */
+static void send_heartbeat(AppCtx *app, const char *json)
+{
+    gint64 deadline = atomic_load_explicit(&app->shutdown_deadline_us, memory_order_relaxed);
+    if (app->hb_curl == NULL || deadline != 0)   /* shutting down: the engine is going away anyway */
+        return;
+
+    curl_easy_setopt(app->hb_curl, CURLOPT_POSTFIELDS, json);
+    curl_easy_setopt(app->hb_curl, CURLOPT_POSTFIELDSIZE, (long)strlen(json));
+    CURLcode rc = curl_easy_perform(app->hb_curl);
+    long status = 0;
+    if (rc == CURLE_OK)
+        curl_easy_getinfo(app->hb_curl, CURLINFO_RESPONSE_CODE, &status);
+
+    if (rc == CURLE_OK && status >= 200 && status < 300) {
+        atomic_fetch_add_explicit(&app->heartbeats_sent, 1, memory_order_relaxed);
+        if (app->hb_failing)
+            g_printerr("Heartbeat accepted again\n");
+        app->hb_failing = FALSE;
+        return;
+    }
+    atomic_fetch_add_explicit(&app->heartbeats_failed, 1, memory_order_relaxed);
+    if (!app->hb_failing) {
+        if (rc != CURLE_OK)
+            g_printerr("Heartbeat not delivered: %s\n", curl_easy_strerror(rc));
+        else
+            g_printerr("Heartbeat refused (HTTP %ld)\n", status);
+    }
+    app->hb_failing = TRUE;
+}
+
 /* Worker thread: takes items off the queue until it gets publisher_stop_item. A snapshot item
  * always comes before the events that name it, so the file is on disk before the event goes out.
  * The probe never waits for any of this: a slow or dead backend only slows this thread down. */
@@ -880,7 +941,10 @@ static gpointer publisher_thread(gpointer data)
         if (item->kind == ITEM_STOP)
             break;
 
-        if (item->kind == ITEM_SNAPSHOT) {
+        if (item->kind == ITEM_HEARTBEAT) {
+            send_heartbeat(app, item->heartbeat_json);
+            atomic_store_explicit(&app->heartbeat_pending, FALSE, memory_order_release);
+        } else if (item->kind == ITEM_SNAPSHOT) {
             atomic_fetch_sub_explicit(&app->snapshot_bytes_queued, item->jpeg_len,
                                       memory_order_relaxed);
             if (write_snapshot(item)) {
@@ -911,6 +975,22 @@ static gpointer publisher_thread(gpointer data)
     return NULL;
 }
 
+/* A POST of JSON to `url` with the shared headers; the same settings for events and heartbeats. */
+static void configure_handle(const AppCtx *app, CURL *handle, const char *url, long connect_ms,
+                             long total_ms)
+{
+    curl_easy_setopt(handle, CURLOPT_URL, url);
+    curl_easy_setopt(handle, CURLOPT_POST, 1L);
+    curl_easy_setopt(handle, CURLOPT_HTTPHEADER, app->curl_headers);
+    curl_easy_setopt(handle, CURLOPT_CONNECTTIMEOUT_MS, connect_ms);
+    curl_easy_setopt(handle, CURLOPT_TIMEOUT_MS, total_ms);
+    curl_easy_setopt(handle, CURLOPT_NOSIGNAL, 1L);          /* we call it from a thread */
+    curl_easy_setopt(handle, CURLOPT_FOLLOWLOCATION, 0L);
+    curl_easy_setopt(handle, CURLOPT_WRITEFUNCTION, discard_body);
+}
+
+static void delivery_free(AppCtx *app);
+
 /* Everything the worker needs for the HTTP side: libcurl handle (kept alive between events, so the
  * connection is reused) and the spool. Returns FALSE with a message if it cannot be set up. */
 static gboolean delivery_init(AppCtx *app)
@@ -937,14 +1017,17 @@ static gboolean delivery_init(AppCtx *app)
         app->curl_headers = curl_slist_append(app->curl_headers, header);   /* curl copies it */
         g_free(header);
     }
-    curl_easy_setopt(app->curl, CURLOPT_URL, opt_backend_url);
-    curl_easy_setopt(app->curl, CURLOPT_POST, 1L);
-    curl_easy_setopt(app->curl, CURLOPT_HTTPHEADER, app->curl_headers);
-    curl_easy_setopt(app->curl, CURLOPT_CONNECTTIMEOUT_MS, (long)HTTP_CONNECT_TIMEOUT_MS);
-    curl_easy_setopt(app->curl, CURLOPT_TIMEOUT_MS, (long)HTTP_TIMEOUT_MS);
-    curl_easy_setopt(app->curl, CURLOPT_NOSIGNAL, 1L);          /* we call it from a thread */
-    curl_easy_setopt(app->curl, CURLOPT_FOLLOWLOCATION, 0L);
-    curl_easy_setopt(app->curl, CURLOPT_WRITEFUNCTION, discard_body);
+    configure_handle(app, app->curl, opt_backend_url, HTTP_CONNECT_TIMEOUT_MS, HTTP_TIMEOUT_MS);
+    if (opt_heartbeat_url != NULL) {
+        app->hb_curl = curl_easy_init();
+        if (app->hb_curl == NULL) {
+            g_printerr("Could not initialise libcurl\n");
+            delivery_free(app);
+            return FALSE;
+        }
+        configure_handle(app, app->hb_curl, opt_heartbeat_url, HEARTBEAT_CONNECT_TIMEOUT_MS,
+                         HEARTBEAT_TIMEOUT_MS);
+    }
     return TRUE;
 }
 
@@ -953,6 +1036,9 @@ static void delivery_free(AppCtx *app)
     if (app->curl != NULL)
         curl_easy_cleanup(app->curl);
     app->curl = NULL;
+    if (app->hb_curl != NULL)
+        curl_easy_cleanup(app->hb_curl);
+    app->hb_curl = NULL;
     curl_slist_free_all(app->curl_headers);
     app->curl_headers = NULL;
     event_spool_close(app->spool);
@@ -1120,6 +1206,48 @@ static gboolean report_fps(gpointer data)
                 source_state_name(src->state));
         src->fps_prev_frames = now;
     }
+    return G_SOURCE_CONTINUE;
+}
+
+/* Timer on the main loop (ROADMAP 3.6): the state of every camera, handed to the worker to POST.
+ * Everything is read here, on the main thread, because the source states live here. A tick is
+ * skipped while the previous heartbeat is still waiting, so a slow backend never gets a pile of
+ * stale ones (the frame rate of the next one then covers the longer span). */
+static gboolean heartbeat_tick(gpointer data)
+{
+    AppCtx *app = (AppCtx *)data;
+
+    if (atomic_load_explicit(&app->heartbeat_pending, memory_order_acquire))
+        return G_SOURCE_CONTINUE;
+
+    gint64 now = g_get_monotonic_time();
+    double seconds = (double)(now - app->hb_prev_us) / G_USEC_PER_SEC;
+    HeartbeatCamera *cameras = g_new0(HeartbeatCamera, app->num_sources);
+
+    for (guint i = 0; i < app->num_sources; i++) {
+        SourceCtx *src = &app->sources[i];
+        guint64 frames = atomic_load_explicit(&src->frame_count, memory_order_relaxed);
+        gint64 last = atomic_load_explicit(&src->last_frame_us, memory_order_relaxed);
+        cameras[i].camera_id = src->camera_id;
+        g_strlcpy(cameras[i].state, source_state_name(src->state), sizeof(cameras[i].state));
+        cameras[i].fps = seconds > 0.0 ? (double)(frames - src->hb_prev_frames) / seconds : 0.0;
+        cameras[i].last_frame_age = (double)(now - last) / G_USEC_PER_SEC;
+        src->hb_prev_frames = frames;
+    }
+    app->hb_prev_us = now;
+
+    size_t cap = heartbeat_json_capacity(app->num_sources);
+    QueueItem *item = g_new0(QueueItem, 1);
+    item->kind = ITEM_HEARTBEAT;
+    item->heartbeat_json = g_malloc(cap);
+    if (heartbeat_to_json(app->pipeline_run_id, cameras, app->num_sources, item->heartbeat_json,
+                          cap) < 0) {
+        queue_item_free(item);   /* cannot happen: cap is sized for it */
+    } else {
+        atomic_store_explicit(&app->heartbeat_pending, TRUE, memory_order_release);
+        g_async_queue_push(app->event_queue, item);
+    }
+    g_free(cameras);
     return G_SOURCE_CONTINUE;
 }
 
@@ -1355,6 +1483,22 @@ int main(int argc, char *argv[])
         return EXIT_BAD_ARGS;
     }
 
+    if (opt_heartbeat_url != NULL && opt_backend_url == NULL) {
+        g_printerr("--heartbeat-url needs --backend-url (the heartbeat goes to the same backend)\n");
+        g_ptr_array_free(specs, TRUE);
+        return EXIT_BAD_ARGS;
+    }
+    if (opt_heartbeat_url != NULL && !g_str_has_prefix(opt_heartbeat_url, "http://") &&
+        !g_str_has_prefix(opt_heartbeat_url, "https://")) {
+        g_printerr("--heartbeat-url must start with http:// or https://\n");
+        g_ptr_array_free(specs, TRUE);
+        return EXIT_BAD_ARGS;
+    }
+    if (opt_heartbeat_interval < 1 || opt_heartbeat_interval > 3600) {
+        g_printerr("--heartbeat-interval must be between 1 and 3600 seconds\n");
+        g_ptr_array_free(specs, TRUE);
+        return EXIT_BAD_ARGS;
+    }
     if (opt_rtsp_timeout < 0 || opt_rtsp_timeout > 3600) {
         g_printerr("--rtsp-timeout must be between 0 and 3600 seconds\n");
         g_ptr_array_free(specs, TRUE);
@@ -1413,10 +1557,14 @@ int main(int argc, char *argv[])
             g_printerr("Could not set the pipeline to PLAYING\n");
             app.exit_code = 1;
         } else {
-            guint fps_timer_id = 0, watchdog_id = 0;
+            guint fps_timer_id = 0, watchdog_id = 0, heartbeat_id = 0;
             if (opt_fps_interval > 0)
                 fps_timer_id = g_timeout_add_seconds((guint)opt_fps_interval, report_fps, &app);
             app.start_us = g_get_monotonic_time();
+            if (opt_heartbeat_url != NULL) {
+                app.hb_prev_us = app.start_us;
+                heartbeat_id = g_timeout_add_seconds((guint)opt_heartbeat_interval, heartbeat_tick, &app);
+            }
             for (guint i = 0; i < app.num_sources; i++) {   /* the clock of the "no frames" check */
                 atomic_store_explicit(&app.sources[i].last_frame_us, app.start_us,
                                       memory_order_relaxed);
@@ -1433,6 +1581,8 @@ int main(int argc, char *argv[])
                 g_source_remove(fps_timer_id);
             if (watchdog_id != 0)
                 g_source_remove(watchdog_id);
+            if (heartbeat_id != 0)
+                g_source_remove(heartbeat_id);
 
         }
 
@@ -1456,6 +1606,7 @@ int main(int argc, char *argv[])
     g_free(opt_snapshot_dir);
     g_free(opt_backend_url);
     g_free(opt_spool_file);
+    g_free(opt_heartbeat_url);
     curl_global_cleanup();
     return app.exit_code;
 }

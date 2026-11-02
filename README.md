@@ -117,6 +117,7 @@ uvicorn backend.main:create_app --factory --host 0.0.0.0 --port 8000     # API d
 | `GET /api/events` | newest first. Filters `camera_id`, `from` (inclusive), `to` (exclusive), `type`, `status`; pagination `limit` (1-200, default 50) and `offset`; answers `{items, total, limit, offset}` |
 | `GET /api/events/{id}`, `GET /api/events/{id}/snapshot` | one event; its JPEG from `SNAPSHOT_DIR` (404 when the event has none or the cleaner removed the file) |
 | `POST /internal/events` | for the engine, not for browsers. Idempotent on `event_id`: 201 stored, 200 already had it, 422 can never be stored (unknown camera, bad values), which makes the engine drop it instead of retrying. With `INTERNAL_TOKEN` set it needs the header `X-Internal-Token`. |
+| `POST /internal/heartbeat` | for the engine too: every few seconds it says which cameras it serves and what each is doing (`{"schema_version":1,"run_id":...,"cameras":[{"camera_id","state":"RUNNING"\|"RECONNECTING","fps","last_frame_age"}]}`). 204 on success, 422 for a malformed body. Kept in memory only (nothing is stored) and shown by `GET /api/cameras/{id}/status`; the same token rule as for events. |
 
 Run the engine against it with `--backend-url http://HOST:8000/internal/events --spool-file FILE --snapshot-dir DIR`, where
 `DIR` is the backend's `SNAPSHOT_DIR` (same machine for now). When `INTERNAL_TOKEN` is set, give the engine the same value in
@@ -137,7 +138,7 @@ uvicorn engine_manager.service:create_app --factory --host 127.0.0.1 --port 8100
 | Backend endpoint | |
 |---|---|
 | `POST /api/cameras/{id}/start`, `POST .../stop` | record that the camera should (not) run. A disabled camera cannot be started (409). The answer comes at once; the engine is (re)started in the background, a few seconds later |
-| `GET /api/cameras/{id}/status` | `desired_state`, `should_run`, and `engine`: whether the manager is reachable, the state of the engine process (`stopped`, `running`, `stopping`, `backoff`, `exited`), `in_engine` (the running process serves this camera), `applied` (the manager has the current list), `starts`, `last_exit_code` |
+| `GET /api/cameras/{id}/status` | `desired_state`, `should_run`, and `engine`: whether the manager is reachable, the state of the engine process (`stopped`, `running`, `stopping`, `backoff`, `exited`), `in_engine` (the running process serves this camera), `applied` (the manager has the current list), `starts`, `last_exit_code`; and `stream`, what the engine itself reports in its heartbeat: `reporting` (a heartbeat no older than `HEARTBEAT_STALE_AFTER`, default 15 s, names this camera), `state` (`RUNNING` or `RECONNECTING`), `fps`, `last_frame_age` (seconds without a frame), `heartbeat_age`. `reporting: false` means the engine is down, still starting, or not serving the camera; the other fields are then empty |
 
 How it works. The database says which cameras should run (enabled, not deleted, `desired_state = running`). A background thread in
 the backend compares that list with the one the manager reports (by a hash) and pushes it when they differ, right after a camera
@@ -182,7 +183,7 @@ The test suite contains:
 - `tests/test_person_detected_event_manager.py`: the `PERSON_DETECTED` de-duplication logic.
 - `tests/test_event_manager_vectors.py`: the shared event manager vectors (see above).
 - `tests/test_env_file.py`: reading and writing `.env`, using temporary files only.
-- `tests/backend_api/`: the backend (cameras, events, the internal endpoint, health, migrations, start/stop and the reconciler) against a throwaway PostgreSQL.
+- `tests/backend_api/`: the backend (cameras, events, the internal endpoints, heartbeat, health, migrations, start/stop and the reconciler) against a throwaway PostgreSQL.
 - `tests/engine_manager_tests/`: the engine manager, with a stand-in program for the engine.
 
 The tests need no camera, model, network or display; the backend tests need the PostgreSQL server programs installed
@@ -225,7 +226,9 @@ meantime every event is appended to the spool file (one JSON per line, flushed t
 the file. Once the backend answers again the spool is emptied oldest first, also after a restart of the engine; the backend
 must ignore an event it already has (same `event_id`). When the engine stops it keeps trying for at most 10 s; what is left
 stays in the spool. Errors are logged without the URL. The snapshot files are not sent: the JSON only names the file.
-The test backend `engine/tools/fake_receiver.py` can answer slowly (`--delay`) or with an error (`--status`, `--status-for`).
+The test backend `engine/tools/fake_receiver.py` can answer slowly (`--delay`) or with an error (`--status`, `--status-for`), and with `--heartbeat-log FILE` also takes the heartbeats.
+
+Heartbeat. With `--heartbeat-url URL` (needs `--backend-url`; same `DS_ENGINE_TOKEN`) the engine POSTs the state of every camera each `--heartbeat-interval` seconds (default 5): `RUNNING` or `RECONNECTING`, the frame rate over the last interval, and the seconds since the last frame. The main loop builds it (that is where the source states live) and the publisher thread sends it on a connection of its own, with shorter timeouts (1 s to connect, 2 s in all). It is never spooled or retried, since a late heartbeat is worth nothing, and it does not take part in the back-off of the events: the backend may answer heartbeats while its database refuses events. A tick is skipped while the previous heartbeat is still waiting. Only the first failure after a success is logged; the totals are in the line `heartbeat sent=... failed=...`.
 
 Prepare the model once. On the host, export YOLOv8n to ONNX (the file is git-ignored):
 
@@ -291,6 +294,7 @@ Options:
 - `--snapshot-quality Q`: JPEG quality 1-100 (default 85).
 - `--backend-url URL`: POST every event as JSON to URL (e.g. `http://127.0.0.1:8000/internal/events`); must be given together with `--spool-file`. Without both, events are printed on stdout.
 - `--spool-file FILE`: JSON-lines file in which events wait while the backend cannot be reached (at most 256 MB, then events are lost and counted as `lost=`).
+- `--heartbeat-url URL`: POST the state of every camera to URL (e.g. `http://127.0.0.1:8000/internal/heartbeat`) every `--heartbeat-interval` seconds (1-3600, default 5); needs `--backend-url`. Off without it.
 - `--absence-timeout SEC`: how long a person must be out of sight before the same track ID raises a new event (default 10, same as `ABSENCE_TIMEOUT`).
 - `--fps-interval SEC`: how often the frame rate of each source is printed (default 5, 0 turns it off).
 - `--tracker-config FILE`: the `nvtracker` low-level config (required), `configs/tracker_nvdcf.yml` for NvDCF. The values in
@@ -318,7 +322,7 @@ To try it without a camera, build the fake RTSP server inside the DeepStream con
 rtsp-test-server`), serve a video with `build/rtsp_test_server FILE.mp4 8554 /cam`, point `--camera 1=rtsp://127.0.0.1:8554/cam`
 at it, and stop and start the server, or pause it with `kill -STOP`, to make the camera disappear.
 
-Run the tests of the pure-C code (`engine/src/core/`: the `Detection` box normalisation, the event manager, which replays the shared vectors of `tests/vectors/`, the event JSON, the spool file and the retry delays) on the host, no
+Run the tests of the pure-C code (`engine/src/core/`: the `Detection` box normalisation, the event manager, which replays the shared vectors of `tests/vectors/`, the event JSON, the heartbeat JSON, the spool file and the retry delays) on the host, no
 DeepStream or GPU needed; built with AddressSanitizer and UBSan:
 
 ```bash

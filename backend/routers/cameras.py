@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from dataclasses import asdict
+
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -11,7 +13,7 @@ from backend.db import get_db
 from backend.engine_client import EngineManagerError
 from backend.models import Camera
 from backend.reconciler import desired_cameras, revision_of
-from backend.schemas import CameraCreate, CameraOut, CameraStatus, CameraUpdate, EngineInfo
+from backend.schemas import CameraCreate, CameraOut, CameraStatus, CameraUpdate, EngineInfo, StreamInfo
 
 router = APIRouter(prefix="/api/cameras", tags=["cameras"])
 
@@ -101,8 +103,9 @@ def _status(request: Request, db: Session, camera: Camera) -> CameraStatus:
                 starts=st["starts"],
                 last_exit_code=st["last_exit_code"],
             )
+    stream = StreamInfo(**asdict(request.app.state.heartbeats.health(camera.id)))
     return CameraStatus(camera_id=camera.id, enabled=camera.enabled, desired_state=camera.desired_state,
-                        should_run=should_run, engine=engine)
+                        should_run=should_run, engine=engine, stream=stream)
 
 
 def _set_desired(request: Request, db: Session, camera_id: int, state: str) -> CameraStatus:

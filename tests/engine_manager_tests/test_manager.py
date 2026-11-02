@@ -216,3 +216,33 @@ def test_bad_uris_are_refused_before_anything_changes(make_manager):
     with pytest.raises(ValueError):
         m.set_cameras([cam(1, "rtsp://h/x\ny")])
     assert m.status()["desired_cameras"] == []
+
+
+def test_from_env_passes_the_heartbeat_url_to_the_engine(monkeypatch):
+    from src import config
+
+    monkeypatch.setattr(config, "ENGINE_HEARTBEAT_URL", "http://127.0.0.1:8000/internal/heartbeat")
+    args = ManagerConfig.from_env().engine_args
+    assert args[args.index("--heartbeat-url") + 1] == "http://127.0.0.1:8000/internal/heartbeat"
+
+    monkeypatch.setattr(config, "ENGINE_HEARTBEAT_URL", "")   # no heartbeat wanted
+    assert "--heartbeat-url" not in ManagerConfig.from_env().engine_args
+
+
+def test_the_heartbeat_url_follows_the_events_url_by_default():
+    import importlib
+    import os
+    from unittest import mock
+
+    from src import config
+
+    env = {"ENGINE_BACKEND_URL": "http://10.0.0.5:9000/internal/events", "ENGINE_HEARTBEAT_URL": ""}
+    try:
+        with mock.patch.dict(os.environ, env):
+            importlib.reload(config)
+            assert config.ENGINE_HEARTBEAT_URL == "http://10.0.0.5:9000/internal/heartbeat"
+        with mock.patch.dict(os.environ, {"ENGINE_BACKEND_URL": "http://10.0.0.5:9000/other", "ENGINE_HEARTBEAT_URL": ""}):
+            importlib.reload(config)
+            assert config.ENGINE_HEARTBEAT_URL == ""   # cannot guess where it would be
+    finally:
+        importlib.reload(config)

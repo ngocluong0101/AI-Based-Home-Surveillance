@@ -66,11 +66,18 @@ ENGINE_CONFIG: str = os.getenv("ENGINE_CONFIG") or "engine/configs/pgie_yolov8n.
 ENGINE_TRACKER_CONFIG: str = os.getenv("ENGINE_TRACKER_CONFIG") or "engine/configs/tracker_nvdcf.yml"
 ENGINE_RUNTIME_DIR: str = os.getenv("ENGINE_RUNTIME_DIR") or "data/run"
 ENGINE_BACKEND_URL: str = os.getenv("ENGINE_BACKEND_URL") or "http://127.0.0.1:8000/internal/events"
+# Where the engine POSTs its heartbeat; by default next to ENGINE_BACKEND_URL (empty = no heartbeat)
+_EVENTS_PATH = "/internal/events"
+ENGINE_HEARTBEAT_URL: str = os.getenv("ENGINE_HEARTBEAT_URL") or (
+    ENGINE_BACKEND_URL[: -len(_EVENTS_PATH)] + "/internal/heartbeat" if ENGINE_BACKEND_URL.endswith(_EVENTS_PATH) else ""
+)
 ENGINE_EXTRA_ARGS: str = os.getenv("ENGINE_EXTRA_ARGS") or ""
 # Where the backend finds the manager; unset = the backend does not manage an engine
 ENGINE_MANAGER_URL: Optional[str] = os.getenv("ENGINE_MANAGER_URL") or None
 
 # Typed values with defaults
+# Seconds after which a heartbeat of the engine no longer says anything about a camera (it sends one every 5)
+HEARTBEAT_STALE_AFTER: float = _parse_float(os.getenv("HEARTBEAT_STALE_AFTER"), 15.0)
 CONFIDENCE_THRESHOLD: float = _parse_float(os.getenv("CONFIDENCE_THRESHOLD"), 0.5)
 RECONNECT_DELAY: float = _parse_float(os.getenv("RECONNECT_DELAY"), 5.0)
 ABSENCE_TIMEOUT: float = _parse_float(os.getenv("ABSENCE_TIMEOUT"), 10.0)
@@ -103,6 +110,8 @@ __all__ = [
     "ENGINE_TRACKER_CONFIG",
     "ENGINE_RUNTIME_DIR",
     "ENGINE_BACKEND_URL",
+    "ENGINE_HEARTBEAT_URL",
+    "HEARTBEAT_STALE_AFTER",
     "ENGINE_EXTRA_ARGS",
     "ENGINE_MANAGER_URL",
     "CONFIDENCE_THRESHOLD",
