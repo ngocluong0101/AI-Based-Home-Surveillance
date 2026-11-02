@@ -1,0 +1,124 @@
+import { QueryClient } from "@tanstack/react-query";
+import { describe, expect, it } from "vitest";
+import { eventsQuery, type CameraStatus, type EventPage, type PersonEvent, type StreamInfo } from "./api";
+import { localDayStart } from "./format";
+import { healthOf, lastErrorOf } from "./health";
+import { applyMessage, liveKey, parseMessage } from "./realtime";
+
+const stream = (over: Partial<StreamInfo> = {}): StreamInfo => ({
+  reporting: true,
+  state: "RUNNING",
+  fps: 30,
+  last_frame_age: 0.03,
+  heartbeat_age: 1,
+  ...over,
+});
+
+const status = (over: Partial<CameraStatus["engine"]> = {}, should_run = true): CameraStatus => ({
+  camera_id: 1,
+  enabled: true,
+  desired_state: should_run ? "running" : "stopped",
+  should_run,
+  engine: { manager: "reachable", state: "running", in_engine: true, applied: true, starts: 1, last_exit_code: null, ...over },
+  stream: stream({ reporting: false, state: null, fps: null, last_frame_age: null, heartbeat_age: null }),
+});
+
+const event = (over: Partial<PersonEvent> = {}): PersonEvent => ({
+  event_id: "e1",
+  camera_id: 1,
+  pipeline_run_id: "r1",
+  type: "PERSON_DETECTED",
+  track_id: 7,
+  confidence: 0.9,
+  timestamp: "2026-11-02T10:00:00Z",
+  bbox: [0.1, 0.2, 0.3, 0.4],
+  snapshot_url: null,
+  status: "new",
+  notify_status: "pending",
+  ...over,
+});
+
+describe("healthOf", () => {
+  it("is Online for a running, reporting stream", () => {
+    expect(healthOf(status(), stream())).toEqual({ label: "Online", tone: "ok" });
+  });
+  it("shows Reconnecting from the heartbeat state", () => {
+    expect(healthOf(status(), stream({ state: "RECONNECTING", fps: 0 })).label).toBe("Reconnecting");
+  });
+  it("warns when a running stream stopped producing frames", () => {
+    expect(healthOf(status(), stream({ fps: 0, last_frame_age: 20 })).label).toBe("No frames");
+  });
+  it("is Stopped when the camera should not run and nothing reports", () => {
+    expect(healthOf(status({}, false), stream({ reporting: false })).label).toBe("Stopped");
+  });
+  it("is Starting while the engine has not reported yet", () => {
+    expect(healthOf(status(), stream({ reporting: false })).label).toBe("Starting");
+  });
+  it("flags a crashed engine and an unreachable manager", () => {
+    expect(healthOf(status({ state: "backoff" }), stream({ reporting: false })).tone).toBe("bad");
+    expect(healthOf(status({ manager: "unreachable" }), stream({ reporting: false })).label).toBe("Engine manager down");
+  });
+  it("is Unknown before the first status arrives", () => {
+    expect(healthOf(undefined, undefined).label).toBe("Unknown");
+  });
+});
+
+describe("lastErrorOf", () => {
+  it("has nothing to say for a healthy camera", () => {
+    expect(lastErrorOf(status(), stream())).toBeNull();
+  });
+  it("reports the exit code of a crashed engine", () => {
+    expect(lastErrorOf(status({ state: "backoff", last_exit_code: 1 }), stream({ reporting: false }))).toContain("code 1");
+  });
+  it("reports a camera that stopped sending frames", () => {
+    expect(lastErrorOf(status(), stream({ state: "RECONNECTING", last_frame_age: 12.4 }))).toContain("12 s");
+  });
+});
+
+describe("parseMessage", () => {
+  it("accepts the three message types", () => {
+    expect(parseMessage(JSON.stringify({ type: "camera.status", data: { camera_id: 1 } }))?.type).toBe("camera.status");
+  });
+  it("drops garbage and unknown types", () => {
+    expect(parseMessage("not json")).toBeNull();
+    expect(parseMessage(JSON.stringify({ type: "other", data: {} }))).toBeNull();
+    expect(parseMessage(JSON.stringify({ type: "event.created" }))).toBeNull();
+  });
+});
+
+describe("applyMessage", () => {
+  it("stores the pushed camera status by camera", () => {
+    const qc = new QueryClient();
+    applyMessage(qc, { type: "camera.status", data: { camera_id: 3, ...stream() } });
+    expect(qc.getQueryData<{ fps: number }>(liveKey(3))?.fps).toBe(30);
+  });
+  it("replaces an updated event in every cached page", () => {
+    const qc = new QueryClient();
+    const page: EventPage = { items: [event(), event({ event_id: "e2" })], total: 2, limit: 25, offset: 0 };
+    qc.setQueryData(["events", { limit: 25, offset: 0 }], page);
+    applyMessage(qc, { type: "event.updated", data: event({ status: "acknowledged" }) });
+    const after = qc.getQueryData<EventPage>(["events", { limit: 25, offset: 0 }])!;
+    expect(after.items.map((e) => e.status)).toEqual(["acknowledged", "new"]);
+  });
+  it("marks event lists stale when an event is created", () => {
+    const qc = new QueryClient();
+    qc.setQueryData(["events", { limit: 25, offset: 0 }], { items: [], total: 0, limit: 25, offset: 0 });
+    applyMessage(qc, { type: "event.created", data: event() });
+    expect(qc.getQueryState(["events", { limit: 25, offset: 0 }])?.isInvalidated).toBe(true);
+  });
+});
+
+describe("query strings", () => {
+  it("only includes the filters that are set", () => {
+    expect(eventsQuery({ limit: 25, offset: 0 })).toBe("limit=25&offset=0");
+    const q = new URLSearchParams(eventsQuery({ cameraId: 2, status: "new", from: "a", to: "b", limit: 5, offset: 10 }));
+    expect([q.get("camera_id"), q.get("status"), q.get("from"), q.get("to"), q.get("offset")]).toEqual(["2", "new", "a", "b", "10"]);
+  });
+  it("turns a date input into local midnight, and the end day into the next midnight", () => {
+    expect(localDayStart("")).toBeUndefined();
+    const start = new Date(localDayStart("2026-03-01")!);
+    const next = new Date(localDayStart("2026-03-01", 1)!);
+    expect([start.getDate(), start.getHours()]).toEqual([1, 0]);
+    expect([next.getDate(), next.getHours()]).toEqual([2, 0]);
+  });
+});

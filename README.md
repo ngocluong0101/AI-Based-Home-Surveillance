@@ -212,6 +212,27 @@ installed PostgreSQL, a unix socket in a temp directory, removed afterwards) and
 use another server set `TEST_DATABASE_URL` to a database whose name ends with `_test`: its tables are emptied before
 every test.
 
+## Frontend
+
+`frontend/` is a React + TypeScript + Vite app (TanStack Query for REST, one WebSocket for pushes). It has three pages:
+**Dashboard** (every camera with Online/Reconnecting/Stopped, FPS, last frame, people today, Start/Stop), **Monitoring**
+(camera selector, live WebRTC video with boxes and track IDs, pipeline status, last error, latest events) and **Events**
+(filters by camera, status and date, paging, snapshot with the detection box, Acknowledge). New events and camera state
+arrive through `WS /api/ws` without reloading; the "Live" badge in the header shows whether that socket is connected.
+
+```bash
+cd frontend
+npm install
+npm run dev          # http://localhost:5173, forwards /api (REST and WebSocket) to http://127.0.0.1:8000
+BACKEND_URL=http://192.168.1.20:8000 npm run dev   # backend elsewhere
+npm test             # unit tests (vitest)
+npm run build        # type-check, then bundle into frontend/dist
+```
+
+The browser only talks to one origin, so the backend needs no CORS setup; `npm run dev` does the forwarding. Live video needs
+MediaMTX and `MEDIAMTX_WEBRTC_URL` (see "Live video"); that URL must be reachable from the browser itself. Cameras are created
+with `POST /api/cameras` for now (the camera form is the next phase). The built `frontend/dist` is not served by the backend yet.
+
 ## Run the unit tests
 
 The project uses `pytest` (already in `requirements.txt`). Run it from the repository root:
