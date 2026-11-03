@@ -91,9 +91,12 @@ class Stack:
                     "PUBLIC_HOST=localhost\n")
         # the fake camera: the repository's rtsp_test_server (built by `make rtsp-test-server`), reachable from the
         # engine container as rtsp://fakecam:8554/cam; every client gets its own copy of the video from the start
+        # restart "no" everywhere: after a reboot the soak run is dead (it is a process on the host), and a stack that
+        # Docker brought back by itself would run on with nobody watching the disk
+        no_restart = "".join(f"  {svc}:\n    restart: 'no'\n" for svc in ("db", "mediamtx", "backend", "engine", "frontend"))
         self.override.write_text(
-            "services:\n  fakecam:\n"
-            f"    image: {IMAGE}\n    user: '1000:1000'\n    restart: unless-stopped\n"
+            "services:\n" + no_restart + "  fakecam:\n"
+            f"    image: {IMAGE}\n    user: '1000:1000'\n    restart: 'no'\n"
             "    entrypoint: ['/repo/engine/build/rtsp_test_server']\n"
             f"    command: ['/videos/{self.video.name}', '8554', '/cam']\n"
             "    environment: {RTSP_TEST_UNSHARED: '1', HOME: /tmp}\n"
