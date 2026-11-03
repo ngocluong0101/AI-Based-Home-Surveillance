@@ -49,7 +49,6 @@ def _parse_log_level(value: Optional[str], default: str) -> str:
 
 
 # Strings / secrets
-RTSP_URL: Optional[str] = os.getenv("RTSP_URL") or None
 TELEGRAM_BOT_TOKEN: Optional[str] = os.getenv("TELEGRAM_BOT_TOKEN") or None
 TELEGRAM_CHAT_ID: Optional[str] = os.getenv("TELEGRAM_CHAT_ID") or None
 # Backend (FastAPI): PostgreSQL URL (the password may also come from ~/.pgpass / PGPASSWORD) and the
@@ -86,8 +85,6 @@ ENGINE_MANAGER_URL: Optional[str] = os.getenv("ENGINE_MANAGER_URL") or None
 # Seconds an event may wait for its Telegram alert; after that it is marked failed instead of sent late
 NOTIFY_MAX_AGE: float = _parse_float(os.getenv("NOTIFY_MAX_AGE"), 600.0)
 HEARTBEAT_STALE_AFTER: float = _parse_float(os.getenv("HEARTBEAT_STALE_AFTER"), 15.0)
-CONFIDENCE_THRESHOLD: float = _parse_float(os.getenv("CONFIDENCE_THRESHOLD"), 0.5)
-RECONNECT_DELAY: float = _parse_float(os.getenv("RECONNECT_DELAY"), 5.0)
 ABSENCE_TIMEOUT: float = _parse_float(os.getenv("ABSENCE_TIMEOUT"), 10.0)
 
 ENABLE_TELEGRAM: bool = _parse_bool(os.getenv("ENABLE_TELEGRAM"), False)
@@ -108,7 +105,6 @@ SNAPSHOT_CLEANUP_INTERVAL: int = _parse_int(os.getenv("SNAPSHOT_CLEANUP_INTERVAL
 
 # Lightweight exports for convenience
 __all__ = [
-    "RTSP_URL",
     "TELEGRAM_BOT_TOKEN",
     "TELEGRAM_CHAT_ID",
     "DATABASE_URL",
@@ -126,8 +122,6 @@ __all__ = [
     "MEDIAMTX_WEBRTC_URL",
     "MEDIAMTX_PATH_PREFIX",
     "ENGINE_MANAGER_URL",
-    "CONFIDENCE_THRESHOLD",
-    "RECONNECT_DELAY",
     "ABSENCE_TIMEOUT",
     "ENABLE_TELEGRAM",
     "ENABLE_SNAPSHOT",

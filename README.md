@@ -114,6 +114,7 @@ takes only the ones marked *compose* from `.env`.
 | `ABSENCE_TIMEOUT` | `10` | seconds a person must be away before the same track raises a new event (*compose*) |
 | `ENABLE_SNAPSHOT`, `SNAPSHOT_DIR` | `true`, `data/snapshots` | the engine writes one JPEG per event frame here; the backend serves them from the same directory |
 | `SNAPSHOT_RETENTION_DAYS`, `SNAPSHOT_CLEANUP_INTERVAL` | `7`, `100` | snapshots older than this are deleted (and the events lose their picture); the cleanup runs every N new snapshots and at least hourly (*compose*: retention) |
+| `BACKUP_INTERVAL_SECONDS`, `BACKUP_KEEP`, `BACKUP_PATH` | `86400`, `7`, `../data/backups` | *compose* only: how often the database is dumped, how many dumps are kept, and the host directory they go to (relative to the compose file) |
 | `ENGINE_MANAGER_URL` | none = the backend only records the wanted state | where the backend finds the Engine manager |
 | `ENGINE_COMMAND`, `ENGINE_CONFIG`, `ENGINE_TRACKER_CONFIG`, `ENGINE_RUNTIME_DIR`, `ENGINE_EXTRA_ARGS` | `engine/build/ds_engine`, `engine/configs/pgie_yolov8n.txt`, `engine/configs/tracker_nvdcf.yml`, `data/run`, empty | how the manager starts the engine ([Engine manager](#engine-manager)) |
 | `ENGINE_BACKEND_URL`, `ENGINE_HEARTBEAT_URL` | `http://127.0.0.1:8000/internal/events`, derived from the previous | where the engine posts events and heartbeats |
@@ -128,7 +129,8 @@ Not here, and where to find it:
 - **Engine options** (`--rtsp-timeout`, `--stream-bitrate`, `--heartbeat-interval`, ...) are command-line flags: [DeepStream engine](#deepstream-engine).
 - **Cameras** (name, address, login, enabled) are added in the web app or through `POST /api/cameras`, not in `.env`.
   `conf_threshold` and `absence_timeout` in the camera table are stored but not applied yet: the engine uses one value for all cameras.
-- `RTSP_URL`, `VIDEO_SOURCE`, `CONFIDENCE_THRESHOLD` and `RECONNECT_DELAY` are left over from the removed command-line tool and nothing reads them.
+- If an old `.env` still has `RTSP_URL`, `VIDEO_SOURCE`, `CONFIDENCE_THRESHOLD`, `RECONNECT_DELAY`, `APP_ENV` or `MP4_PATH`
+  (left over from the removed command-line tool), nothing reads them: delete those lines.
 
 ## PERSON_DETECTED event logic
 
@@ -225,7 +227,7 @@ uvicorn backend.main:create_app --factory --host 0.0.0.0 --port 8000     # API d
 | `PATCH /api/events/{id}` | body `{"status": "new" \| "acknowledged"}` (nothing else may be changed); answers the event and pushes `event.updated` when the status changed |
 | `POST /internal/events` | for the engine, not for browsers. Idempotent on `event_id`: 201 stored, 200 already had it, 422 can never be stored (unknown camera, bad values), which makes the engine drop it instead of retrying. With `INTERNAL_TOKEN` set it needs the header `X-Internal-Token`. |
 | `WS /api/ws` | live updates for the browser, server to client only (what the client sends is ignored, there is no replay: read the current state with the REST calls). Each message is `{"type", "data"}`. `event.created`: a newly stored event, `data` the same object as `GET /api/events/{id}` (not sent for a repeated delivery). `camera.status`: `data` is `{camera_id, reporting, state, fps, last_frame_age, heartbeat_age}`, sent for each camera in every heartbeat, and once with `reporting: false` when a camera stops reporting (it left the heartbeat, or the heartbeats stopped, found within about a second). `event.updated`: the same object after a change of `status` (PATCH) or of `notify_status` (the Telegram result). A client more than 100 messages behind is closed with code 1013, so a stuck browser cannot slow the backend down |
-| `POST /internal/heartbeat` | for the engine too: every few seconds it says which cameras it serves and what each is doing (`{"schema_version":1,"run_id":...,"cameras":[{"camera_id","state":"RUNNING"\|"RECONNECTING","fps","last_frame_age"}]}`). 204 on success, 422 for a malformed body. Kept in memory only (nothing is stored) and shown by `GET /api/cameras/{id}/status`; the same token rule as for events. |
+| `POST /internal/heartbeat` | for the engine too: every few seconds it says which cameras it serves and what each is doing (`{"schema_version":1,"run_id":...,"cameras":[{"camera_id","state":"RUNNING"\|"RECONNECTING"\|"ENDED","fps","last_frame_age"}]}`). 204 on success, 422 for a malformed body. Kept in memory only (nothing is stored) and shown by `GET /api/cameras/{id}/status`; the same token rule as for events. |
 
 Run the engine against it with `--backend-url http://HOST:8000/internal/events --spool-file FILE --snapshot-dir DIR`, where
 `DIR` is the backend's `SNAPSHOT_DIR` (same machine for now). When `INTERNAL_TOKEN` is set, give the engine the same value in
@@ -274,7 +276,7 @@ uvicorn engine_manager.service:create_app --factory --host 127.0.0.1 --port 8100
 | `POST /api/cameras/test-connection` | tries a camera without starting the engine: body is either `{source_type, source_uri}` or `{camera_id}` (a saved camera, whose password the API never shows), plus an optional `timeout` (1-15 s, default 5). Answers 200 with `{ok, summary, checks[], codec, width, height, latency_ms}`; `checks` run in order (`connect`, `auth`, `stream`, `codec`, `resolution`) and the last one is the one that failed. A camera that does not work is `ok: false` with the reason in `summary`, not an HTTP error. RTSP: connects, answers a Basic or Digest login, reads the stream description for the codec and, for H.264, the announced SPS for the resolution (H.265 and cameras that do not announce it give no resolution, which is not a failure; only H.264 and H.265 pass the codec check). A `file://` source is checked for being readable by the backend. Neither the address nor the password appears in the answer; the backend connects to whatever host it is given, so this is for a LAN |
 | `POST /api/cameras/{id}/start`, `POST .../stop` | record that the camera should (not) run. A disabled camera cannot be started (409). The answer comes at once; the engine is (re)started in the background, a few seconds later |
 | `GET /api/cameras/{id}/stream` | where to watch the camera live: `{camera_id, whep_url, player_url, available}` (see [Live video](#live-video)); 503 when `MEDIAMTX_WEBRTC_URL` is not set |
-| `GET /api/cameras/{id}/status` | `desired_state`, `should_run`, and `engine`: whether the manager is reachable, the state of the engine process (`stopped`, `running`, `stopping`, `backoff`, `exited`), `in_engine` (the running process serves this camera), `applied` (the manager has the current list), `starts`, `last_exit_code`; and `stream`, what the engine itself reports in its heartbeat: `reporting` (a heartbeat no older than `HEARTBEAT_STALE_AFTER`, default 15 s, names this camera), `state` (`RUNNING` or `RECONNECTING`), `fps`, `last_frame_age` (seconds without a frame), `heartbeat_age`, `people` (tracked persons in the camera's latest frame; `null` when the engine cannot tell, e.g. no frame for the last 2 s, or an older engine). `reporting: false` means the engine is down, still starting, or not serving the camera; the other fields are then empty |
+| `GET /api/cameras/{id}/status` | `desired_state`, `should_run`, and `engine`: whether the manager is reachable, the state of the engine process (`stopped`, `running`, `stopping`, `backoff`, `exited`), `in_engine` (the running process serves this camera), `applied` (the manager has the current list), `starts`, `last_exit_code`; and `stream`, what the engine itself reports in its heartbeat: `reporting` (a heartbeat no older than `HEARTBEAT_STALE_AFTER`, default 15 s, names this camera), `state` (`RUNNING`, `RECONNECTING`, or `ENDED` for a video file that was played to the end), `fps`, `last_frame_age` (seconds without a frame), `heartbeat_age`, `people` (tracked persons in the camera's latest frame; `null` when the engine cannot tell, e.g. no frame for the last 2 s, or an older engine). `reporting: false` means the engine is down, still starting, or not serving the camera; the other fields are then empty |
 
 How it works. The database says which cameras should run (enabled, not deleted, `desired_state = running`). A background thread in
 the backend compares that list with the one the manager reports (by a hash) and pushes it when they differ, right after a camera
@@ -348,8 +350,8 @@ MediaMTX and `MEDIAMTX_WEBRTC_URL` (see "Live video"); that URL must be reachabl
 
 ## Docker
 
-The whole system runs as five containers (`deploy/compose.yml`): PostgreSQL, MediaMTX, the backend, the engine together
-with the Engine manager (one GPU container), and the web app behind nginx.
+The whole system runs as six containers (`deploy/compose.yml`): PostgreSQL, a small backup job for it, MediaMTX, the backend,
+the engine together with the Engine manager (one GPU container), and the web app behind nginx.
 
 Needs Docker with the NVIDIA Container Toolkit, and the ONNX model on the host (once: `python engine/tools/export_yolov8_onnx.py`,
 it lands in `engine/models/`, which is mounted into the engine container). Then, from the repository root:
@@ -368,14 +370,28 @@ next to the compose file.
 |---|---|---|
 | `frontend` (nginx) | `HTTP_PORT` (8080) | serves the app and forwards only `/api` (REST + WebSocket); `/internal` answers 404 |
 | `mediamtx` | 8889/tcp, 8189/udp | WebRTC for the browsers; `PUBLIC_HOST` goes into its ICE candidates. RTMP (1935) stays inside |
-| `backend`, `db`, `engine` | nothing | the engine posts events to `backend` with `INTERNAL_TOKEN`; the Engine manager (port 8100, no authentication) is reachable only from the other containers |
+| `backend`, `db`, `engine`, `backup` | nothing | the engine posts events to `backend` with `INTERNAL_TOKEN`; the Engine manager (port 8100, no authentication) is reachable only from the other containers |
 
 - Cameras with `file://` sources must point at files inside the engine container: `data/videos/` is mounted read-only at `/videos`,
   so `data/videos/a.mp4` is `file:///videos/a.mp4`. (A file camera ends when the file ends, and is not restarted until the camera list changes.)
 - The first start with a number of cameras that has no TensorRT engine yet builds it (2-3 minutes, in `engine/models/`, which must be
   writable by uid 1000); `docker compose logs engine` shows it. Delete `engine/models/*_b*_gpu0_fp16.engine` when the ONNX model changes.
 - Snapshots live in the `snapshots` volume (shared by engine and backend), the database in `pgdata`. `down` keeps them, `down -v` deletes them.
-  Backup: `docker compose --env-file .env -f deploy/compose.yml exec db pg_dump -U surveillance surveillance > backup.sql`.
+  Both are Docker volumes, so they live on the same disk as the containers; the backups below are copies of the database only (the snapshots are not backed up).
+- **Database backup.** The `backup` container (`deploy/backup.sh`) runs `pg_dump` once a day, checks that the dump can be read back,
+  and keeps the newest 7 in `data/backups/` on the host (`surveillance-<UTC time>.dump`, written as your user, so you can delete or copy them
+  without `sudo`). They survive `down -v`. A failed dump (database down) is retried after 5 minutes and never replaces or removes a good file.
+  `BACKUP_INTERVAL_SECONDS` (86400), `BACKUP_KEEP` (7) and `BACKUP_PATH` (`../data/backups`, relative to the compose file) in `.env` change this.
+  Copy `data/backups/` to another disk or machine now and then: a backup on the machine that dies is not much of a backup.
+  Restore into a database that is empty (stop the backend first so nothing writes; `--clean --if-exists` replaces the existing tables):
+
+  ```bash
+  docker compose --env-file .env -f deploy/compose.yml stop backend
+  docker compose --env-file .env -f deploy/compose.yml exec -T db pg_restore -U surveillance -d surveillance --clean --if-exists --no-owner < data/backups/surveillance-<time>.dump
+  docker compose --env-file .env -f deploy/compose.yml start backend
+  ```
+
+  A one-off dump by hand: `docker compose --env-file .env -f deploy/compose.yml exec -T db pg_dump -U surveillance -Fc surveillance > my.dump`.
 - Every container has `restart: unless-stopped` and a healthcheck (not MediaMTX). A container whose main process exits is started again;
   one you stopped yourself (`docker stop`, `docker kill`) is not. Telegram settings, `ABSENCE_TIMEOUT` and `SNAPSHOT_RETENTION_DAYS`
   are read from `.env`; the token is passed to the backend as an environment variable (visible with `docker inspect`).
@@ -553,6 +569,10 @@ seconds until the camera answers; the engine notes the loss, reports the source 
 a reconnect the event clock of that source is re-anchored, so a person who comes back after more than the absence
 timeout raises a new event. Errors of a source that is not RTSP (a file that cannot be read) still stop the engine
 with exit code 1.
+
+A video file does end: when its end of file reaches the muxer the engine logs `source_id=... camera_id=...: ended (end of file)`
+and reports that source as `ENDED` (in the `fps` lines and in the heartbeat) while the other sources go on; the engine itself
+exits with code 0 once every source has ended. `ENDED` is final, there is no way back to `RUNNING` short of restarting the engine.
 
 To try it without a camera, build the fake RTSP server inside the DeepStream container (`cd engine && make
 rtsp-test-server`), serve a video with `build/rtsp_test_server FILE.mp4 8554 /cam`, point `--camera 1=rtsp://127.0.0.1:8554/cam`
