@@ -40,8 +40,11 @@ class CameraSpec:
 @dataclass
 class ManagerConfig:
     command: list[str]                       # the program (or `docker run ... ds_engine`) to start
-    engine_args: list[str]                   # everything but the cameras file, e.g. --config ...
+    engine_args: list[str]                   # everything but the cameras file, e.g. --tracker-config ...
     runtime_dir: Path                        # holds the cameras file
+    # nvinfer config to start from. When set, every start gets a copy of it made for the number of
+    # cameras (see write_engine_config) as --config; when None, engine_args carries its own --config.
+    engine_config: Path | None = None
     token: str | None = None                 # becomes DS_ENGINE_TOKEN
     stop_timeout: float = 25.0               # SIGTERM -> SIGKILL (the engine needs up to ~12 s to flush)
     backoff_base: float = 1.0                # delay before the first restart after a crash, then doubled
@@ -56,7 +59,6 @@ class ManagerConfig:
         runtime = Path(config.ENGINE_RUNTIME_DIR).resolve()
         # Absolute paths: when the engine runs in a container they are the paths inside it too.
         args = [
-            "--config", str(Path(config.ENGINE_CONFIG).resolve()),
             "--tracker-config", str(Path(config.ENGINE_TRACKER_CONFIG).resolve()),
             "--backend-url", config.ENGINE_BACKEND_URL,
             "--spool-file", str(runtime / "events.spool"),
@@ -71,7 +73,64 @@ class ManagerConfig:
             args += ["--snapshot-dir", str(Path(config.SNAPSHOT_DIR).resolve())]
         args += shlex.split(config.ENGINE_EXTRA_ARGS)
         return cls(command=shlex.split(config.ENGINE_COMMAND), engine_args=args,
-                   runtime_dir=runtime, token=config.INTERNAL_TOKEN)
+                   runtime_dir=runtime, token=config.INTERNAL_TOKEN,
+                   engine_config=Path(config.ENGINE_CONFIG).resolve())
+
+
+# Keys of an nvinfer config that hold a file path; relative ones are relative to the config's directory.
+_PATH_KEYS = ("onnx-file", "model-file", "proto-file", "labelfile-path", "custom-lib-path",
+              "int8-calib-file", "mean-file", "tlt-encoded-model", "custom-network-config",
+              "model-engine-file")
+
+
+def write_engine_config(base: Path, out_dir: Path, batch: int) -> tuple[Path, Path | None]:
+    """Write a copy of the nvinfer config `base` for `batch` cameras; return (copy, TensorRT engine file).
+
+    A TensorRT engine is built for one maximum batch size and nvinfer keeps one file per size, named
+    <onnx file>_b<N>_gpu0_fp16.engine, next to the ONNX file. The config names a single engine file, and
+    when it does not match the number of cameras nvinfer builds a new engine at EVERY start (~150 s).
+    So the copy points model-engine-file at the file of this batch size: the first start with N cameras
+    builds it (nvinfer saves it there), later ones just load it. Paths are made absolute because the copy
+    lives elsewhere. A config without onnx-file is copied as it is (no way to name the engine).
+    Delete the *_b*_*.engine files when the ONNX model is exported again: nvinfer does not check them.
+    """
+    lines = base.read_text(encoding="utf-8").splitlines()
+    onnx = None
+    for line in lines:
+        key, sep, value = line.partition("=")
+        if sep and key.strip() == "onnx-file":
+            onnx = (base.parent / value.strip()).resolve()
+    engine = None
+    if onnx is not None:
+        engine = onnx.with_name(f"{onnx.name}_b{batch}_gpu0_fp16.engine")
+
+    out, seen_engine = [], False
+    for line in lines:
+        key, sep, value = line.partition("=")
+        name = key.strip()
+        if sep and not line.lstrip().startswith("#") and name in _PATH_KEYS:
+            if name == "model-engine-file" and engine is not None:
+                line, seen_engine = f"model-engine-file={engine}", True
+            else:
+                line = f"{name}={(base.parent / value.strip()).resolve()}"
+                seen_engine = seen_engine or name == "model-engine-file"
+        out.append(line)
+    if engine is not None and not seen_engine:   # no model-engine-file line: add one to [property]
+        at = next((i + 1 for i, l in enumerate(out) if l.strip() == "[property]"), 0)
+        out.insert(at, f"model-engine-file={engine}")
+
+    path = out_dir / f"pgie_b{batch}.txt"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=out_dir, prefix=".pgie-")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write("\n".join(out) + "\n")
+        os.chmod(tmp, 0o644)   # mkstemp makes it 600; a container running as another user must read it
+        os.replace(tmp, path)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+    return path, engine
 
 
 def _keyfile_value(text: str) -> str:
@@ -226,6 +285,13 @@ class EngineManager:
             env["DS_ENGINE_TOKEN"] = cfg.token
         self._ran_for = cameras
         try:
+            if cfg.engine_config is not None:
+                pgie, trt_engine = write_engine_config(cfg.engine_config, cfg.runtime_dir, len(cameras))
+                args += ["--config", str(pgie)]
+                if trt_engine is not None and not trt_engine.exists():
+                    log.warning("no TensorRT engine for %d camera(s) yet (%s): the engine builds it at "
+                                "this start, which takes about 2-3 minutes, then keeps it",
+                                len(cameras), trt_engine.name)
             write_cameras_file(cameras_file, list(cameras))
             proc = subprocess.Popen(args, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                     stderr=subprocess.STDOUT, start_new_session=True)

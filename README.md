@@ -205,8 +205,12 @@ and the config files mounted at the same absolute paths, for example:
 ENGINE_COMMAND="docker run --rm --network host --gpus all -u 1000:1000 -e DS_ENGINE_TOKEN -v $PWD:$PWD -w $PWD --entrypoint $PWD/engine/build/ds_engine nvcr.io/nvidia/deepstream:7.1-triton-multiarch"
 ```
 
-The TensorRT engine file is built for 2 sources; up to 2 cameras start at once, and a third makes `nvinfer` rebuild it (about 150 s)
-at every start until `model-engine-file` in `engine/configs/pgie_yolov8n.txt` is changed.
+A TensorRT engine is built for one batch size, so there is one file per number of cameras
+(`engine/models/yolov8n.onnx_b<N>_gpu0_fp16.engine`). The Engine manager writes a copy of the `nvinfer` config for the current number
+of cameras (`ENGINE_RUNTIME_DIR/pgie_b<N>.txt`, with absolute paths and `model-engine-file` pointing at that file) at every start.
+The first start with a number of cameras that has no engine yet builds it (about 2-3 minutes, logged as a warning, the cameras
+report nothing meanwhile), later starts load it in about a second. `ENGINE_COMMAND` in a container needs `engine/models` mounted
+writable at the same absolute path. Delete the `*_b*_gpu0_fp16.engine` files when the ONNX model is exported again.
 
 The backend tests (`tests/backend_api/`) start a throwaway PostgreSQL cluster of their own (`initdb` + `pg_ctl` from the
 installed PostgreSQL, a unix socket in a temp directory, removed afterwards) and never touch an existing server. To
@@ -331,8 +335,9 @@ At the end it prints one line per source, for example `source_id=0 camera_id=1 f
 a line `events published=58 dropped=0 pipeline_run_id=...`, with `--backend-url` a line `backend spooled=0 rejected=0 lost=0`, with `--snapshot-dir` a line `snapshots written=56 failed=0 events_with_snapshot=58 probe_blocked_ms total=... max=...`, and the elapsed time and the overall frame rate (it includes the start-up). While it runs it prints the frame rate of every
 source each 5 seconds. The first run
 spends about 2.5 minutes building the TensorRT engine; it is saved next to the ONNX and reused (a run then starts in
-seconds). `configs/pgie_yolov8n.txt` points at the engine for N = 2; for another N, `nvinfer` builds a new engine
-(`yolov8n.onnx_b<N>_gpu0_fp16.engine`) on every run until you change the `model-engine-file` line. `configs/pgie_sample.txt`
+seconds). `configs/pgie_yolov8n.txt` points at the engine for N = 2; started by hand with another N, `nvinfer` builds a new engine
+(`yolov8n.onnx_b<N>_gpu0_fp16.engine`) on every run until you change the `model-engine-file` line (the Engine manager and
+`engine/tools/benchmark.py` do that for you, one engine file per N). `configs/pgie_sample.txt`
 is a smoke-test config for the sample detector shipped in the DeepStream image.
 
 On a 1442-frame test video the boxes match Ultralytics (IoU 0.95-0.99), but the engine finds about 10% fewer people at
