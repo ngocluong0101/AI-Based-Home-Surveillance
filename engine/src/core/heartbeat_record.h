@@ -25,7 +25,7 @@
 
 typedef struct {
     int32_t camera_id;
-    char state[HEARTBEAT_STATE_MAX];   /* "RUNNING" or "RECONNECTING" */
+    char state[HEARTBEAT_STATE_MAX];   /* "RUNNING", "RECONNECTING" or "ENDED" (a file that has been played to the end) */
     double fps;                        /* frames per second over the last interval, >= 0 */
     double last_frame_age;             /* seconds since the last frame of this camera, >= 0 */
     int32_t people;                    /* persons in the latest frame; < 0 = unknown, left out of the JSON */

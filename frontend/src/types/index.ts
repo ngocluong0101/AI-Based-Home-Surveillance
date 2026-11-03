@@ -1,6 +1,6 @@
 // Types mirror backend/schemas.py.
 
-export type CameraState = "RUNNING" | "RECONNECTING";
+export type CameraState = "RUNNING" | "RECONNECTING" | "ENDED";
 export type EventStatus = "new" | "acknowledged";
 
 export interface Camera {

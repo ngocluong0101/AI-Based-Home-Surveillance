@@ -30,6 +30,7 @@ export function streamOf(status: CameraStatus | undefined, live: StreamInfo | un
 export function healthOf(status: CameraStatus | undefined, stream: StreamInfo | undefined): Health {
   if (stream?.reporting) {
     if (stream.state === "RECONNECTING") return { label: "Reconnecting", tone: "warn" };
+    if (stream.state === "ENDED") return { label: "Ended", tone: "idle" };
     if (stream.fps === 0 && (stream.last_frame_age ?? 0) > NO_FRAMES_AFTER_S) return { label: "No frames", tone: "warn" };
     return { label: "Online", tone: "ok" };
   }

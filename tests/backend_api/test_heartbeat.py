@@ -111,6 +111,17 @@ def test_people_in_the_frame_reaches_the_status(client):
     assert stream(client, 1)["people"] == 3 and stream(client, 2)["people"] is None
 
 
+def test_a_file_that_ended_is_reported_as_ended(client):
+    make_camera(client, "a")
+    make_camera(client, "b", source_uri="rtsp://10.0.0.2/stream")
+    # the engine's own JSON for a file camera that was played to the end, next to one that is still running
+    body = beat(cam(1, "ENDED", fps=0.0, age=41.25), cam(2, "RUNNING"))
+    assert client.post(URL, json=body).status_code == 204   # not a 422: it would drop the other camera too
+    ended = stream(client, 1)
+    assert (ended["reporting"], ended["state"], ended["fps"], ended["last_frame_age"]) == (True, "ENDED", 0.0, 41.25)
+    assert stream(client, 2)["state"] == "RUNNING"
+
+
 def test_an_older_engine_without_people_is_accepted(client):
     make_camera(client)
     assert client.post(URL, json=beat(cam(1))).status_code == 204

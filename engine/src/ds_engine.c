@@ -131,8 +131,9 @@
  * the number describes a scene we no longer see, and "0" would claim an empty room. */
 #define PEOPLE_FRESH_US (2 * G_USEC_PER_SEC)
 
-/* Where a source is (ROADMAP 2.7). Only RTSP sources ever leave RUNNING, for RECONNECTING. */
-typedef enum { SOURCE_RUNNING, SOURCE_RECONNECTING } SourceState;
+/* Where a source is (ROADMAP 2.7). An RTSP source can go from RUNNING to RECONNECTING and back; a
+ * file source stays RUNNING until its EOS reaches the muxer, then it is ENDED for good. */
+typedef enum { SOURCE_RUNNING, SOURCE_RECONNECTING, SOURCE_ENDED } SourceState;
 
 struct AppCtx;
 
@@ -151,6 +152,7 @@ typedef struct {
     guint64 reconnects;          /* times the source was lost */
     _Atomic gint64 last_frame_us;  /* monotonic time of the last frame (probe); start time before the first */
     _Atomic gboolean reanchor;     /* set when the source is lost: the probe takes a new stream_start_ns (PTS may restart) */
+    _Atomic gboolean eos_seen;     /* file sources: their EOS passed the muxer sink pad (mux_eos_probe); never set for RTSP */
     GstElement *bin;     /* nvurisrcbin, owned by the pipeline */
     GstPad *mux_sinkpad; /* request pad "sink_<source_id>" of nvstreammux; we hold one ref */
     /* Written by the streaming thread (probe). frame_count is atomic because the FPS timer reads
@@ -431,7 +433,18 @@ static void print_sources(const AppCtx *app)
 
 static const char *source_state_name(SourceState st)
 {
-    return st == SOURCE_RUNNING ? "RUNNING" : "RECONNECTING";
+    switch (st) {
+    case SOURCE_RUNNING: return "RUNNING";
+    case SOURCE_RECONNECTING: return "RECONNECTING";
+    case SOURCE_ENDED: return "ENDED";
+    }
+    return "RUNNING";
+}
+
+/* What to report for a source: ENDED once its EOS was seen, else the state the main thread keeps. */
+static SourceState source_state(const SourceCtx *src)
+{
+    return atomic_load_explicit(&src->eos_seen, memory_order_acquire) ? SOURCE_ENDED : src->state;
 }
 
 static void print_stats(const AppCtx *app)
@@ -716,6 +729,21 @@ static gboolean watchdog_tick(gpointer data)
         }
     }
     return G_SOURCE_CONTINUE;
+}
+
+/* Pad probe on the nvstreammux sink pad of a file source: notes that the file has ended. (An RTSP
+ * nvurisrcbin swallows the EOS of its stream, so this is not installed for those.) Runs on the
+ * streaming thread, once per source, and only sets a flag that the main thread reads. */
+static GstPadProbeReturn mux_eos_probe(GstPad *pad, GstPadProbeInfo *info, gpointer data)
+{
+    (void)pad;
+    SourceCtx *src = (SourceCtx *)data;
+    GstEvent *event = GST_PAD_PROBE_INFO_EVENT(info);
+
+    if (event != NULL && GST_EVENT_TYPE(event) == GST_EVENT_EOS &&
+        !atomic_exchange_explicit(&src->eos_seen, TRUE, memory_order_acq_rel))
+        g_print("source_id=%u camera_id=%d: ended (end of file)\n", src->source_id, src->camera_id);
+    return GST_PAD_PROBE_OK;
 }
 
 /* How long to wait for the EOS sent on SIGINT/SIGTERM to reach the MP4 muxer before stopping anyway. */
@@ -1444,7 +1472,7 @@ static gboolean report_fps(gpointer data)
         guint64 now = atomic_load_explicit(&src->frame_count, memory_order_relaxed);
         g_print("fps source_id=%u camera_id=%d %.1f %s\n", src->source_id, src->camera_id,
                 (double)(now - src->fps_prev_frames) / (double)opt_fps_interval,
-                source_state_name(src->state));
+                source_state_name(source_state(src)));
         src->fps_prev_frames = now;
     }
     return G_SOURCE_CONTINUE;
@@ -1470,7 +1498,7 @@ static gboolean heartbeat_tick(gpointer data)
         guint64 frames = atomic_load_explicit(&src->frame_count, memory_order_relaxed);
         gint64 last = atomic_load_explicit(&src->last_frame_us, memory_order_relaxed);
         cameras[i].camera_id = src->camera_id;
-        g_strlcpy(cameras[i].state, source_state_name(src->state), sizeof(cameras[i].state));
+        g_strlcpy(cameras[i].state, source_state_name(source_state(src)), sizeof(cameras[i].state));
         cameras[i].fps = seconds > 0.0 ? (double)(frames - src->hb_prev_frames) / seconds : 0.0;
         cameras[i].last_frame_age = (double)(now - last) / G_USEC_PER_SEC;
         gint people = atomic_load_explicit(&src->people_now, memory_order_relaxed);
@@ -1717,6 +1745,9 @@ static GstElement *build_pipeline(AppCtx *app)
         g_free(pad_name);
         if (src->mux_sinkpad == NULL)
             goto fail;
+        if (!src->is_rtsp)
+            gst_pad_add_probe(src->mux_sinkpad, GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM, mux_eos_probe,
+                              src, NULL);
 
         g_signal_connect(src->bin, "pad-added", G_CALLBACK(on_source_pad_added), src);
     }

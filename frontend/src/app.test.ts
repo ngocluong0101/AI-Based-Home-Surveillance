@@ -49,6 +49,9 @@ describe("healthOf", () => {
   it("shows Reconnecting from the heartbeat state", () => {
     expect(healthOf(status(), stream({ state: "RECONNECTING", fps: 0 })).label).toBe("Reconnecting");
   });
+  it("shows Ended, not a warning, for a file that was played to the end", () => {
+    expect(healthOf(status(), stream({ state: "ENDED", fps: 0, last_frame_age: 60 }))).toEqual({ label: "Ended", tone: "idle" });
+  });
   it("warns when a running stream stopped producing frames", () => {
     expect(healthOf(status(), stream({ fps: 0, last_frame_age: 20 })).label).toBe("No frames");
   });

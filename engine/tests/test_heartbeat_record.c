@@ -66,6 +66,26 @@ void test_heartbeat_json_parses_back(void)
     json_free(doc);
 }
 
+void test_heartbeat_ended_state_is_written_as_is(void)
+{
+    /* a file that was played to the end: fits HEARTBEAT_STATE_MAX and stays a plain string */
+    HeartbeatCamera c = cam(3, "ENDED", 0.0, 41.25);
+    char json[512];
+
+    CHECK(heartbeat_to_json(RUN_ID, &c, 1, json, sizeof(json)) > 0);
+    CHECK(strstr(json, "{\"camera_id\":3,\"state\":\"ENDED\",\"fps\":0.0,\"last_frame_age\":41.250}") != NULL);
+
+    JsonValue *doc = json_parse(json);
+    CHECK(doc != NULL);
+    if (doc == NULL)
+        return;
+    const JsonValue *list = json_get(doc, "cameras");
+    CHECK(list != NULL && list->count == 1);
+    if (list != NULL && list->count == 1)
+        CHECK(strcmp(json_get(&list->items[0], "state")->string, "ENDED") == 0);
+    json_free(doc);
+}
+
 void test_heartbeat_people_is_a_number_or_absent(void)
 {
     HeartbeatCamera cams[4] = { cam(1, "RUNNING", 30.0, 0.0), cam(2, "RUNNING", 30.0, 0.0),

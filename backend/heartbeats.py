@@ -27,7 +27,7 @@ class CameraHealth:
     """What is known about one camera right now."""
 
     reporting: bool                # a recent heartbeat names this camera
-    state: str | None = None       # RUNNING | RECONNECTING, from that heartbeat
+    state: str | None = None       # RUNNING | RECONNECTING | ENDED (a file played to the end), from that heartbeat
     fps: float | None = None
     last_frame_age: float | None = None   # seconds since the engine last saw a frame, as of the heartbeat
     heartbeat_age: float | None = None    # seconds since the heartbeat arrived; None = none yet

@@ -109,7 +109,7 @@ class StreamInfo(BaseModel):
     """What the engine itself says about the camera, from its heartbeat (ROADMAP 3.6)."""
 
     reporting: bool   # a recent heartbeat names this camera; False = the engine is down, still starting, or not serving it
-    state: Literal["RUNNING", "RECONNECTING"] | None = None
+    state: Literal["RUNNING", "RECONNECTING", "ENDED"] | None = None
     fps: float | None = None
     last_frame_age: float | None = None   # seconds without a frame, as of the heartbeat
     heartbeat_age: float | None = None    # seconds since that heartbeat arrived; None = the engine never reported
@@ -202,7 +202,7 @@ class HeartbeatCameraIn(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     camera_id: int = Field(ge=0, le=2**31 - 1)
-    state: Literal["RUNNING", "RECONNECTING"]
+    state: Literal["RUNNING", "RECONNECTING", "ENDED"]
     fps: float = Field(ge=0, le=1e9)
     last_frame_age: float = Field(ge=0, le=1e9)
     people: int | None = Field(default=None, ge=0, le=100000)   # absent: older engine, or it cannot tell right now
