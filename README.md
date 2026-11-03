@@ -369,6 +369,8 @@ Options:
 - `--output FILE`: debug only. Writes an MP4 with all sources tiled in one video (rows x columns grid), the boxes drawn and
   labelled `person <track ID>`. Without it nothing is rendered. If one source ends earlier than the others, the tile of a
   source that is still running shows only about half of its frames (every frame is still processed and counted).
+  RTSP sources never end, so stop the engine with Ctrl-C (SIGINT) or SIGTERM: it then sends EOS into the muxer so that the
+  MP4 is finalized and playable (it waits up to 5 s for that; a second signal stops at once, leaving a file that cannot be played).
 - `--snapshot-dir DIR`: save a JPEG of the whole frame for each event in DIR (created if missing). Without it no snapshots are taken.
 - `--snapshot-quality Q`: JPEG quality 1-100 (default 85).
 - `--backend-url URL`: POST every event as JSON to URL (e.g. `http://127.0.0.1:8000/internal/events`); must be given together with `--spool-file`. Without both, events are printed on stdout.
@@ -422,6 +424,12 @@ with exit code 1.
 To try it without a camera, build the fake RTSP server inside the DeepStream container (`cd engine && make
 rtsp-test-server`), serve a video with `build/rtsp_test_server FILE.mp4 8554 /cam`, point `--camera 1=rtsp://127.0.0.1:8554/cam`
 at it, and stop and start the server, or pause it with `kill -STOP`, to make the camera disappear.
+
+To find out how many cameras one GPU carries, run `engine/tools/benchmark.py` inside the same container (usage in its
+docstring). It serves one 1080p video as N real-time RTSP cameras, runs either one engine with N cameras or N engines with one
+camera each, and prints FPS per camera, GPU/NVDEC/VRAM, CPU and RAM. On an RTX 4060 Laptop (8 GB) one engine held 30 fps on
+20 cameras (GPU 75%), was at its edge on 24 (NVDEC 99%) and failed on 28; one engine per camera used about 4x more RAM and 3x
+more CPU at 8 cameras. Latency is not measured, and all cameras show the same video, so treat it as an upper bound for 1080p H.264.
 
 Run the tests of the pure-C code (`engine/src/core/`: the `Detection` box normalisation, the event manager, which replays the shared vectors of `tests/vectors/`, the event JSON, the heartbeat JSON, the spool file and the retry delays) on the host, no
 DeepStream or GPU needed; built with AddressSanitizer and UBSan:

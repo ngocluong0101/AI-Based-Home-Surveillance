@@ -197,6 +197,8 @@ typedef struct AppCtx {
     SourceCtx *sources;
     guint num_sources;
     gint exit_code;
+    gboolean eos_requested;  /* --output: SIGINT/SIGTERM sent EOS so that qtmux can finalize the MP4 */
+    guint eos_timer_id;      /* gives up waiting for that EOS */
     gint64 start_us;  /* monotonic time when the pipeline went to PLAYING, for the summary only */
     gint64 end_us;
     /* Event flow (ROADMAP 2.2): the probe pushes EventRecord (heap, owned by whoever pops it) and a
@@ -716,12 +718,44 @@ static gboolean watchdog_tick(gpointer data)
     return G_SOURCE_CONTINUE;
 }
 
+/* How long to wait for the EOS sent on SIGINT/SIGTERM to reach the MP4 muxer before stopping anyway. */
+#define EOS_DRAIN_TIMEOUT_S 5
+
+static gboolean eos_drain_timeout(gpointer data)
+{
+    AppCtx *app = (AppCtx *)data;
+    g_printerr("WARNING: EOS did not reach the output file in %d s, stopping anyway (the MP4 may be "
+               "unreadable)\n", EOS_DRAIN_TIMEOUT_S);
+    app->eos_timer_id = 0;
+    g_main_loop_quit(app->loop);
+    return G_SOURCE_REMOVE;
+}
+
 /* Stop on SIGINT/SIGTERM like on EOS: leave the loop, then the pipeline is stopped in order and the
- * publisher flushes. (RTSP sources never end by themselves, so this is how the engine is stopped.) */
+ * publisher flushes. (RTSP sources never end by themselves, so this is how the engine is stopped.)
+ * With --output the loop is left only after the pipeline posted EOS (bus_call), because an MP4 that
+ * never saw EOS has no moov atom and cannot be played. A second signal stops at once. */
 static gboolean on_signal(gpointer data)
 {
+    AppCtx *app = (AppCtx *)data;
+
     g_print("Stopping\n");
-    g_main_loop_quit(((AppCtx *)data)->loop);
+    if (opt_output != NULL && !app->eos_requested) {
+        app->eos_requested = TRUE;
+        /* EOS goes into the nvstreammux sink pads, not into the pipeline: an RTSP nvurisrcbin
+         * swallows the EOS of its stream (that is how it reconnects), so it would never get here. */
+        guint sent = 0;
+        for (guint i = 0; i < app->num_sources; i++) {
+            if (app->sources[i].mux_sinkpad != NULL &&
+                gst_pad_send_event(app->sources[i].mux_sinkpad, gst_event_new_eos()))
+                sent++;
+        }
+        if (sent > 0) {
+            app->eos_timer_id = g_timeout_add_seconds(EOS_DRAIN_TIMEOUT_S, eos_drain_timeout, app);
+            return G_SOURCE_CONTINUE;
+        }
+    }
+    g_main_loop_quit(app->loop);
     return G_SOURCE_CONTINUE;
 }
 
@@ -1904,6 +1938,8 @@ int main(int argc, char *argv[])
             app.end_us = g_get_monotonic_time();
             g_source_remove(sigint_id);
             g_source_remove(sigterm_id);
+            if (app.eos_timer_id != 0)
+                g_source_remove(app.eos_timer_id);
             if (fps_timer_id != 0)
                 g_source_remove(fps_timer_id);
             if (watchdog_id != 0)

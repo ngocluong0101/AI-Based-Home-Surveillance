@@ -31,7 +31,10 @@ int main(int argc, char **argv)
                                     "rtph264pay name=pay0 pt=96 config-interval=-1 )", argv[1]);
     GstRTSPMediaFactory *factory = gst_rtsp_media_factory_new();
     gst_rtsp_media_factory_set_launch(factory, launch);
-    gst_rtsp_media_factory_set_shared(factory, TRUE);
+    /* Shared: every client gets the same running stream, so a reconnecting camera rejoins "live".
+     * RTSP_TEST_UNSHARED=1 (the benchmark): every client gets its own copy starting at 0, so that
+     * N clients that connect at different times all have the whole file in front of them. */
+    gst_rtsp_media_factory_set_shared(factory, g_getenv("RTSP_TEST_UNSHARED") == NULL);
     g_free(launch);
 
     GstRTSPMountPoints *mounts = gst_rtsp_server_get_mount_points(server);
