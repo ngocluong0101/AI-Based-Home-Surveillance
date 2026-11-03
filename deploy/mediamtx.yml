@@ -1,0 +1,27 @@
+# MediaMTX for the compose stack: the engine publishes each camera over RTMP (rtmp://mediamtx:1935/live/cam<ID>,
+# inside the compose network only) and browsers watch it over WebRTC (WHEP, port 8889 + UDP 8189). Anything
+# not set here keeps MediaMTX's default. There is no authentication (LAN only): everybody who can reach the
+# RTMP port can publish, so do not publish port 1935 on the host.
+logLevel: info
+
+rtsp: no
+hls: no
+srt: no
+api: no
+metrics: no
+pprof: no
+playback: no
+
+rtmp: yes
+rtmpAddress: :1935
+
+webrtc: yes
+webrtcAddress: :8889
+webrtcLocalUDPAddress: :8189
+webrtcLocalTCPAddress: ""
+# The address browsers use to reach this host is put here by compose (PUBLIC_HOST) through the environment
+# variable MTX_WEBRTCADDITIONALHOSTS, without it the ICE candidates carry the container's own address.
+webrtcAdditionalHosts: []
+
+paths:
+  all_others:

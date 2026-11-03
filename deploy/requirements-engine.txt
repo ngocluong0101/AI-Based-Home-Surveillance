@@ -1,0 +1,6 @@
+# What the engine container needs besides DeepStream itself (deploy/Dockerfile.engine): the Engine manager
+# service (engine_manager/) and the config module it imports. Same versions as ../requirements.txt.
+fastapi==0.128.5
+uvicorn==0.40.0
+pydantic==2.12.5
+python-dotenv==1.2.2

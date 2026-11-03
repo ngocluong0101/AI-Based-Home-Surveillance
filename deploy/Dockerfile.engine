@@ -1,0 +1,38 @@
+# Engine: ds_engine (C, DeepStream) + the Engine manager (Python) that starts and supervises it.
+# Build from the repository root (the GPU is only needed to RUN it):
+#   docker build -f deploy/Dockerfile.engine -t surveillance-engine .
+# The ONNX model and the TensorRT engines are not in the image: engine/models is mounted at run time
+# (deploy/compose.yml), the engines are built there on the first start with a new number of cameras.
+FROM nvcr.io/nvidia/deepstream:7.1-triton-multiarch
+
+ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONUNBUFFERED=1 \
+    NVIDIA_DRIVER_CAPABILITIES=compute,utility,video
+
+WORKDIR /app
+COPY deploy/requirements-engine.txt deploy/requirements-engine.txt
+RUN pip3 install -r deploy/requirements-engine.txt
+
+COPY engine engine
+RUN make -C engine CUDA_VER=12.6 && make -C engine/parser CUDA_VER=12.6
+
+COPY src src
+COPY engine_manager engine_manager
+
+# uid 1000 (the base image already has a user with it): the engine has to write the TensorRT engines into
+# the mounted engine/models. HOME is for GStreamer's plugin registry cache. run/ holds cameras.ini (mode
+# 600) and the event spool, snapshots/ is shared with the backend.
+RUN mkdir -p /var/lib/surveillance/run /var/lib/surveillance/snapshots \
+ && chown -R 1000:1000 /var/lib/surveillance
+USER 1000:1000
+ENV HOME=/tmp \
+    ENGINE_COMMAND=/app/engine/build/ds_engine \
+    ENGINE_CONFIG=/app/engine/configs/pgie_yolov8n.txt \
+    ENGINE_TRACKER_CONFIG=/app/engine/configs/tracker_nvdcf.yml \
+    ENGINE_RUNTIME_DIR=/var/lib/surveillance/run \
+    SNAPSHOT_DIR=/var/lib/surveillance/snapshots \
+    LOG_FILE=/tmp/engine_manager.log
+
+# The manager has no authentication (it controls a program): it listens on all interfaces only because the
+# backend is in another container, and compose does not publish this port.
+EXPOSE 8100
+ENTRYPOINT ["uvicorn", "engine_manager.service:create_app", "--factory", "--host", "0.0.0.0", "--port", "8100"]

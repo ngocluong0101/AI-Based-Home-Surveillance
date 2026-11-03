@@ -253,6 +253,40 @@ The browser only talks to one origin, so the backend needs no CORS setup; `npm r
 MediaMTX and `MEDIAMTX_WEBRTC_URL` (see "Live video"); that URL must be reachable from the browser itself. The built `frontend/dist` is not served by the backend yet.
 "People now" is the number of people in the latest frame of each camera, as the engine reports it in its heartbeat (see "Heartbeat" below); it shows "-" while a camera has no recent frame, never a false 0. Events today counts people detected since midnight.
 
+## Docker
+
+The whole system runs as five containers (`deploy/compose.yml`): PostgreSQL, MediaMTX, the backend, the engine together
+with the Engine manager (one GPU container), and the web app behind nginx.
+
+Needs Docker with the NVIDIA Container Toolkit, and the ONNX model on the host (once: `python engine/tools/export_yolov8_onnx.py`,
+it lands in `engine/models/`, which is mounted into the engine container). Then, from the repository root:
+
+```bash
+cp .env.example .env          # set POSTGRES_PASSWORD (letters and digits), INTERNAL_TOKEN (openssl rand -hex 24),
+                              # PUBLIC_HOST (the address browsers use to reach this machine), and Telegram if wanted
+docker compose --env-file .env -f deploy/compose.yml up -d --build
+```
+
+Open `http://<PUBLIC_HOST>:8080` (`HTTP_PORT` changes it), add the cameras on the Cameras page and press Start. Compose stops with a
+message when `POSTGRES_PASSWORD` or `INTERNAL_TOKEN` is missing. `--env-file .env` is needed because compose would look for `.env`
+next to the compose file.
+
+| Container | Published on the host | Notes |
+|---|---|---|
+| `frontend` (nginx) | `HTTP_PORT` (8080) | serves the app and forwards only `/api` (REST + WebSocket); `/internal` answers 404 |
+| `mediamtx` | 8889/tcp, 8189/udp | WebRTC for the browsers; `PUBLIC_HOST` goes into its ICE candidates. RTMP (1935) stays inside |
+| `backend`, `db`, `engine` | nothing | the engine posts events to `backend` with `INTERNAL_TOKEN`; the Engine manager (port 8100, no authentication) is reachable only from the other containers |
+
+- Cameras with `file://` sources must point at files inside the engine container: mount the folder yourself (a compose override file).
+- The first start with a number of cameras that has no TensorRT engine yet builds it (2-3 minutes, in `engine/models/`, which must be
+  writable by uid 1000); `docker compose logs engine` shows it. Delete `engine/models/*_b*_gpu0_fp16.engine` when the ONNX model changes.
+- Snapshots live in the `snapshots` volume (shared by engine and backend), the database in `pgdata`. `down` keeps them, `down -v` deletes them.
+  Backup: `docker compose --env-file .env -f deploy/compose.yml exec db pg_dump -U surveillance surveillance > backup.sql`.
+- Every container has `restart: unless-stopped` and a healthcheck (not MediaMTX). A container whose main process exits is started again;
+  one you stopped yourself (`docker stop`, `docker kill`) is not. Telegram settings, `ABSENCE_TIMEOUT` and `SNAPSHOT_RETENTION_DAYS`
+  are read from `.env`; the token is passed to the backend as an environment variable (visible with `docker inspect`).
+- The engine image is based on the DeepStream image (31.7 GB); what this repository adds is a few MB.
+
 ## Run the unit tests
 
 The project uses `pytest` (already in `requirements.txt`). Run it from the repository root:

@@ -1,0 +1,30 @@
+# Docker build context = the repository root. Keep out secrets, local data, models and build output: none of
+# it belongs in an image (the models are mounted at run time, see deploy/compose.yml).
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+
+data
+logs
+myCV
+interview
+yolov8n.pt
+*.onnx
+*.engine
+ROADMAP.md
+CLAUDE.md
+
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.venv
+venv
+tests
+
+engine/build
+engine/models
+**/node_modules
+frontend/dist
+frontend/*.tsbuildinfo

@@ -1,0 +1,123 @@
+# The whole system: PostgreSQL, MediaMTX, backend, engine (+ Engine manager) and the web app behind nginx.
+#
+#   cp .env.example .env     # set POSTGRES_PASSWORD, INTERNAL_TOKEN (+ PUBLIC_HOST, Telegram), see README
+#   docker compose --env-file .env -f deploy/compose.yml up -d --build
+#
+# Run it from the repository root; --env-file is needed because compose looks for .env next to this file.
+# Needs Docker with the NVIDIA Container Toolkit and engine/models/yolov8n.onnx (README, "Docker").
+# Only the web app (HTTP_PORT) and the WebRTC ports of MediaMTX are published on the host: the database, the
+# backend, the Engine manager (no authentication!) and RTMP stay inside the compose network.
+name: surveillance
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: surveillance
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: surveillance
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U surveillance -d surveillance"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mediamtx:
+    image: bluenviron/mediamtx:1.21.3
+    restart: unless-stopped
+    environment:
+      # the address browsers reach this host at, for the WebRTC (ICE) candidates
+      MTX_WEBRTCADDITIONALHOSTS: ${PUBLIC_HOST:-localhost}
+    volumes:
+      - ./mediamtx.yml:/mediamtx.yml:ro
+    ports:
+      - "8889:8889"
+      - "8189:8189/udp"
+
+  backend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://surveillance:${POSTGRES_PASSWORD}@db:5432/surveillance
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:?set INTERNAL_TOKEN in .env}
+      ENGINE_MANAGER_URL: http://engine:8100
+      MEDIAMTX_WEBRTC_URL: http://${PUBLIC_HOST:-localhost}:8889
+      MEDIAMTX_PATH_PREFIX: live
+      ENABLE_TELEGRAM: ${ENABLE_TELEGRAM:-false}
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_CHAT_ID: ${TELEGRAM_CHAT_ID:-}
+      SNAPSHOT_RETENTION_DAYS: ${SNAPSHOT_RETENTION_DAYS:-7}
+    volumes:
+      - snapshots:/var/lib/surveillance/snapshots
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  engine:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.engine
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 45s    # the manager waits up to 25 s for ds_engine to flush, then kills it
+    depends_on:
+      backend:
+        condition: service_healthy
+      mediamtx:
+        condition: service_started
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu, video, compute, utility]
+    environment:
+      ENGINE_BACKEND_URL: http://backend:8000/internal/events
+      ENGINE_STREAM_URL: rtmp://mediamtx:1935/live
+      INTERNAL_TOKEN: ${INTERNAL_TOKEN:?set INTERNAL_TOKEN in .env}
+      ENABLE_SNAPSHOT: "true"
+      ABSENCE_TIMEOUT: ${ABSENCE_TIMEOUT:-10}
+    volumes:
+      # the ONNX model, and where the TensorRT engines are built and kept (one file per number of cameras)
+      - ../engine/models:/app/engine/models
+      - run:/var/lib/surveillance/run
+      - snapshots:/var/lib/surveillance/snapshots
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8100/status', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "${HTTP_PORT:-8080}:80"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  pgdata:
+  snapshots:
+  run:

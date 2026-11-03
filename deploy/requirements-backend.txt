@@ -1,0 +1,12 @@
+# What the backend container needs (deploy/Dockerfile.backend). Keep the versions in step with the
+# backend section of ../requirements.txt; the full file also holds the offline tools (ultralytics, OpenCV).
+fastapi==0.128.5
+uvicorn==0.40.0
+websockets==16.1.1   # without it uvicorn cannot serve the WebSocket at /api/ws
+pydantic==2.12.5
+sqlalchemy==2.0.51
+alembic==1.18.5
+psycopg[binary]==3.3.2
+httpx==0.28.1
+requests==2.34.2
+python-dotenv==1.2.2

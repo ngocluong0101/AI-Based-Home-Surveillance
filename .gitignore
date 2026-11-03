@@ -70,3 +70,5 @@ ROADMAP.md
 # ONNX models and TensorRT engines (regenerate: engine/tools/export_yolov8_onnx.py, nvinfer)
 *.onnx
 *.engine
+# ...but not the engine's Dockerfile, whose name ends the same way
+!deploy/Dockerfile.engine

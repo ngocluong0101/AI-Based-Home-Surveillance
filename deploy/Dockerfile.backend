@@ -1,0 +1,27 @@
+# Backend (FastAPI + Alembic). Build from the repository root:
+#   docker build -f deploy/Dockerfile.backend -t surveillance-backend .
+# Nothing secret goes into the image: DATABASE_URL, INTERNAL_TOKEN and the Telegram settings arrive as
+# environment variables when the container starts (see deploy/compose.yml).
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1
+
+# uid 1000 like the engine container: both write into the snapshot volume
+RUN useradd --uid 1000 --create-home --shell /usr/sbin/nologin app \
+ && mkdir -p /var/lib/surveillance/snapshots \
+ && chown -R app:app /var/lib/surveillance
+
+WORKDIR /app
+COPY deploy/requirements-backend.txt deploy/requirements-backend.txt
+RUN pip install -r deploy/requirements-backend.txt
+
+COPY src src
+COPY backend backend
+
+USER app
+ENV SNAPSHOT_DIR=/var/lib/surveillance/snapshots \
+    LOG_FILE=/tmp/backend.log
+EXPOSE 8000
+
+# The schema is brought up to date at every start (a no-op when it already is).
+CMD ["sh", "-c", "alembic -c backend/alembic.ini upgrade head && exec uvicorn backend.main:create_app --factory --host 0.0.0.0 --port 8000"]
