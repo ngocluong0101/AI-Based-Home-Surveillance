@@ -25,6 +25,28 @@ services:
       timeout: 3s
       retries: 10
 
+  # Dumps the database every BACKUP_INTERVAL_SECONDS into data/backups/ on the host and keeps the newest
+  # BACKUP_KEEP (deploy/backup.sh; restore: README, "Docker"). The files are written by uid 1000.
+  backup:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    init: true
+    user: "1000:1000"
+    entrypoint: ["/bin/sh", "/backup.sh"]
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      PGHOST: db
+      PGUSER: surveillance
+      PGDATABASE: surveillance
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      BACKUP_INTERVAL_SECONDS: ${BACKUP_INTERVAL_SECONDS:-86400}
+      BACKUP_KEEP: ${BACKUP_KEEP:-7}
+    volumes:
+      - ./backup.sh:/backup.sh:ro
+      - ${BACKUP_PATH:-../data/backups}:/backups
+
   mediamtx:
     image: bluenviron/mediamtx:1.21.3
     restart: unless-stopped

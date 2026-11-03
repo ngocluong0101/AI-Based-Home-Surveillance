@@ -27,6 +27,8 @@ Thumbs.db
 
 # Engine manager runtime files (camera URIs with passwords, the engine's spool)
 data/run/
+data/backups/*
+!data/backups/.gitkeep
 
 # Local environment files
 .env

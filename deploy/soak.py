@@ -317,7 +317,9 @@ def run(args) -> int:
     try:
         baseline = int(sh(["nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits"]))
         log(f"starting the stack (project {PROJECT}, port {PORT}, {args.cameras} cameras, {args.hours} h, output {out})")
-        stack.compose("up", "-d", "--build")
+        # named on purpose: not the "backup" service (it writes into the real data/backups/ and a soak run has no
+        # data worth keeping)
+        stack.compose("up", "-d", "--build", "db", "mediamtx", "backend", "engine", "frontend", "fakecam")
         stack.wait_healthy()
         cam_ids = stack.add_cameras()
         log(f"cameras {cam_ids} added and started")
