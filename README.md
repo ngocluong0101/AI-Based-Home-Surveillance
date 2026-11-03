@@ -11,12 +11,61 @@ Current state of the repository:
 - `backend/`: the FastAPI backend (REST API for cameras and events, the endpoint the engine posts events to), storing
   everything in PostgreSQL, starts/stops the engine for the cameras that should run through `engine_manager/`, shows the
   camera states the engine reports, pushes events and states to browsers over a WebSocket, sends the Telegram alerts and
-  deletes old snapshots (see [Backend](#backend)). There is no frontend yet.
+  deletes old snapshots (see [Backend](#backend)).
+- `frontend/`: the React web app (dashboard, live video, events, camera management; see [Frontend](#frontend)).
+- `deploy/`: Docker Compose for the whole system (see [Docker](#docker)).
 - `src/events/`: the Python `PERSON_DETECTED` de-duplication logic. It is the reference specification; the C engine
   has a port of it (`engine/src/core/event_manager.c`) that passes the same test vectors.
 - `src/notifications/`, `src/snapshot_management.py`, `src/config/`, `src/logging_config.py`: Python building blocks
   (Telegram notifier, snapshot cleanup, `.env` configuration, logging), used by the backend. No Python program
   runs a video pipeline any more: the old Ultralytics/OpenCV command line was removed.
+
+## Architecture
+
+```text
+  cameras (RTSP / files)
+          |
+          v
+  +------------------------------ engine container ------------------------------+
+  |  ds_engine (C, DeepStream): N sources -> nvstreammux (one batch)              |
+  |     -> nvinfer (YOLOv8n, TensorRT FP16) -> nvtracker (NvDCF)                  |
+  |     -> pad probe -> event manager (one per camera) -> publisher thread        |
+  |     -> nvstreamdemux -> OSD -> H.264 encoder (one per camera) -> RTMP         |
+  |  Engine manager (Python): starts / restarts ds_engine for the camera list     |
+  +-----------------+----------------------------------------+--------------------+
+        events, snapshots' names, heartbeats (HTTP + token)         RTMP video
+                    |                                            |
+                    v                                            v
+            backend (FastAPI) --- PostgreSQL                 MediaMTX --- WebRTC ---+
+              |   |   '--- Telegram                                                |
+              |   '------- WebSocket /api/ws  ---+                                 |
+              '----------- REST /api ---- nginx ----> browser (React app) <--------'
+```
+
+- **One process = one pipeline = N cameras.** `nvstreammux` batches all cameras into one inference call. Measured on an
+  RTX 4060 Laptop, that carries 20 cameras of 1080p at 30 fps where N engines with one camera each need 4 times the RAM
+  and 3 times the CPU at 8 cameras (see [Benchmark](#benchmark)).
+- **The pad probe never blocks.** It only copies what it needs out of the DeepStream metadata and queues it; a publisher
+  thread does the HTTP, the disk and the retries. A slow or dead backend does not slow the video down.
+- **Events are idempotent and are not lost.** Every event has a UUID made by the engine; the backend stores it once
+  (`INSERT ... ON CONFLICT DO NOTHING`). When the backend cannot be reached the engine appends events to a spool file
+  and delivers them later.
+- **De-duplication lives in the engine.** A person is reported once per track and again only after being away for
+  `ABSENCE_TIMEOUT` seconds. `src/events/person_detected.py` is the reference; the C port passes the same test vectors.
+- **The backend decides, the manager applies.** The camera list and each camera's wanted state live in PostgreSQL; a
+  reconciler thread pushes the list to the Engine manager, which restarts `ds_engine` when the list changes.
+- **Heartbeats tell the backend what the engine sees** (state, FPS, people in view, per camera, every 5 s); silence means
+  offline. Telegram is sent by the backend only, from a thread of its own, so it cannot delay the engine's events.
+
+| Directory | What is in it |
+|---|---|
+| `engine/` | the DeepStream engine (`src/ds_engine.c`), its pure-C core with tests (`src/core/`), configs, the bbox parser, offline tools (ONNX export, fake receiver, fake RTSP camera, benchmark) |
+| `engine_manager/` | the service that supervises `ds_engine` |
+| `backend/` | FastAPI app, models and migrations (Alembic), WebSocket hub, notifier, snapshot janitor |
+| `frontend/` | the React + TypeScript web app |
+| `src/` | shared Python: configuration, logging, `PERSON_DETECTED` specification, Telegram notifier, snapshot cleanup |
+| `deploy/` | Dockerfiles, Compose file, nginx and MediaMTX configuration |
+| `tests/`, `scripts/` | pytest suites (backend, manager, event logic, vectors); manual helper scripts |
 
 ## Installation
 
@@ -36,6 +85,50 @@ cp .env.example .env
 
 `ultralytics` stays in `requirements.txt` to export `yolov8n.pt` to ONNX for the engine; `opencv-python` is used by
 `scripts/test_telegram_snapshot.py`.
+
+## Run
+
+There are two ways to run the system:
+
+- **Docker (recommended):** one command starts everything, see [Docker](#docker). Use this for anything that should keep running.
+- **By hand (development):** the host has no DeepStream, so the engine runs in the DeepStream container and the rest on the host:
+  1. PostgreSQL role and database, then `alembic -c backend/alembic.ini upgrade head` ([Backend](#backend));
+  2. `uvicorn backend.main:create_app --factory --port 8000`;
+  3. the Engine manager, `uvicorn engine_manager.service:create_app --factory --host 127.0.0.1 --port 8100`, with `ENGINE_COMMAND` set to the
+     `docker run ... ds_engine` prefix ([Engine manager](#engine-manager));
+  4. MediaMTX and the web app: `npm run dev` in `frontend/` ([Live video](#live-video), [Frontend](#frontend));
+  5. or skip the manager and start `ds_engine` yourself with `--camera ID=URI` ([DeepStream engine](#deepstream-engine)).
+
+## Configuration
+
+Settings come from environment variables; a `.env` file in the repository root is loaded automatically (`.env.example` lists
+them, `src/config/__init__.py` is the one place that reads them). Under Docker the compose file sets the paths and URLs itself and
+takes only the ones marked *compose* from `.env`.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `DATABASE_URL` | none (required by the backend) | PostgreSQL, e.g. `postgresql+psycopg://surveillance@127.0.0.1:5432/surveillance` |
+| `INTERNAL_TOKEN` | empty = `/internal/*` open | shared secret the engine sends as `X-Internal-Token`; **required by compose** |
+| `POSTGRES_PASSWORD`, `PUBLIC_HOST`, `HTTP_PORT` | none, `localhost`, `8080` | *compose* only: database password (letters and digits), the address browsers use to reach the machine (WebRTC), port of the web app |
+| `ENABLE_TELEGRAM`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | `false`, none, none | Telegram alerts (*compose*) |
+| `ABSENCE_TIMEOUT` | `10` | seconds a person must be away before the same track raises a new event (*compose*) |
+| `ENABLE_SNAPSHOT`, `SNAPSHOT_DIR` | `true`, `data/snapshots` | the engine writes one JPEG per event frame here; the backend serves them from the same directory |
+| `SNAPSHOT_RETENTION_DAYS`, `SNAPSHOT_CLEANUP_INTERVAL` | `7`, `100` | snapshots older than this are deleted (and the events lose their picture); the cleanup runs every N new snapshots and at least hourly (*compose*: retention) |
+| `ENGINE_MANAGER_URL` | none = the backend only records the wanted state | where the backend finds the Engine manager |
+| `ENGINE_COMMAND`, `ENGINE_CONFIG`, `ENGINE_TRACKER_CONFIG`, `ENGINE_RUNTIME_DIR`, `ENGINE_EXTRA_ARGS` | `engine/build/ds_engine`, `engine/configs/pgie_yolov8n.txt`, `engine/configs/tracker_nvdcf.yml`, `data/run`, empty | how the manager starts the engine ([Engine manager](#engine-manager)) |
+| `ENGINE_BACKEND_URL`, `ENGINE_HEARTBEAT_URL` | `http://127.0.0.1:8000/internal/events`, derived from the previous | where the engine posts events and heartbeats |
+| `ENGINE_STREAM_URL`, `MEDIAMTX_WEBRTC_URL`, `MEDIAMTX_PATH_PREFIX` | empty = no video, none, `live` | publishing and watching the live video ([Live video](#live-video)) |
+| `HEARTBEAT_STALE_AFTER`, `NOTIFY_MAX_AGE` | `15`, `600` | seconds of silence before a camera counts as offline; age after which a pending Telegram alert is given up |
+| `LOG_LEVEL`, `LOG_FILE`, `LOG_MAX_BYTES`, `LOG_BACKUP_COUNT` | `INFO`, `logs/app.log`, 5 MB, `3` | logging ([Logging](#logging)) |
+
+Not here, and where to find it:
+
+- **What counts as a person** (confidence threshold `pre-cluster-threshold`, NMS) is in `engine/configs/pgie_yolov8n.txt`; tracking
+  behaviour is in `engine/configs/tracker_nvdcf.yml`.
+- **Engine options** (`--rtsp-timeout`, `--stream-bitrate`, `--heartbeat-interval`, ...) are command-line flags: [DeepStream engine](#deepstream-engine).
+- **Cameras** (name, address, login, enabled) are added in the web app or through `POST /api/cameras`, not in `.env`.
+  `conf_threshold` and `absence_timeout` in the camera table are stored but not applied yet: the engine uses one value for all cameras.
+- `RTSP_URL`, `VIDEO_SOURCE`, `CONFIDENCE_THRESHOLD` and `RECONNECT_DELAY` are left over from the removed command-line tool and nothing reads them.
 
 ## PERSON_DETECTED event logic
 
@@ -277,7 +370,8 @@ next to the compose file.
 | `mediamtx` | 8889/tcp, 8189/udp | WebRTC for the browsers; `PUBLIC_HOST` goes into its ICE candidates. RTMP (1935) stays inside |
 | `backend`, `db`, `engine` | nothing | the engine posts events to `backend` with `INTERNAL_TOKEN`; the Engine manager (port 8100, no authentication) is reachable only from the other containers |
 
-- Cameras with `file://` sources must point at files inside the engine container: mount the folder yourself (a compose override file).
+- Cameras with `file://` sources must point at files inside the engine container: `data/videos/` is mounted read-only at `/videos`,
+  so `data/videos/a.mp4` is `file:///videos/a.mp4`. (A file camera ends when the file ends, and is not restarted until the camera list changes.)
 - The first start with a number of cameras that has no TensorRT engine yet builds it (2-3 minutes, in `engine/models/`, which must be
   writable by uid 1000); `docker compose logs engine` shows it. Delete `engine/models/*_b*_gpu0_fp16.engine` when the ONNX model changes.
 - Snapshots live in the `snapshots` volume (shared by engine and backend), the database in `pgdata`. `down` keeps them, `down -v` deletes them.
@@ -464,11 +558,7 @@ To try it without a camera, build the fake RTSP server inside the DeepStream con
 rtsp-test-server`), serve a video with `build/rtsp_test_server FILE.mp4 8554 /cam`, point `--camera 1=rtsp://127.0.0.1:8554/cam`
 at it, and stop and start the server, or pause it with `kill -STOP`, to make the camera disappear.
 
-To find out how many cameras one GPU carries, run `engine/tools/benchmark.py` inside the same container (usage in its
-docstring). It serves one 1080p video as N real-time RTSP cameras, runs either one engine with N cameras or N engines with one
-camera each, and prints FPS per camera, GPU/NVDEC/VRAM, CPU and RAM. On an RTX 4060 Laptop (8 GB) one engine held 30 fps on
-20 cameras (GPU 75%), was at its edge on 24 (NVDEC 99%) and failed on 28; one engine per camera used about 4x more RAM and 3x
-more CPU at 8 cameras. Latency is not measured, and all cameras show the same video, so treat it as an upper bound for 1080p H.264.
+To find out how many cameras one GPU carries, use `engine/tools/benchmark.py` inside the same container; see [Benchmark](#benchmark).
 
 Run the tests of the pure-C code (`engine/src/core/`: the `Detection` box normalisation, the event manager, which replays the shared vectors of `tests/vectors/`, the event JSON, the heartbeat JSON, the spool file and the retry delays) on the host, no
 DeepStream or GPU needed; built with AddressSanitizer and UBSan:
@@ -478,3 +568,83 @@ cd engine && make test-core
 ```
 
 The DeepStream sample sources are under NVIDIA's proprietary license, so they are not copied into this repository.
+
+## Benchmark
+
+`engine/tools/benchmark.py` measures how many cameras one GPU carries. It runs inside the DeepStream container (usage in its
+docstring), serves one 1080p H.264 video as N real-time RTSP cameras from the fake camera of `make rtsp-test-server`, runs either one engine
+with N cameras (`--layout single`) or N engines with one camera each (`--layout multi`), and prints FPS per camera, GPU, NVENC/NVDEC,
+VRAM, CPU and RAM over a 25 s window. A missing TensorRT engine for a batch size is built the first time (about 150 s each).
+
+Results on an RTX 4060 Laptop (8 GB), 16 cores, 15 GB RAM, detection and tracking only (no video publishing):
+
+| Layout | Cameras | FPS per camera | GPU / NVDEC | RAM of the engine(s) | CPU (one core = 100%) |
+|---|---|---|---|---|---|
+| one engine | 1 | 30 | 7% / 4% | 0.6 GiB | 12% |
+| one engine | 8 | 30 | 33% / 31% | 1.2 GiB | 34% |
+| one engine | 16 | 30 | 57% / 56% | 1.5 GiB | 53% |
+| one engine | 20 | 30 (dips to 24) | 75% / 74% | 1.8 GiB | 61% |
+| one engine | 24 | 30 (dips to 22.5) | 93% / 99% | 2.0 GiB | 65% |
+| one engine | 28 | 25.5, fails | 92% / 100% | 2.2 GiB | 108% |
+| 8 engines, one camera each | 8 | 30 | 41% / 25% | 5.1 GiB | 95% |
+
+- The decoder (NVDEC) is the limit, not the neural network: reading files as fast as possible saturates at about 850 frames per second.
+  One engine for all cameras is the better layout: the same 8 cameras need 4 times the RAM and 3 times the CPU as 8 engines.
+- With the live video published (one NVENC session per camera with the boxes drawn) the limit is 12 cameras: when 24 encoder sessions were
+  tried, only 12 could start. Detection plus publishing together at 12 cameras was not measured.
+- All cameras show the same video and run on localhost, and latency is not measured: take the numbers as an upper bound for 1080p H.264
+  at 30 fps. Other resolutions, frame rates and codecs move the limits.
+
+### Soak test
+
+`deploy/soak.py` runs the whole Docker stack for hours with fake cameras and reports whether anything drifts or breaks:
+
+```bash
+python3 deploy/soak.py video --hours 4      # once: data/videos/soak_loop.mp4, the sample repeated without re-encoding (~10 GB for 4 h)
+setsid nohup python3 deploy/soak.py run --hours 4 --cameras 4 --out logs/soak-4h > logs/soak-4h.log 2>&1 &
+python3 deploy/soak.py report logs/soak-4h  # the verdict again from the samples
+```
+
+It needs the fake camera built (`make -C engine rtsp-test-server` in the DeepStream container) and `engine/models/yolov8n.onnx`. It uses a
+compose project of its own (`surveillance-soak`) on port 18081 with Telegram off, so it does not touch a stack you run for real, and it removes
+its stack (`down -v`) at the end. Every 30 s it records RAM of each container, VRAM and GPU/NVENC/NVDEC use, the number of processes in the engine
+container, FPS and state of every camera, container restarts, events, and the size of the snapshots, the database and the free disk. It stops early when
+the host has less than 8 GB of disk or 1 GB of RAM left. `report.txt` compares the first and last third of the run after a 10 minute warm-up
+(RAM and VRAM may not grow by more than 10%), checks the slowest camera stays at about 30 fps, that nothing restarted, and that no password or token
+appears in the container logs. Four cameras write about 2 GB of snapshots an hour.
+
+## Troubleshooting
+
+| Symptom | Cause and fix |
+|---|---|
+| `docker compose` stops with "required variable ... is missing" | set `POSTGRES_PASSWORD` and `INTERNAL_TOKEN` in `.env` and pass `--env-file .env` (compose looks for `.env` next to the compose file) |
+| The web app shows "Connection lost", `/api/ws` answers 404, the backend log says "No supported WebSocket library" | `websockets` is not installed (`pip install -r requirements.txt` has it); in Docker rebuild the backend image |
+| A camera reports nothing for 2-3 minutes after Start, the engine log has "no TensorRT engine for N camera(s) yet" | first start with this number of cameras: the engine file for that batch size is being built; later starts take seconds. Delete `engine/models/*_b*_gpu0_fp16.engine` if you export the ONNX model again |
+| Engine log: "Could not open resource for reading", "Unauthorized" | wrong address or login. Use **Test connection** on the Cameras page. Free public RTSP links with a `?token=` expire within a day |
+| The video is black or stays on "connecting" in the browser | `PUBLIC_HOST` is not the address the browser uses (WebRTC candidates point to it), or port 8889/tcp or 8189/udp is blocked |
+| Events do not appear in the web app | the camera must exist in the backend with the id the engine uses (otherwise HTTP 422, the event is dropped); a wrong `INTERNAL_TOKEN` gives 401 and the engine keeps the events in `ENGINE_RUNTIME_DIR/events.spool` and delivers them once it is right |
+| No Telegram message, event shows "disabled" | `ENABLE_TELEGRAM` is false or the token/chat id is empty; try `python scripts/test_telegram_snapshot.py`. An alert still pending after `NOTIFY_MAX_AGE` (10 min) is dropped |
+| All cameras lose the picture for a few seconds when one is added or removed | expected: one process serves all cameras, so the engine restarts when the camera list changes |
+| A camera with a `file://` address stops after one pass and Start does nothing | the file ended; the engine does not restart until the camera list changes (Stop, then Start) |
+| `--output` gives an MP4 that cannot be played | stop the engine once with Ctrl-C and wait up to 5 s so that it can finish the file; a second Ctrl-C leaves it unplayable |
+| nginx answers 502 right after the backend container was recreated | wait a few seconds; nginx looks the backend up again every 10 s. Check `docker compose ps` for an unhealthy backend |
+| `docker kill` / `docker stop` and the container stays down | by design (`restart: unless-stopped` honours a stop you asked for); `docker compose up -d` starts it again |
+| The backend cannot connect to PostgreSQL on the host | the role and database do not exist yet, see [Backend](#backend); a port already in use (for example 8000 by another container) needs another port |
+
+## Demo
+
+A full run with no camera, using a video file. Needs the requirements of [Docker](#docker) (Docker with the NVIDIA toolkit, the ONNX model).
+
+1. Put a 1080p H.264 MP4 into `data/videos/` (for example `data/videos/sample.mp4`).
+2. In `.env` set `POSTGRES_PASSWORD` and `INTERNAL_TOKEN` (and `PUBLIC_HOST` if you open the app from another machine).
+3. Start everything: `docker compose --env-file .env -f deploy/compose.yml up -d --build`. The first build compiles the engine and pulls the
+   DeepStream image (about 32 GB), so it takes a while.
+4. Open `http://localhost:8080`, go to **Cameras**, press **Add camera**, choose type *file* and enter `file:///videos/sample.mp4`, press
+   **Test connection**, then **Save** and **Start**. The first start with a camera count that has no TensorRT engine builds one (2-3 minutes,
+   see `docker compose logs -f engine`).
+5. **Monitoring** shows the live video with a box and `person <id>` around everybody, the FPS and "People now". **Events** fills with a card per
+   person (picture, time, confidence); a toast appears for each new one. With `ENABLE_TELEGRAM=true` the same alerts arrive on Telegram.
+6. When the video ends the camera stops by itself (the engine exits 0). Stop then Start plays it again.
+7. `docker compose --env-file .env -f deploy/compose.yml down` stops it (`down -v` also deletes the database and the snapshots).
+
+The 48 s test clip used while building this raised 29 events with 29 snapshots at 30 fps.

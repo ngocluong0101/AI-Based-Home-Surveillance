@@ -57,6 +57,8 @@ services:
       SNAPSHOT_RETENTION_DAYS: ${SNAPSHOT_RETENTION_DAYS:-7}
     volumes:
       - snapshots:/var/lib/surveillance/snapshots
+      # the same videos as in the engine container, so that "Test connection" of a file camera sees the file too
+      - ../data/videos:/videos:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
       interval: 10s
@@ -94,6 +96,8 @@ services:
       - ../engine/models:/app/engine/models
       - run:/var/lib/surveillance/run
       - snapshots:/var/lib/surveillance/snapshots
+      # video files for the demo / for file cameras: add a camera with the address file:///videos/<name>.mp4
+      - ../data/videos:/videos:ro
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8100/status', timeout=3)"]
       interval: 10s
