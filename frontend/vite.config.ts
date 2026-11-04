@@ -13,5 +13,5 @@ export default defineConfig({
       "/api": { target: backend, ws: true, changeOrigin: false },
     },
   },
-  test: { environment: "node" },
+  test: { environment: "node", include: ["src/**/*.test.ts"] }, // e2e/*.spec.ts belong to Playwright
 });

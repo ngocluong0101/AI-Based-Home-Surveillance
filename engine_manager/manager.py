@@ -258,6 +258,7 @@ class EngineManager:
                 "last_error": st.last_error,
                 "reloads": st.reloads,
                 "capacity": st.capacity,
+                "max_cameras": self.cfg.max_cameras,
                 "running_cameras": list(st.running_ids),
                 "desired_cameras": [c.id for c in st.desired],
                 "revision": st.revision,
@@ -411,6 +412,7 @@ class EngineManager:
             st.next_start = time.monotonic() + st.backoff
             st.name = "backoff"
             st.running_ids = ()
+            st.capacity = 0
 
     def _on_exit(self, rc: int) -> None:
         with self._lock:
@@ -418,6 +420,7 @@ class EngineManager:
             self._st.run = None
             self._st.last_exit_code = rc
             self._st.running_ids = ()
+            self._st.capacity = 0
             ran = time.monotonic() - run.started if run else 0.0
         if run:
             run.reader.join(2)
@@ -457,4 +460,5 @@ class EngineManager:
             self._st.last_exit_code = proc.returncode
             self._st.run = None
             self._st.running_ids = ()
+            self._st.capacity = 0
             self._st.name = "stopped"

@@ -105,6 +105,18 @@ class EngineInfo(BaseModel):
     last_exit_code: int | None = None
 
 
+class EngineSummary(BaseModel):
+    """The engine as a whole, for the Cameras page."""
+
+    manager: Literal["reachable", "unreachable", "not_configured"]
+    state: str | None = None       # stopped | running | stopping | backoff | exited
+    capacity: int | None = None    # places in the running engine (or the next one); None = unknown, or no spare places
+    running: int | None = None     # cameras the running engine serves
+    wanted: int                    # cameras that should run now (enabled, not deleted, started)
+    applied: bool | None = None    # the manager has the current list
+    room: int | None = None        # free places for more cameras without a restart; None = unknown
+
+
 class StreamInfo(BaseModel):
     """What the engine itself says about the camera, from its heartbeat (ROADMAP 3.6)."""
 

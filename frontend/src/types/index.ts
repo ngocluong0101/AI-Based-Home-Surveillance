@@ -17,6 +17,21 @@ export interface Camera {
   updated_at: string;
 }
 
+/** GET /api/engine: the engine as a whole. */
+export interface EngineSummary {
+  manager: "reachable" | "unreachable" | "not_configured";
+  state: string | null;
+  /** Places in the running engine (cameras it can take without a restart); null = unknown. */
+  capacity: number | null;
+  running: number | null;
+  /** Cameras that should run now. */
+  wanted: number;
+  /** The engine manager has the current list. */
+  applied: boolean | null;
+  /** Free places; 0 = the next camera restarts the engine. null = unknown. */
+  room: number | null;
+}
+
 export interface StreamInfo {
   reporting: boolean;
   state: CameraState | null;

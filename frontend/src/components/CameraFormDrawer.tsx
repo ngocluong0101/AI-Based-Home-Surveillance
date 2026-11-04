@@ -73,7 +73,7 @@ function Form({ camera, onDone }: { camera?: Camera; onDone: () => void }) {
       <div className="drawer-body">
         <label className="field wide">
           Name
-          <input value={values.name} onChange={(e) => set("name", e.target.value)} placeholder="Front door" maxLength={100} autoFocus />
+          <input value={values.name} onChange={(e) => set("name", e.target.value)} placeholder="Front door" maxLength={100} autoFocus aria-invalid={errors.name ? true : undefined} />
           {errors.name && <span className="field-error">{errors.name}</span>}
         </label>
 
@@ -104,6 +104,7 @@ function Form({ camera, onDone }: { camera?: Camera; onDone: () => void }) {
             spellCheck={false}
             autoComplete="off"
             className="mono"
+            aria-invalid={errors.sourceUri ? true : undefined}
           />
           {camera && (
             <span className="field-hint">Currently {camera.source_uri}. The saved password is never shown.</span>

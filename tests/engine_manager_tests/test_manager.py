@@ -419,3 +419,14 @@ def test_from_env_passes_the_stream_url_only_when_set(monkeypatch):
 
     monkeypatch.setattr(config, "ENGINE_STREAM_URL", "")
     assert "--stream-url" not in ManagerConfig.from_env().engine_args
+
+
+def test_status_tells_the_places_of_the_running_engine_and_the_configured_ones(make_manager):
+    m = make_manager(max_cameras=4)
+    assert m.status()["capacity"] == 0 and m.status()["max_cameras"] == 4   # nothing runs yet
+    m.set_cameras([cam(1)])
+    wait_for(lambda: m.status()["state"] == "running")
+    assert m.status()["capacity"] == 4
+    m.set_cameras([])
+    wait_for(lambda: m.status()["state"] == "stopped")
+    assert m.status()["capacity"] == 0                                      # it does not keep the places of a dead engine

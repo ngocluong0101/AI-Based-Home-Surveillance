@@ -1,4 +1,4 @@
-import { Cctv, Pencil, Play, Plus, PlugZap, Square, Trash2 } from "lucide-react";
+import { Cctv, Cpu, Pencil, Play, Plus, PlugZap, Square, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { CameraFormDrawer } from "../components/CameraFormDrawer";
@@ -7,8 +7,48 @@ import { ConfirmDialog } from "../components/ui/ConfirmDialog";
 import { Skeleton } from "../components/ui/Skeleton";
 import { StatusDot } from "../components/ui/StatusDot";
 import { EmptyState, ErrorState } from "../components/ui/States";
-import { useCameraControl, useCameras, useDeleteCamera, useFleet, useTestConnection, type FleetItem } from "../hooks/queries";
+import { useCameraControl, useCameras, useDeleteCamera, useEngine, useFleet, useTestConnection, type FleetItem } from "../hooks/queries";
 import type { Camera } from "../types";
+import { describeDetection } from "../utils/detection";
+import { describeEngine } from "../utils/engine";
+
+/** What the engine as a whole is doing, and what the next camera will do to it (see utils/engine.ts). */
+function EngineNote() {
+  const engine = useEngine();
+  const note = describeEngine(engine.data);
+  if (!note) return null;
+  return (
+    <div className="card engine-note" role="status" aria-live="polite">
+      <Cpu size={18} aria-hidden />
+      <div>
+        <div className="engine-line">
+          <Badge tone={note.tone}>{note.headline}</Badge>
+          {note.places && (
+            <span className="muted">
+              Places in use: <b>{note.places}</b>
+            </span>
+          )}
+        </div>
+        {note.detail && <p className={note.tone === "warn" ? "engine-detail engine-warn" : "engine-detail"}>{note.detail}</p>}
+      </div>
+    </div>
+  );
+}
+
+/** The detection settings of a camera, short: what it ignores, what it repeats. */
+function DetectionCell({ camera }: { camera: Camera }) {
+  const d = describeDetection(camera);
+  if (d.aiOff) return <Badge tone="idle">AI off</Badge>;
+  return (
+    <div className="detect-cell" title="Minimum confidence of a detection, and how long a person must be out of sight before the same person raises a new alert">
+      <span>
+        Confidence {d.stricter ? "at least " : "from "}
+        <b>{d.minConfidence}</b>
+      </span>
+      <span className="muted">Repeat after {d.repeatAfter}</span>
+    </div>
+  );
+}
 
 function Row({ item, onEdit, onDelete }: { item: FleetItem; onEdit: (c: Camera) => void; onDelete: (c: Camera) => void }) {
   const { camera, health, status } = item;
@@ -38,6 +78,9 @@ function Row({ item, onEdit, onDelete }: { item: FleetItem; onEdit: (c: Camera) 
         <span className="mono muted src" title={camera.source_uri}>
           {camera.source_uri}
         </span>
+      </td>
+      <td>
+        <DetectionCell camera={camera} />
       </td>
       <td>
         <Badge tone={health.tone}>{health.label}</Badge>
@@ -110,6 +153,7 @@ export function CamerasPage() {
             <tr>
               <th>Camera</th>
               <th>Source</th>
+              <th>Detection</th>
               <th>Status</th>
               <th />
             </tr>
@@ -135,6 +179,7 @@ export function CamerasPage() {
           <Plus size={16} /> Add camera
         </button>
       </div>
+      <EngineNote />
       {body}
 
       <CameraFormDrawer open={form.open} camera={form.camera} onClose={() => setForm((f) => ({ ...f, open: false }))} />

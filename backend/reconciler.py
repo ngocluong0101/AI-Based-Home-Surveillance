@@ -29,8 +29,8 @@ def desired_cameras(db: Session) -> list[dict]:
         .where(Camera.deleted_at.is_(None), Camera.enabled.is_(True), Camera.desired_state == "running")
         .order_by(Camera.id)
     )
-    # The settings travel with the address: the engine reads them once at start, so a change in any of them
-    # changes the revision and the manager restarts the engine with the new values.
+    # The settings travel with the address: a change in any of them changes the revision, and the manager
+    # tells the running engine to read them again (or restarts it, if the list does not fit its places).
     return [
         {
             "id": c.id,

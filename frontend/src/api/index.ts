@@ -3,6 +3,7 @@ import type {
   CameraCreate,
   CameraStatus,
   CameraUpdate,
+  EngineSummary,
   ConnectionCheckBody,
   ConnectionCheckResult,
   EventFilters,
@@ -33,6 +34,7 @@ export const api = {
   deleteCamera: (id: number) => request<void>(`/api/cameras/${id}`, { method: "DELETE" }),
   testConnection: (body: ConnectionCheckBody) =>
     request<ConnectionCheckResult>("/api/cameras/test-connection", { method: "POST", body: JSON.stringify(body) }),
+  engine: () => request<EngineSummary>("/api/engine"),
   cameraStatus: (id: number) => request<CameraStatus>(`/api/cameras/${id}/status`),
   cameraStream: (id: number) => request<StreamLink>(`/api/cameras/${id}/stream`),
   startCamera: (id: number) => request<CameraStatus>(`/api/cameras/${id}/start`, { method: "POST" }),

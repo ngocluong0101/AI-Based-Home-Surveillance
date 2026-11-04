@@ -9,6 +9,9 @@ const STATUS_POLL_MS = 5000;
 export const useCameras = () =>
   useQuery({ queryKey: ["cameras"], queryFn: api.cameras, refetchInterval: 30000 });
 
+/** The engine as a whole (places, whether the latest list is applied). Poll often: it changes after every camera edit. */
+export const useEngine = () => useQuery({ queryKey: ["engine"], queryFn: api.engine, refetchInterval: 5000 });
+
 export interface FleetItem {
   camera: Camera;
   status: CameraStatus | undefined;
@@ -113,6 +116,7 @@ export function useCameraControl() {
     onSuccess: (status) => {
       qc.setQueryData(["status", status.camera_id], status);
       void qc.invalidateQueries({ queryKey: ["cameras"] });
+      void qc.invalidateQueries({ queryKey: ["engine"] });
     },
   });
 }
@@ -141,6 +145,7 @@ function useInvalidateCameras() {
   return () => {
     void qc.invalidateQueries({ queryKey: ["cameras"] });
     void qc.invalidateQueries({ queryKey: ["status"] });
+    void qc.invalidateQueries({ queryKey: ["engine"] });
   };
 }
 

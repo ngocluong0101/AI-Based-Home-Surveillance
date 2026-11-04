@@ -10,8 +10,9 @@
   --line-strong: #2f3a49;
   --fg: #e8edf4;
   --muted: #8a96a8;
-  --faint: #5c6879;
+  --faint: #808ea1; /* 5.3:1 on --surface: the smallest text (hints) must still reach 4.5:1 */
   --accent: #4f8cff;
+  --accent-strong: #2563d8; /* white text on a button needs 4.5:1: 5.4:1 here (white on --accent is only 3.2:1) */
   --accent-soft: rgba(79, 140, 255, 0.14);
   --ok: #34d399;
   --ok-soft: rgba(52, 211, 153, 0.14);
@@ -19,7 +20,7 @@
   --warn-soft: rgba(251, 191, 36, 0.14);
   --bad: #f87171;
   --bad-soft: rgba(248, 113, 113, 0.14);
-  --idle: #7b8798;
+  --idle: #9aa5b5; /* text on its own 14% tint: 6.2:1 */
   --idle-soft: rgba(123, 135, 152, 0.14);
   --radius: 12px;
   --radius-sm: 8px;
@@ -47,8 +48,8 @@ a { color: inherit; }
 .btn:hover:not(:disabled) { background: var(--surface-3); border-color: var(--faint); }
 .btn:active:not(:disabled) { transform: translateY(1px); }
 .btn:disabled { opacity: 0.5; cursor: default; }
-.btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-.btn-primary:hover:not(:disabled) { background: #6b9dff; border-color: #6b9dff; }
+.btn-primary { background: var(--accent-strong); border-color: var(--accent-strong); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: #1f5fd6; border-color: #1f5fd6; }
 .btn-ghost { background: transparent; border-color: transparent; color: var(--muted); }
 .btn-ghost:hover:not(:disabled) { color: var(--fg); background: var(--surface-2); border-color: transparent; }
 .btn-sm { padding: 0.25rem 0.55rem; font-size: 0.82rem; }
@@ -247,12 +248,12 @@ dd { margin: 0; text-align: right; }
 
 /* ---------- Camera management ---------- */
 a.btn { text-decoration: none; }
-.btn-danger { background: var(--bad); border-color: var(--bad); color: #fff; }
-.btn-danger:hover:not(:disabled) { background: #fb8a8a; border-color: #fb8a8a; }
+.btn-danger { background: #dc2626; border-color: #dc2626; color: #fff; } /* white on it: 4.8:1 (on --bad only 2.8:1) */
+.btn-danger:hover:not(:disabled) { background: #b91c1c; border-color: #b91c1c; }
 .btn-danger-ghost:hover:not(:disabled) { color: var(--bad); border-color: var(--bad); }
 .cell-name { display: flex; align-items: center; gap: 0.6rem; }
-.src { display: inline-block; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; font-size: 0.8rem; }
-.row-actions { display: flex; gap: 0.4rem; justify-content: flex-end; flex-wrap: wrap; }
+.src { display: inline-block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: middle; font-size: 0.8rem; }
+.row-actions { display: flex; gap: 0.4rem; justify-content: flex-end; flex-wrap: nowrap; }
 .spin { animation: spin 0.8s linear infinite; }
 
 .drawer form .drawer-body { gap: 1rem; }
@@ -290,3 +291,11 @@ a.btn { text-decoration: none; }
 .dialog h2 { font-size: 1.1rem; }
 .dialog-icon { display: grid; place-items: center; width: 2.6rem; height: 2.6rem; border-radius: 50%; background: var(--bad-soft); color: var(--bad); }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 0.6rem; margin-top: 0.6rem; }
+
+/* Cameras page: the engine's places, and the detection settings of a camera */
+.engine-note { display: flex; gap: 0.75rem; align-items: flex-start; padding: 0.8rem 1.1rem; margin-bottom: 1rem; }
+.engine-note svg { color: var(--muted); margin-top: 0.15rem; flex: none; }
+.engine-line { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
+.engine-detail { margin-top: 0.3rem; color: var(--muted); font-size: 0.88rem; }
+.engine-warn { color: var(--warn); }
+.detect-cell { display: flex; flex-direction: column; gap: 0.1rem; font-size: 0.85rem; white-space: nowrap; }

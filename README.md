@@ -233,6 +233,7 @@ uvicorn backend.main:create_app --factory --host 0.0.0.0 --port 8000     # API d
 | Endpoint | |
 |---|---|
 | `GET /api/health` | 200, or 503 when the database cannot be reached |
+| `GET /api/engine` | the engine as a whole, for the Cameras page: `manager` (`reachable`, `unreachable`, `not_configured`), `state`, `capacity` (places in the running engine, or the places the next one will have while none runs; `null` when the manager keeps no spare places), `running`, `wanted` (cameras that should run), `applied` (the manager has the current list) and `room` (free places; `0` = the next camera restarts the engine) |
 | `GET/POST /api/cameras`, `GET/PATCH/DELETE /api/cameras/{id}` | cameras. The id is the `camera_id` the engine puts in its events. `source_uri` is stored as given (the engine needs the password) but every response shows it masked (`rtsp://***@host/path?***`). DELETE is a soft delete that frees the name. |
 | `GET /api/events` | newest first. Filters `camera_id`, `from` (inclusive), `to` (exclusive), `type`, `status`; pagination `limit` (1-200, default 50) and `offset`; answers `{items, total, limit, offset}` |
 | `GET /api/events/{id}`, `GET /api/events/{id}/snapshot` | one event; its JPEG from `SNAPSHOT_DIR` (404 when the event has none or the cleaner removed the file) |
@@ -341,6 +342,10 @@ every test.
 - **Cameras**: list with Start/Stop, Test, Edit and Delete (with a confirmation), and an *Add camera* drawer: name, IP camera (RTSP) or video file, address,
   optional username and password in their own fields (special characters need no escaping; the password is stored on the server and never shown),
   and **Test connection**, which shows what works (reachable, login, video stream, codec, resolution). When editing, an empty address keeps the saved one.
+  The table shows each camera's detection settings (minimum confidence, how long before the same person is reported again, or "AI off"),
+  and a panel on top tells how many of the engine's places are used and whether the next camera starts without interrupting the others
+  or restarts the engine (see `ENGINE_MAX_CAMERAS`). The form and the confirmation dialog keep the keyboard inside while they are open,
+  start on the first field (or on the safe choice) and give the focus back to the button that opened them.
 - **Events**: filters (camera, status, date range), paging, confidence bars and an event drawer with the snapshot, the detection
   box and Acknowledge. Opening any event (from any list or a toast) shows the same drawer.
 
@@ -356,7 +361,18 @@ npm run dev          # http://localhost:5173, forwards /api (REST and WebSocket)
 BACKEND_URL=http://192.168.1.20:8000 npm run dev   # backend elsewhere
 npm test             # unit tests (vitest)
 npm run build        # type-check, then bundle into frontend/dist
+npm run e2e          # end-to-end and accessibility tests in Chrome (see below)
 ```
+
+**End-to-end tests** (`frontend/e2e/`, Playwright with the Chrome that is installed, no browser download): `e2e/stack.py` starts a
+real backend on a throwaway PostgreSQL and a real engine manager that runs a stand-in for `ds_engine` with 3 places, and Vite in front
+of them; the specs click through the Cameras page (add, edit the detection settings, validation, delete with confirmation, the engine's
+places filling up and the warning before the next camera restarts the engine). `e2e/a11y.spec.ts` runs axe (WCAG 2.1 A and AA) on every page,
+the camera form, the event drawer and the delete dialog, and checks the keyboard: Tab and Shift+Tab stay inside a drawer or dialog, Escape
+closes it, the focus goes back to the button that opened it, every control on the Cameras page can be reached and has a name. The ports
+are 18765 (backend), 18766 (manager) and 5174 (Vite), so a development stack on the usual ports can keep running. They never touch the
+developer's database, `.env` Telegram settings or the GPU. First run of axe found real problems, all fixed: white text on the blue and red
+buttons (3.2:1 and 2.8:1), the dimmest hint and "idle" text, and no focus trap or focus return in the drawers.
 
 Source layout: `src/api` (REST calls), `src/websocket` (socket, message handling, duplicate filter), `src/hooks` (queries, route),
 `src/types`, `src/utils`, `src/components` (+ `ui/` building blocks), `src/layouts` (sidebar shell), `src/pages`.
@@ -429,9 +445,29 @@ The test suite contains:
 - `tests/test_env_file.py`: reading and writing `.env`, using temporary files only.
 - `tests/backend_api/`: the backend (cameras, events, the internal endpoints, heartbeat, the WebSocket, Telegram alerts, snapshot cleanup, health, migrations, start/stop and the reconciler) against a throwaway PostgreSQL.
 - `tests/engine_manager_tests/`: the engine manager, with a stand-in program for the engine.
+- `tests/engine_real/`: the **real engine** on the GPU, skipped unless `RUN_GPU_TESTS=1` (see below).
 
 The tests need no camera, model, network or display; the backend tests need the PostgreSQL server programs installed
 (they are skipped otherwise).
+
+The C part has its own tests (`cd engine && make test-core`, 29 tests, no GPU).
+
+**Tests of the real engine** (`tests/engine_real/`) run `ds_engine` in the DeepStream container on the GPU, against a fake backend that records
+the events and heartbeats it receives, and, for the video, a MediaMTX container. They need Docker with the NVIDIA runtime, `engine/build/ds_engine`
+built, the TensorRT engines for 3 and 4 cameras (built on first use, ~150 s each), the GPU to themselves (not next to a benchmark or a soak) and about
+5 minutes:
+
+```bash
+RUN_GPU_TESTS=1 pytest tests/engine_real -v
+```
+
+They check what a person would see, with ratios generous enough for the video position: the settings of the cameras file change while the engine runs
+(a camera that repeats a person sooner raises more events, a stricter one almost none, one with AI off none and no `people` in its heartbeat), a broken file
+changes nothing, the defaults come back; cameras are added, removed and added again into the freed place without a restart (the heartbeat lists exactly the
+cameras of the file, the others keep producing events and never drop under 5 fps, one camera too many is refused, exit code 0), with and without the video;
+and every camera is published to MediaMTX as 1920x1080 H.264, a removed one disappears and comes back. A 12-minute video
+(`data/videos/engine_test_loop.mp4`, joined from the sample without re-encoding) is made on the first run. Checked by breaking the engine on purpose (a reload that
+forgets `ai_enabled`): the test fails.
 
 ## DeepStream engine
 

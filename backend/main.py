@@ -20,7 +20,7 @@ from backend.models import Event
 from backend.notifier import Notifier
 from backend.realtime import CameraStatusPublisher, Hub
 from backend.reconciler import Reconciler
-from backend.routers import cameras, events, health, internal, ws
+from backend.routers import cameras, engine, events, health, internal, ws
 from backend.routers.events import publish_event
 from backend.settings import Settings
 
@@ -95,6 +95,7 @@ def create_app(settings: Settings | None = None, engine_client: EngineClient | N
 
     app.include_router(health.router)
     app.include_router(cameras.router)
+    app.include_router(engine.router)
     app.include_router(events.router)
     app.include_router(internal.router)
     app.include_router(ws.router)

@@ -25,12 +25,19 @@ class FakeManager:
         self.cameras: list[dict] = []
         self.revision = None
         self.puts = 0
+        self.capacity: int | None = None   # the real manager always reports it
+        self.max_cameras: int | None = None
 
     def status(self):
         if not self.up:
             raise EngineManagerError("down")
-        return {"state": "running" if self.cameras else "stopped", "starts": 1, "last_exit_code": None,
-                "running_cameras": [c["id"] for c in self.cameras], "revision": self.revision}
+        st = {"state": "running" if self.cameras else "stopped", "starts": 1, "last_exit_code": None,
+              "running_cameras": [c["id"] for c in self.cameras], "revision": self.revision}
+        if self.capacity is not None:
+            st["capacity"] = self.capacity
+        if self.max_cameras is not None:
+            st["max_cameras"] = self.max_cameras
+        return st
 
     def put_cameras(self, cameras, revision):
         if not self.up:
@@ -290,3 +297,60 @@ def test_with_the_real_manager_and_a_stand_in_engine(make_client, tmp_path, monk
         while status(client, cam["id"])["engine"]["state"] != "stopped" and time.monotonic() < end:
             time.sleep(0.05)
         assert status(client, cam["id"])["engine"]["state"] == "stopped"
+
+
+# ---- GET /api/engine: the places of the engine, for the Cameras page ----
+
+def test_engine_summary_without_a_manager(make_client):
+    client = make_client()
+    make_camera(client)
+    body = client.get("/api/engine").json()
+    assert body == {"manager": "not_configured", "state": None, "capacity": None, "running": None,
+                    "wanted": 0, "applied": None, "room": None}
+
+
+def test_engine_summary_counts_places(api, manager):
+    client, reconciler = api
+    manager.capacity = 3   # the real manager reports it; the plain fake does not
+    for name in ("a", "b"):
+        cam = make_camera(client, name=name)
+        client.post(f"/api/cameras/{cam['id']}/start")
+    assert reconciler.run_once()
+    body = client.get("/api/engine").json()
+    assert body["manager"] == "reachable" and body["state"] == "running"
+    assert (body["capacity"], body["running"], body["wanted"], body["room"]) == (3, 2, 2, 1)
+    assert body["applied"] is True
+
+
+def test_engine_summary_room_never_goes_below_zero(api, manager):
+    client, reconciler = api
+    manager.capacity = 1
+    for name in ("a", "b"):
+        cam = make_camera(client, name=name)
+        client.post(f"/api/cameras/{cam['id']}/start")
+    body = client.get("/api/engine").json()
+    assert body["wanted"] == 2 and body["room"] == 0   # the next list restarts the engine
+
+
+def test_engine_summary_without_spare_places_or_with_an_older_manager(api, manager):
+    client, _ = api
+    body = client.get("/api/engine").json()   # the fake reports no capacity at all
+    assert body["manager"] == "reachable" and body["capacity"] is None and body["room"] is None
+    manager.capacity = 0                       # a manager with max_cameras = 0
+    assert client.get("/api/engine").json()["room"] is None
+
+
+def test_engine_summary_when_the_manager_is_down(api, manager):
+    client, _ = api
+    manager.up = False
+    body = client.get("/api/engine").json()
+    assert body["manager"] == "unreachable" and body["wanted"] == 0
+
+
+def test_engine_summary_uses_the_configured_places_while_nothing_runs(api, manager):
+    client, _ = api
+    manager.capacity, manager.max_cameras = 0, 5   # stopped: the places the next engine will have
+    body = client.get("/api/engine").json()
+    assert (body["capacity"], body["room"]) == (5, 5)
+    manager.capacity = 3                            # a running one reports its own
+    assert client.get("/api/engine").json()["capacity"] == 3
