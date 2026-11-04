@@ -69,6 +69,8 @@ CLAUDE.md
 
 # Personal dev roadmap/planning notes (keep local, never push)
 ROADMAP.md
+# Personal study guide to this project (keep local, never push)
+HOC_DU_AN.md
 # ONNX models and TensorRT engines (regenerate: engine/tools/export_yolov8_onnx.py, nvinfer)
 *.onnx
 *.engine

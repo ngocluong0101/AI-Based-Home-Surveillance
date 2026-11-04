@@ -59,7 +59,7 @@ function Form({ camera, onDone }: { camera?: Camera; onDone: () => void }) {
 
   const runTest = () => {
     const found = validateForm(values, camera);
-    const { name: _ignored, ...addressErrors } = found;
+    const { name: _n, confThreshold: _c, absenceTimeout: _a, ...addressErrors } = found;   // the test needs only the address
     setErrors(addressErrors);
     if (Object.keys(addressErrors).length > 0) return;
     const body = toConnectionBody(values, camera);
@@ -131,6 +131,42 @@ function Form({ camera, onDone }: { camera?: Camera; onDone: () => void }) {
           <span>Enabled</span>
           <small className="muted">A disabled camera cannot be started.</small>
         </label>
+
+        <div className="field-row">
+          <label className="field">
+            Minimum confidence (0-1)
+            <input
+              inputMode="decimal"
+              value={values.confThreshold}
+              onChange={(e) => set("confThreshold", e.target.value)}
+              aria-invalid={errors.confThreshold ? true : undefined}
+            />
+            {errors.confThreshold && <span className="field-error">{errors.confThreshold}</span>}
+          </label>
+          <label className="field">
+            Report the same person again after (s)
+            <input
+              inputMode="decimal"
+              value={values.absenceTimeout}
+              onChange={(e) => set("absenceTimeout", e.target.value)}
+              aria-invalid={errors.absenceTimeout ? true : undefined}
+            />
+            {errors.absenceTimeout && <span className="field-error">{errors.absenceTimeout}</span>}
+          </label>
+          <span className="field-hint wide">
+            Detections less certain than the minimum are ignored for this camera. The detector itself never reports anything under
+            0.25, so a lower value changes nothing. A person who leaves and comes back sooner than the time on the right does not raise a new alert.
+          </span>
+        </div>
+
+        <label className="switch">
+          <input type="checkbox" checked={values.aiEnabled} onChange={(e) => set("aiEnabled", e.target.checked)} />
+          <span>Detect people</span>
+          <small className="muted">Off: the picture is still shown, but nobody is detected, counted or reported.</small>
+        </label>
+        {camera && (
+          <span className="field-hint">Saving a change to these three restarts the detection engine: running cameras lose their picture for a few seconds.</span>
+        )}
 
         <div className="test-box">
           <button type="button" className="btn" disabled={!canTest || test.isPending} onClick={runTest}>

@@ -1,7 +1,7 @@
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, inspect
+from sqlalchemy import create_engine, inspect, text
 
 from backend.db import normalize_url
 from backend.main import create_app
@@ -48,6 +48,26 @@ def test_migration_matches_the_models(database_url, db_engine):
         diff = compare_metadata(MigrationContext.configure(conn), Base.metadata)
     engine.dispose()
     assert diff == []
+
+
+def test_migration_0002_moves_the_unused_default_to_0_25_and_keeps_chosen_values(database_url, db_engine):
+    """0.5 was the default of a column nothing read; the engine really filtered at 0.25. Cameras still holding
+    0.5 follow the new default, a value somebody set (0.7) stays, and a new camera gets 0.25."""
+    migrate(database_url, "0001", downgrade=True)
+    engine = create_engine(normalize_url(database_url))
+    try:
+        with engine.begin() as conn:
+            conn.execute(text(
+                "INSERT INTO cameras (id, name, source_type, source_uri, conf_threshold) VALUES "
+                "(1, 'old default', 'rtsp', 'rtsp://h/a', 0.5), (2, 'chosen', 'rtsp', 'rtsp://h/b', 0.7)"))
+        migrate(database_url)
+        with engine.begin() as conn:
+            conn.execute(text("INSERT INTO cameras (id, name, source_type, source_uri) VALUES (3, 'new', 'rtsp', 'rtsp://h/c')"))
+            values = dict(conn.execute(text("SELECT id, conf_threshold FROM cameras ORDER BY id")).all())
+        assert values == {1: 0.25, 2: 0.7, 3: 0.25}
+    finally:
+        migrate(database_url)   # leave the shared database at head for the other tests
+        engine.dispose()
 
 
 def test_migration_downgrades_and_upgrades_again(database_url, db_engine):

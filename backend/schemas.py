@@ -41,7 +41,7 @@ class CameraCreate(BaseModel):
     source_uri: str = Field(min_length=1, max_length=2000)
     enabled: bool = True
     ai_enabled: bool = True
-    conf_threshold: float = Field(default=0.5, ge=0, le=1)
+    conf_threshold: float = Field(default=0.25, ge=0, le=1)
     absence_timeout: float = Field(default=10.0, ge=0, le=86400)
 
     @model_validator(mode="after")

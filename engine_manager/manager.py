@@ -35,6 +35,12 @@ _SECRET_IN_URL = re.compile(r"(\w+://)[^/\s@]+@")
 class CameraSpec:
     id: int
     uri: str
+    # Per-camera settings, written to the cameras file when given; None = the engine's default. They are part
+    # of the spec on purpose: the manager restarts the engine when the list differs, and the engine reads
+    # these once at start.
+    conf_threshold: float | None = None    # detections below it are dropped (0-1)
+    absence_timeout: float | None = None   # seconds out of sight before the same person raises a new event
+    ai_enabled: bool | None = None         # False: the picture goes on, nobody is detected
 
 
 @dataclass
@@ -141,10 +147,17 @@ def _keyfile_value(text: str) -> str:
 
 
 def write_cameras_file(path: Path, cameras: list[CameraSpec]) -> None:
-    """[camera.<id>] uri=... for each camera, mode 600 (the engine refuses anything wider)."""
+    """[camera.<id>] uri=... (+ the settings that are set) for each camera, mode 600 (the engine refuses anything wider)."""
     lines: list[str] = []
     for cam in cameras:
-        lines += [f"[camera.{cam.id}]", f"uri={_keyfile_value(cam.uri)}", ""]
+        lines += [f"[camera.{cam.id}]", f"uri={_keyfile_value(cam.uri)}"]
+        if cam.conf_threshold is not None:
+            lines.append(f"conf_threshold={float(cam.conf_threshold)!r}")
+        if cam.absence_timeout is not None:
+            lines.append(f"absence_timeout={float(cam.absence_timeout)!r}")
+        if cam.ai_enabled is not None:
+            lines.append(f"ai_enabled={'true' if cam.ai_enabled else 'false'}")
+        lines.append("")
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".cameras-")   # mkstemp creates it with mode 600
     try:

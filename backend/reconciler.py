@@ -29,7 +29,18 @@ def desired_cameras(db: Session) -> list[dict]:
         .where(Camera.deleted_at.is_(None), Camera.enabled.is_(True), Camera.desired_state == "running")
         .order_by(Camera.id)
     )
-    return [{"id": c.id, "uri": c.source_uri} for c in rows]
+    # The settings travel with the address: the engine reads them once at start, so a change in any of them
+    # changes the revision and the manager restarts the engine with the new values.
+    return [
+        {
+            "id": c.id,
+            "uri": c.source_uri,
+            "conf_threshold": c.conf_threshold,
+            "absence_timeout": c.absence_timeout,
+            "ai_enabled": c.ai_enabled,
+        }
+        for c in rows
+    ]
 
 
 def revision_of(cameras: list[dict]) -> str:

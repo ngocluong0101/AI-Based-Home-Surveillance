@@ -8,8 +8,13 @@ export interface CameraFormValues {
   username: string;
   password: string;
   enabled: boolean;
+  /** Detection settings. The numbers stay text while they are typed and are checked by validateForm. */
+  aiEnabled: boolean;
+  confThreshold: string;
+  absenceTimeout: string;
 }
 
+/** What a new camera starts with: 0.25 is what the detector produces anyway, 10 s is the engine's default. */
 export const emptyForm = (): CameraFormValues => ({
   name: "",
   sourceType: "rtsp",
@@ -17,7 +22,12 @@ export const emptyForm = (): CameraFormValues => ({
   username: "",
   password: "",
   enabled: true,
+  aiEnabled: true,
+  confThreshold: "0.25",
+  absenceTimeout: "10",
 });
+
+const asNumber = (text: string): number => (text.trim() === "" ? NaN : Number(text));
 
 const SCHEMES = { rtsp: ["rtsp://", "rtsps://"], file: ["file://"] } as const;
 
@@ -31,7 +41,7 @@ export function composeUri(values: CameraFormValues): string {
   return `${match[1]}${login}@${match[2]}`;
 }
 
-export type FormErrors = Partial<Record<"name" | "sourceUri" | "login", string>>;
+export type FormErrors = Partial<Record<"name" | "sourceUri" | "login" | "confThreshold" | "absenceTimeout", string>>;
 
 /** What is wrong with the form, field by field; empty = fine. `original` is the camera being edited. */
 export function validateForm(values: CameraFormValues, original?: Camera): FormErrors {
@@ -53,11 +63,24 @@ export function validateForm(values: CameraFormValues, original?: Camera): FormE
       errors.login = "The address already has a login. Use the address or the fields, not both.";
     }
   }
+
+  const conf = asNumber(values.confThreshold);
+  if (!(conf >= 0 && conf <= 1)) errors.confThreshold = "Enter a number from 0 to 1.";
+  const absence = asNumber(values.absenceTimeout);
+  if (!(absence >= 0 && absence <= 86400)) errors.absenceTimeout = "Enter a number of seconds from 0 to 86400.";
   return errors;
 }
 
 export function toCreatePayload(values: CameraFormValues): CameraCreate {
-  return { name: values.name.trim(), source_type: values.sourceType, source_uri: composeUri(values), enabled: values.enabled };
+  return {
+    name: values.name.trim(),
+    source_type: values.sourceType,
+    source_uri: composeUri(values),
+    enabled: values.enabled,
+    ai_enabled: values.aiEnabled,
+    conf_threshold: asNumber(values.confThreshold),
+    absence_timeout: asNumber(values.absenceTimeout),
+  };
 }
 
 /** Only what changed. The address and its type go together (the API demands it) and only when an address was typed. */
@@ -65,6 +88,11 @@ export function toUpdatePayload(values: CameraFormValues, original: Camera): Cam
   const body: CameraUpdate = {};
   if (values.name.trim() !== original.name) body.name = values.name.trim();
   if (values.enabled !== original.enabled) body.enabled = values.enabled;
+  if (values.aiEnabled !== original.ai_enabled) body.ai_enabled = values.aiEnabled;
+  const conf = asNumber(values.confThreshold);
+  if (conf !== original.conf_threshold) body.conf_threshold = conf;
+  const absence = asNumber(values.absenceTimeout);
+  if (absence !== original.absence_timeout) body.absence_timeout = absence;
   if (values.sourceUri.trim()) {
     body.source_type = values.sourceType;
     body.source_uri = composeUri(values);
@@ -86,4 +114,7 @@ export const formFromCamera = (c: Camera): CameraFormValues => ({
   username: "",
   password: "",
   enabled: c.enabled,
+  aiEnabled: c.ai_enabled,
+  confThreshold: String(c.conf_threshold),
+  absenceTimeout: String(c.absence_timeout),
 });

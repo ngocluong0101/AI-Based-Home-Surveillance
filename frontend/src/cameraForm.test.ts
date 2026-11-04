@@ -53,6 +53,16 @@ describe("validateForm", () => {
     expect(validateForm(form({ sourceUri: "http://x" })).sourceUri).toContain("rtsp://");
     expect(validateForm(form({ sourceType: "file", sourceUri: "rtsp://x" })).sourceUri).toContain("file://");
   });
+  it("keeps the confidence between 0 and 1 and the timeout between 0 and a day", () => {
+    expect(validateForm(form({ confThreshold: "0", absenceTimeout: "0" }))).toEqual({});
+    expect(validateForm(form({ confThreshold: "1", absenceTimeout: "86400" }))).toEqual({});
+    for (const bad of ["", "abc", "1.5", "-0.1", "NaN"]) {
+      expect(validateForm(form({ confThreshold: bad })).confThreshold).toBeTruthy();
+    }
+    for (const bad of ["", "x", "-1", "86401"]) {
+      expect(validateForm(form({ absenceTimeout: bad })).absenceTimeout).toBeTruthy();
+    }
+  });
   it("refuses a login typed twice", () => {
     expect(validateForm(form({ sourceUri: "rtsp://a:b@h/x", username: "u" })).login).toBeTruthy();
   });
@@ -70,7 +80,25 @@ describe("payloads", () => {
       source_type: "rtsp",
       source_uri: "rtsp://10.0.0.9/s",
       enabled: false,
+      ai_enabled: true,
+      conf_threshold: 0.25,
+      absence_timeout: 10,
     });
+  });
+  it("sends the detection settings as numbers", () => {
+    expect(toCreatePayload(form({ aiEnabled: false, confThreshold: "0.6", absenceTimeout: "0.5" }))).toMatchObject({
+      ai_enabled: false,
+      conf_threshold: 0.6,
+      absence_timeout: 0.5,
+    });
+  });
+  it("sends a changed detection setting alone, and nothing when they are as saved", () => {
+    expect(toUpdatePayload({ ...formFromCamera(camera), confThreshold: "0.7" }, camera)).toEqual({ conf_threshold: 0.7 });
+    expect(toUpdatePayload({ ...formFromCamera(camera), absenceTimeout: "30", aiEnabled: false }, camera)).toEqual({
+      absence_timeout: 30,
+      ai_enabled: false,
+    });
+    expect(toUpdatePayload({ ...formFromCamera(camera), confThreshold: "0.50" }, camera)).toEqual({});   // 0.50 is 0.5
   });
   it("sends only what changed on edit", () => {
     expect(toUpdatePayload(formFromCamera(camera), camera)).toEqual({});

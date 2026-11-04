@@ -19,6 +19,10 @@ class CameraIn(BaseModel):
 
     id: int = Field(ge=0, le=2**31 - 1)
     uri: str = Field(min_length=1, max_length=2000)
+    # optional: an older backend sends only id and uri
+    conf_threshold: float | None = Field(default=None, ge=0, le=1)
+    absence_timeout: float | None = Field(default=None, ge=0, le=86400)
+    ai_enabled: bool | None = None
 
     @field_validator("uri")
     @classmethod
@@ -66,7 +70,10 @@ def create_app(manager: EngineManager | None = None, configure_logging: bool = T
     @app.put("/cameras")
     def put_cameras(body: CamerasIn) -> dict:
         """Replace the list of cameras that should run. [] stops the engine."""
-        manager.set_cameras([CameraSpec(c.id, c.uri) for c in body.cameras], body.revision)
+        manager.set_cameras(
+            [CameraSpec(c.id, c.uri, c.conf_threshold, c.absence_timeout, c.ai_enabled) for c in body.cameras],
+            body.revision,
+        )
         return manager.status()
 
     return app

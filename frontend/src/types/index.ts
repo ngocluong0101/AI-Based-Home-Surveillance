@@ -92,6 +92,9 @@ export interface CameraCreate {
   source_type: "rtsp" | "file";
   source_uri: string;
   enabled: boolean;
+  ai_enabled: boolean;
+  conf_threshold: number;
+  absence_timeout: number;
 }
 
 export type CameraUpdate = Partial<CameraCreate>;

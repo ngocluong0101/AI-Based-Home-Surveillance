@@ -111,7 +111,7 @@ takes only the ones marked *compose* from `.env`.
 | `INTERNAL_TOKEN` | empty = `/internal/*` open | shared secret the engine sends as `X-Internal-Token`; **required by compose** |
 | `POSTGRES_PASSWORD`, `PUBLIC_HOST`, `HTTP_PORT` | none, `localhost`, `8080` | *compose* only: database password (letters and digits), the address browsers use to reach the machine (WebRTC), port of the web app |
 | `ENABLE_TELEGRAM`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | `false`, none, none | Telegram alerts (*compose*) |
-| `ABSENCE_TIMEOUT` | `10` | seconds a person must be away before the same track raises a new event (*compose*) |
+| `ABSENCE_TIMEOUT` | `10` | default of the engine's `--absence-timeout`, used for a camera that has no value of its own; cameras of the web app always have one (set per camera, see "Cameras" below), so this matters only for an engine started by hand (*compose*) |
 | `ENABLE_SNAPSHOT`, `SNAPSHOT_DIR` | `true`, `data/snapshots` | the engine writes one JPEG per event frame here; the backend serves them from the same directory |
 | `SNAPSHOT_RETENTION_DAYS`, `SNAPSHOT_CLEANUP_INTERVAL` | `7`, `100` | snapshots older than this are deleted (and the events lose their picture); the cleanup runs every N new snapshots and at least hourly (*compose*: retention) |
 | `BACKUP_INTERVAL_SECONDS`, `BACKUP_KEEP`, `BACKUP_PATH` | `86400`, `7`, `../data/backups` | *compose* only: how often the database is dumped, how many dumps are kept, and the host directory they go to (relative to the compose file) |
@@ -127,8 +127,18 @@ Not here, and where to find it:
 - **What counts as a person** (confidence threshold `pre-cluster-threshold`, NMS) is in `engine/configs/pgie_yolov8n.txt`; tracking
   behaviour is in `engine/configs/tracker_nvdcf.yml`.
 - **Engine options** (`--rtsp-timeout`, `--stream-bitrate`, `--heartbeat-interval`, ...) are command-line flags: [DeepStream engine](#deepstream-engine).
-- **Cameras** (name, address, login, enabled) are added in the web app or through `POST /api/cameras`, not in `.env`.
-  `conf_threshold` and `absence_timeout` in the camera table are stored but not applied yet: the engine uses one value for all cameras.
+- **Cameras** (name, address, login, enabled, and the detection settings below) are added in the web app or through `POST /api/cameras`, not in `.env`.
+  Each camera has its own detection settings, which the engine applies:
+  - `conf_threshold` (0-1, default 0.25): detections less certain than this are dropped before tracking, so they raise no
+    alert, are not counted as people and get no box in the video. The detector itself already ignores everything under 0.25
+    (`pre-cluster-threshold` in `engine/configs/pgie_yolov8n.txt`), so a smaller value than that changes nothing; raise it to
+    suppress false alarms of one camera.
+  - `absence_timeout` (seconds, default 10): how long a person must be out of sight before the same track raises a new alert.
+  - `ai_enabled` (default on): off keeps the picture but nobody is detected, tracked, counted (the camera reports "people: unknown"
+    rather than 0) or alerted. The detector still runs on the frames, so it saves no GPU time.
+
+  The engine reads these once when it starts, so changing one of them restarts the engine like changing an address does: all
+  running cameras lose their picture for a few seconds. Renaming a camera does not.
 - If an old `.env` still has `RTSP_URL`, `VIDEO_SOURCE`, `CONFIDENCE_THRESHOLD`, `RECONNECT_DELAY`, `APP_ENV` or `MP4_PATH`
   (left over from the removed command-line tool), nothing reads them: delete those lines.
 
@@ -290,8 +300,9 @@ it. All cameras lose a few seconds of video at each change. If the engine crashe
 RTSP URLs hold passwords, so they never appear on the engine's command line: the manager writes them to
 `ENGINE_RUNTIME_DIR/cameras.ini` (mode 600) and passes `--cameras-file`; the token goes in `DS_ENGINE_TOKEN`. What the engine prints
 is logged (passwords in URLs replaced) to `logs/engine_manager.log`. The settings are the `ENGINE_*` entries of `.env.example`.
-`ABSENCE_TIMEOUT` is passed to the engine as one value for all cameras; the per-camera `absence_timeout` and `conf_threshold` of the
-camera table are stored but not applied yet (the engine has no per-camera settings).
+Each `[camera.<id>]` group also carries the camera's `conf_threshold`, `absence_timeout` and `ai_enabled` (see Configuration). They are
+part of what the manager compares, so a new value restarts the engine; `ABSENCE_TIMEOUT` of `.env` is only the engine's default
+for a camera without one.
 
 To run the engine in the DeepStream container, make `ENGINE_COMMAND` the whole prefix, with the runtime directory, the snapshot directory
 and the config files mounted at the same absolute paths, for example:
@@ -512,7 +523,15 @@ Options:
   ```
   [camera.3]
   uri=rtsp://user:pass@192.168.1.100:554/stream
+  conf_threshold=0.5
+  absence_timeout=30
+  ai_enabled=true
   ```
+
+  The last three keys are optional. `conf_threshold` (0-1) drops detections less certain than it before tracking, so they raise
+  no alert, are not counted and are not drawn; `absence_timeout` is this camera's `--absence-timeout`; `ai_enabled=false` keeps
+  the picture of the camera but detects nobody. Left out, a key means: no extra filter, `--absence-timeout`, on. A value out of
+  range or not a number makes the engine exit with code 2. `--camera ID=URI` has no way to carry them.
 
 - `--config FILE`: the `nvinfer` config file (required), for example `configs/pgie_yolov8n.txt`.
 - `--output FILE`: debug only. Writes an MP4 with all sources tiled in one video (rows x columns grid), the boxes drawn and
@@ -527,7 +546,7 @@ Options:
 - `--stream-url BASE`: publish every camera, with boxes and track IDs, over RTMP to `BASE/cam<ID>` (e.g. `rtmp://127.0.0.1:1935/live`; the URL must have an application part such as `/live`, `rtmp2sink` refuses a bare host). One H.264 encoder per camera; cannot be combined with `--output`. See [Streaming](#streaming).
 - `--stream-bitrate KBPS`: bit rate of each published stream, 100-50000 (default 4000).
 - `--heartbeat-url URL`: POST the state of every camera to URL (e.g. `http://127.0.0.1:8000/internal/heartbeat`) every `--heartbeat-interval` seconds (1-3600, default 5); needs `--backend-url`. Off without it.
-- `--absence-timeout SEC`: how long a person must be out of sight before the same track ID raises a new event (default 10, same as `ABSENCE_TIMEOUT`).
+- `--absence-timeout SEC`: how long a person must be out of sight before the same track ID raises a new event (default 10, same as `ABSENCE_TIMEOUT`); the default for every camera, a `--cameras-file` group can set its own.
 - `--fps-interval SEC`: how often the frame rate of each source is printed (default 5, 0 turns it off).
 - `--tracker-config FILE`: the `nvtracker` low-level config (required), `configs/tracker_nvdcf.yml` for NvDCF. The values in
   it are a starting point, not tuned.

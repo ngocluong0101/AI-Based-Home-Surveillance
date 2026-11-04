@@ -24,6 +24,10 @@ The fake camera serves the file once, so keep warm-up + --duration below the len
 
 A TensorRT engine is needed per batch size (one per N for --layout single, batch 1 for multi); a
 missing one is built the first time (~150 s) and kept in engine/models/. Latency is not measured here.
+
+--stream-url BASE adds the video: every camera is also encoded (H.264 on NVENC, boxes drawn) and published to
+BASE/cam<ID>, which is what the product does for the web app. Without it only detection and tracking are measured.
+With it the enc% column shows the load on NVENC; the case passes under the same rule (30 fps per camera, no reconnect).
 """
 import argparse
 import json
@@ -67,9 +71,11 @@ class Engine:
     """One ds_engine process; a thread parses its periodic fps lines."""
 
     def __init__(self, index: int, cameras: list[int], uris: dict[int, str], config: Path, tracker: Path,
-                 interval: int = 2):
+                 interval: int = 2, stream_url: str | None = None):
         cmd = ["stdbuf", "-oL", "-eL", str(ENGINE_DIR / "build" / "ds_engine"), "--config", str(config),
                "--tracker-config", str(tracker), "--fps-interval", str(interval)]
+        if stream_url:
+            cmd += ["--stream-url", stream_url]   # one H.264 encoder (NVENC session) per camera
         for cam in cameras:
             cmd += ["--camera", f"{cam}={uris[cam]}"]
         self.index = index
@@ -157,13 +163,15 @@ def run_case(args, layout: str, n: int, workdir: Path, tracker: Path, sampler: S
     uris = {cam: uri for cam in range(1, n + 1)}
     groups = [list(range(1, n + 1))] if layout == "single" else [[cam] for cam in range(1, n + 1)]
     baseline_mem = sampler.rows[-1]["mem"] if sampler.rows else 0
-    row = {"layout": layout, "source": args.source, "cameras": n, "processes": len(groups), "ok": False}
+    row = {"layout": layout, "source": args.source, "cameras": n, "processes": len(groups), "stream": bool(args.stream_url),
+           "ok": False}
 
     engines: list[Engine] = []
     launched = time.monotonic()
     try:
         for i, cams in enumerate(groups):
-            engines.append(Engine(i, cams, uris, config, tracker, 1 if args.source == "files" else 2))
+            engines.append(Engine(i, cams, uris, config, tracker, 1 if args.source == "files" else 2,
+                                  stream_url=args.stream_url))
             if layout == "multi":
                 time.sleep(2.0)   # start-up of one process is heavy; do not stack them
         sampler.pids = [e.proc.pid for e in engines]
@@ -263,6 +271,10 @@ def main() -> int:
     ap.add_argument("--stop-on-fail", action="store_true",
                     help="stop raising N for a layout after a failed case")
     ap.add_argument("--port", type=int, default=8554)
+    ap.add_argument("--stream-url", metavar="BASE",
+                    help="also publish every camera with boxes drawn, as ds_engine --stream-url does "
+                         "(e.g. rtmp://127.0.0.1:1935/live): detection AND video encoding together, one NVENC session "
+                         "per camera. Needs a RTMP server there (MediaMTX) and, in a container, --network host")
     ap.add_argument("--out", help="write the rows as JSON to this file")
     args = ap.parse_args()
     args.video = str(Path(args.video).resolve())

@@ -144,6 +144,10 @@ typedef struct {
     gint camera_id;
     gchar *uri;
     gboolean is_rtsp;
+    /* Per-camera settings from the cameras file. Set before the pipeline runs, only read after. */
+    gdouble conf_threshold;   /* detections below it are dropped before tracking; 0 = keep what the detector gives */
+    gdouble absence_timeout;  /* seconds out of sight after which a track raises a new event */
+    gboolean ai_enabled;      /* FALSE: the picture goes on, but nobody is detected, tracked or reported */
     /* Reconnect (RTSP only). The reconnecting itself is done by nvurisrcbin (rtsp-reconnect-interval);
      * this is what the engine knows and reports. Everything but last_frame_us and reanchor belongs
      * to the main thread. */
@@ -238,6 +242,7 @@ typedef struct AppCtx {
     gboolean hb_failing;                  /* worker only: the last one was refused (reported once) */
     _Atomic guint64 heartbeats_sent;
     _Atomic guint64 heartbeats_failed;
+    gboolean filter_detections;  /* some camera has a confidence threshold or has AI off: settings_probe is needed */
 } AppCtx;
 
 static gchar **opt_cameras = NULL;
@@ -297,13 +302,73 @@ static GOptionEntry option_entries[] = {
       "(e.g. --camera 1=file:///a.mp4 --camera 2=rtsp://...)", "ID=URI" },
     { "cameras-file", 0, 0, G_OPTION_ARG_FILENAME, &opt_cameras_file,
       "File (mode 600) with sources whose URI holds a password, so it stays out of argv. "
-      "One group per camera: [camera.<ID>] with uri=...", "FILE" },
+      "One group per camera: [camera.<ID>] with uri=... and optionally conf_threshold= (0-1), "
+      "absence_timeout= (seconds) and ai_enabled= (true/false)", "FILE" },
     { "config", 0, 0, G_OPTION_ARG_FILENAME, &opt_config,
       "nvinfer config file (required)", "FILE" },
     { "tracker-config", 0, 0, G_OPTION_ARG_FILENAME, &opt_tracker_config,
       "nvtracker low-level config YAML, e.g. configs/tracker_nvdcf.yml (required)", "FILE" },
     { NULL, 0, 0, G_OPTION_ARG_NONE, NULL, NULL, NULL },
 };
+
+/* What a camera group of the cameras file says besides its address. */
+typedef struct {
+    gdouble conf_threshold;
+    gdouble absence_timeout;   /* < 0: not given, --absence-timeout applies */
+    gboolean ai_enabled;
+} CameraSettings;
+
+#define CONF_THRESHOLD_MAX 1.0
+#define ABSENCE_TIMEOUT_MAX 86400.0
+
+/* camera id -> CameraSettings, for the cameras that came from the cameras file */
+static GHashTable *file_settings = NULL;
+
+/*
+ * Read the optional conf_threshold=, absence_timeout= and ai_enabled= of one [camera.<ID>] group and
+ * remember them for init_sources(). Messages name the group, never the address.
+ */
+static gboolean read_camera_settings(GKeyFile *kf, const gchar *group)
+{
+    gchar *end = NULL;
+    gint64 id = g_ascii_strtoll(group + strlen("camera."), &end, 10);
+    if (*end != '\0' || id < 0 || id > G_MAXINT)
+        return TRUE;   /* a bad id is refused by init_sources() */
+
+    CameraSettings s = { .conf_threshold = 0.0, .absence_timeout = -1.0, .ai_enabled = TRUE };
+    GError *err = NULL;
+
+    if (g_key_file_has_key(kf, group, "conf_threshold", NULL)) {
+        s.conf_threshold = g_key_file_get_double(kf, group, "conf_threshold", &err);
+        if (err != NULL || !(s.conf_threshold >= 0.0 && s.conf_threshold <= CONF_THRESHOLD_MAX)) {
+            g_printerr("Cameras file: group '%s': conf_threshold must be a number between 0 and 1\n", group);
+            g_clear_error(&err);
+            return FALSE;
+        }
+    }
+    if (g_key_file_has_key(kf, group, "absence_timeout", NULL)) {
+        s.absence_timeout = g_key_file_get_double(kf, group, "absence_timeout", &err);
+        if (err != NULL || !(s.absence_timeout >= 0.0 && s.absence_timeout <= ABSENCE_TIMEOUT_MAX)) {
+            g_printerr("Cameras file: group '%s': absence_timeout must be a number of seconds between 0 "
+                       "and 86400\n", group);
+            g_clear_error(&err);
+            return FALSE;
+        }
+    }
+    if (g_key_file_has_key(kf, group, "ai_enabled", NULL)) {
+        s.ai_enabled = g_key_file_get_boolean(kf, group, "ai_enabled", &err);
+        if (err != NULL) {
+            g_printerr("Cameras file: group '%s': ai_enabled must be true or false\n", group);
+            g_clear_error(&err);
+            return FALSE;
+        }
+    }
+
+    if (file_settings == NULL)
+        file_settings = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_free);
+    g_hash_table_replace(file_settings, GINT_TO_POINTER((gint)id), g_memdup2(&s, sizeof(s)));
+    return TRUE;
+}
 
 /* Split "ID=URI". Returns FALSE on a bad format or when ID is not a non-negative integer. */
 static gboolean parse_camera_arg(const gchar *arg, gint *camera_id, gchar **uri)
@@ -363,6 +428,8 @@ static gboolean load_cameras_file(const gchar *path, GPtrArray *specs)
             ok = FALSE;
         } else {
             g_ptr_array_add(specs, g_strdup_printf("%s=%s", *g + strlen("camera."), uri));
+            if (!read_camera_settings(kf, *g))
+                ok = FALSE;
         }
         g_free(uri);
     }
@@ -384,13 +451,24 @@ static gboolean init_sources(AppCtx *app, const GPtrArray *specs)
         src->track_frames = g_hash_table_new(g_direct_hash, g_direct_equal);
         g_mutex_init(&src->pub_lock);
         src->pub_pts_base = GST_CLOCK_TIME_NONE;
-        event_manager_init(&src->events, opt_absence_timeout);
 
         /* Do not echo the spec: it may hold a password. */
         if (!parse_camera_arg(g_ptr_array_index(specs, i), &src->camera_id, &src->uri)) {
             g_printerr("Source #%u has a bad format, expected ID=URI with ID an integer >= 0\n", i);
             return FALSE;
         }
+
+        /* A camera from the cameras file may carry its own settings; every other one gets the defaults. */
+        const CameraSettings *cs = file_settings != NULL
+            ? g_hash_table_lookup(file_settings, GINT_TO_POINTER(src->camera_id)) : NULL;
+        src->conf_threshold = cs != NULL ? cs->conf_threshold : 0.0;
+        src->ai_enabled = cs != NULL ? cs->ai_enabled : TRUE;
+        src->absence_timeout = (cs != NULL && cs->absence_timeout >= 0.0) ? cs->absence_timeout
+                                                                          : opt_absence_timeout;
+        event_manager_init(&src->events, src->absence_timeout);
+        if (!src->ai_enabled || src->conf_threshold > 0.0)
+            app->filter_detections = TRUE;
+
         gchar *scheme = g_uri_parse_scheme(src->uri);
         src->is_rtsp = (scheme != NULL && g_ascii_strcasecmp(scheme, "rtsp") == 0);
         g_free(scheme);
@@ -425,8 +503,9 @@ static void print_sources(const AppCtx *app)
     for (guint i = 0; i < app->num_sources; i++) {
         const SourceCtx *src = &app->sources[i];
         gchar *scheme = g_uri_parse_scheme(src->uri);
-        g_print("source_id=%u camera_id=%d scheme=%s\n", src->source_id, src->camera_id,
-                scheme != NULL ? scheme : "?");
+        g_print("source_id=%u camera_id=%d scheme=%s conf_threshold=%.2f absence_timeout=%.1f ai=%s\n",
+                src->source_id, src->camera_id, scheme != NULL ? scheme : "?", src->conf_threshold,
+                src->absence_timeout, src->ai_enabled ? "on" : "off");
         g_free(scheme);
     }
 }
@@ -1349,6 +1428,43 @@ static void publisher_stop(AppCtx *app)
 }
 
 /*
+ * Pad probe on the src pad of nvinfer, i.e. before the tracker: applies the settings of each camera
+ * to what the detector found. A camera with AI off loses every object; one with a confidence
+ * threshold loses the objects below it. The tracker, the events, the people count and the picture
+ * (the boxes of the OSD) then all see the same, smaller set. Installed only when some camera has
+ * such a setting, and does nothing for the cameras that do not.
+ */
+static GstPadProbeReturn settings_probe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
+{
+    (void)pad;
+    const AppCtx *app = (const AppCtx *)user_data;
+
+    GstBuffer *buf = GST_PAD_PROBE_INFO_BUFFER(info);
+    NvDsBatchMeta *batch_meta = (buf != NULL) ? gst_buffer_get_nvds_batch_meta(buf) : NULL;
+    if (batch_meta == NULL)
+        return GST_PAD_PROBE_OK;
+
+    for (NvDsMetaList *l_frame = batch_meta->frame_meta_list; l_frame != NULL; l_frame = l_frame->next) {
+        NvDsFrameMeta *frame_meta = (NvDsFrameMeta *)l_frame->data;
+        if (frame_meta->source_id >= app->num_sources)
+            continue;
+        const SourceCtx *src = &app->sources[frame_meta->source_id];
+        if (src->ai_enabled && src->conf_threshold <= 0.0)
+            continue;
+
+        NvDsMetaList *l_obj = frame_meta->obj_meta_list;
+        while (l_obj != NULL) {
+            NvDsMetaList *next = l_obj->next;   /* removing the object frees this list node */
+            NvDsObjectMeta *obj = (NvDsObjectMeta *)l_obj->data;
+            if (!src->ai_enabled || obj->confidence < src->conf_threshold)
+                nvds_remove_obj_meta_from_frame(frame_meta, obj);
+            l_obj = next;
+        }
+    }
+    return GST_PAD_PROBE_OK;
+}
+
+/*
  * Pad probe on the src pad of nvtracker, before any tiler/demux so the batch is still whole:
  * NvDsBatchMeta -> one NvDsFrameMeta per source -> Detection[] for that source. For now the
  * Detection values only feed statistics per source_id (frames, objects, and for how many frames
@@ -1502,7 +1618,8 @@ static gboolean heartbeat_tick(gpointer data)
         cameras[i].fps = seconds > 0.0 ? (double)(frames - src->hb_prev_frames) / seconds : 0.0;
         cameras[i].last_frame_age = (double)(now - last) / G_USEC_PER_SEC;
         gint people = atomic_load_explicit(&src->people_now, memory_order_relaxed);
-        cameras[i].people = (frames > 0 && now - last <= PEOPLE_FRESH_US) ? people : -1;
+        /* With AI off nobody is looked for, so "0 people" would be a claim the engine cannot make. */
+        cameras[i].people = (src->ai_enabled && frames > 0 && now - last <= PEOPLE_FRESH_US) ? people : -1;
         src->hb_prev_frames = frames;
     }
     app->hb_prev_us = now;
@@ -1781,6 +1898,16 @@ static GstElement *build_pipeline(AppCtx *app)
     gst_pad_add_probe(tracker_src, GST_PAD_PROBE_TYPE_BUFFER, detection_probe, app, NULL);
     gst_object_unref(tracker_src);
 
+    if (app->filter_detections) {
+        GstPad *pgie_src = gst_element_get_static_pad(pgie, "src");
+        if (pgie_src == NULL) {
+            g_printerr("Could not get the src pad of nvinfer\n");
+            goto fail;
+        }
+        gst_pad_add_probe(pgie_src, GST_PAD_PROBE_TYPE_BUFFER, settings_probe, app, NULL);
+        gst_object_unref(pgie_src);
+    }
+
     return pipeline;
 
 fail:
@@ -1997,6 +2124,7 @@ int main(int argc, char *argv[])
         g_async_queue_unref(app.event_queue);
     g_main_loop_unref(app.loop);
     free_sources(&app);
+    g_clear_pointer(&file_settings, g_hash_table_destroy);
     g_free(opt_cameras_file);
     g_free(opt_config);
     g_free(opt_tracker_config);

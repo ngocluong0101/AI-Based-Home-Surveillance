@@ -40,7 +40,9 @@ class Camera(Base):
     enabled: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
     ai_enabled: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
     desired_state: Mapped[str] = mapped_column(String(8), server_default=text("'stopped'"))
-    conf_threshold: Mapped[float] = mapped_column(Float, server_default=text("0.5"))
+    # 0.25 = what the detector itself already produces (pre-cluster-threshold in the nvinfer config); a higher value
+    # drops the less certain detections of this camera, a lower one changes nothing.
+    conf_threshold: Mapped[float] = mapped_column(Float, server_default=text("0.25"))
     absence_timeout: Mapped[float] = mapped_column(Float, server_default=text("10"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

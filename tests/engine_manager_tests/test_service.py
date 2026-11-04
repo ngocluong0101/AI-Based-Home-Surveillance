@@ -40,9 +40,23 @@ def test_put_cameras_starts_and_empty_list_stops(api):
     wait_for(lambda: client.get("/status").json()["state"] == "stopped")
 
 
+def test_put_accepts_the_camera_settings(api):
+    client, _ = api
+    body = {"cameras": [{"id": 1, "uri": "rtsp://h/x", "conf_threshold": 0.6, "absence_timeout": 30, "ai_enabled": False},
+                        {"id": 2, "uri": "rtsp://h/y"}]}   # settings are optional: an older backend sends only id and uri
+    assert client.put("/cameras", json=body).status_code == 200
+    wait_for(lambda: client.get("/status").json()["state"] == "running")
+    assert client.get("/status").json()["running_cameras"] == [1, 2]
+
+
 def test_validation(api):
     client, _ = api
     bad = [
+        {"cameras": [{"id": 1, "uri": "a", "conf_threshold": 1.5}]},
+        {"cameras": [{"id": 1, "uri": "a", "conf_threshold": -0.1}]},
+        {"cameras": [{"id": 1, "uri": "a", "absence_timeout": -1}]},
+        {"cameras": [{"id": 1, "uri": "a", "absence_timeout": 86401}]},
+        {"cameras": [{"id": 1, "uri": "a", "ai_enabled": "maybe"}]},
         {"cameras": [{"id": 1, "uri": "a"}, {"id": 1, "uri": "b"}]},   # duplicate id
         {"cameras": [{"id": -1, "uri": "a"}]},
         {"cameras": [{"id": 1, "uri": ""}]},

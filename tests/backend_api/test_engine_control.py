@@ -81,7 +81,8 @@ def test_start_gives_the_manager_the_real_uri_and_stop_takes_it_away(api, manage
     assert client.get(f"/api/cameras/{cam['id']}").json()["desired_state"] == "running"
 
     assert rec.run_once()
-    assert manager.cameras == [{"id": cam["id"], "uri": RTSP}]   # the manager gets the password
+    assert manager.cameras == [{"id": cam["id"], "uri": RTSP,   # the manager gets the password
+                                "conf_threshold": 0.25, "absence_timeout": 10.0, "ai_enabled": True}]
     st = status(client, cam["id"])
     assert st["engine"]["applied"] is True and st["engine"]["in_engine"] is True and st["engine"]["state"] == "running"
     assert "secret" not in str(st)
@@ -160,9 +161,35 @@ def test_renaming_does_not_restart_the_engine(api, manager):
     cam = make_camera(client, source_uri="rtsp://h/one")
     client.post(f"/api/cameras/{cam['id']}/start")
     rec.run_once()
-    client.patch(f"/api/cameras/{cam['id']}", json={"name": "renamed", "conf_threshold": 0.9})
+    client.patch(f"/api/cameras/{cam['id']}", json={"name": "renamed"})
     rec.run_once()
     assert manager.puts == 1
+
+
+def test_the_settings_of_a_camera_reach_the_manager_with_its_address(api, manager):
+    client, rec = api
+    cam = make_camera(client, source_uri="rtsp://h/one", conf_threshold=0.6, absence_timeout=30, ai_enabled=False)
+    client.post(f"/api/cameras/{cam['id']}/start")
+    rec.run_once()
+    assert manager.cameras == [{"id": cam["id"], "uri": "rtsp://h/one", "conf_threshold": 0.6,
+                                "absence_timeout": 30.0, "ai_enabled": False}]
+
+
+def test_changing_a_setting_restarts_the_engine_once_with_the_new_value(api, manager):
+    """The engine reads its settings at start, so a new value only takes effect through a new revision."""
+    client, rec = api
+    cam = make_camera(client, source_uri="rtsp://h/one")
+    client.post(f"/api/cameras/{cam['id']}/start")
+    rec.run_once()
+    assert manager.puts == 1 and manager.cameras[0]["conf_threshold"] == 0.25
+    for change, key, value in (({"conf_threshold": 0.9}, "conf_threshold", 0.9),
+                               ({"absence_timeout": 2}, "absence_timeout", 2.0),
+                               ({"ai_enabled": False}, "ai_enabled", False)):
+        before = manager.puts
+        client.patch(f"/api/cameras/{cam['id']}", json=change)
+        rec.run_once()
+        rec.run_once()   # a second round with nothing new pushes nothing
+        assert manager.puts == before + 1 and manager.cameras[0][key] == value
 
 
 def test_deleting_a_running_camera_removes_it(api, manager):

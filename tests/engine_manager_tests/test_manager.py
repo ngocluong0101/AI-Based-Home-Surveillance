@@ -211,6 +211,34 @@ def test_cameras_file_format(tmp_path):
     assert list(path.parent.iterdir()) == [path]   # no temp file left
 
 
+def test_cameras_file_carries_the_settings_that_are_set(tmp_path):
+    path = tmp_path / "cameras.ini"
+    write_cameras_file(path, [
+        CameraSpec(1, "rtsp://h/a", conf_threshold=0.6, absence_timeout=30.0, ai_enabled=False),
+        CameraSpec(2, "rtsp://h/b", conf_threshold=0.0, absence_timeout=0.5, ai_enabled=True),
+        CameraSpec(3, "rtsp://h/c"),   # nothing set: the engine's own defaults apply
+    ])
+    text = path.read_text()
+    assert "[camera.1]\nuri=rtsp://h/a\nconf_threshold=0.6\nabsence_timeout=30.0\nai_enabled=false\n" in text
+    assert "[camera.2]\nuri=rtsp://h/b\nconf_threshold=0.0\nabsence_timeout=0.5\nai_enabled=true\n" in text
+    third = text.split("[camera.3]")[1]
+    assert third.strip() == "uri=rtsp://h/c"   # no key at all, so an older engine and a newer one read it alike
+
+
+def test_a_changed_setting_restarts_with_the_new_value(make_manager):
+    m = make_manager()
+    m.set_cameras([CameraSpec(1, "rtsp://a/1", conf_threshold=0.25)], revision="a")
+    wait_for(lambda: m.status()["state"] == "running")
+    m.set_cameras([CameraSpec(1, "rtsp://a/1", conf_threshold=0.25)], revision="b")   # nothing changed
+    time.sleep(0.5)
+    assert m.status()["starts"] == 1
+
+    m.set_cameras([CameraSpec(1, "rtsp://a/1", conf_threshold=0.6)], revision="c")
+    wait_for(lambda: m.status()["starts"] == 2 and m.status()["state"] == "running")
+    wait_for(lambda: len(runs(make_manager.rec)) == 2)
+    assert "conf_threshold=0.6" in runs(make_manager.rec)[1]["cameras"]
+
+
 def test_bad_uris_are_refused_before_anything_changes(make_manager):
     m = make_manager()
     with pytest.raises(ValueError):

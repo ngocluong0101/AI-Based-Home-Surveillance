@@ -10,7 +10,7 @@ def test_create_get_list(client):
     assert cam["id"] == 1
     assert cam["desired_state"] == "stopped"
     assert cam["enabled"] and cam["ai_enabled"]
-    assert cam["conf_threshold"] == 0.5 and cam["absence_timeout"] == 10.0
+    assert cam["conf_threshold"] == 0.25 and cam["absence_timeout"] == 10.0   # 0.25: what the detector produces anyway
 
     assert client.get(f"/api/cameras/{cam['id']}").json() == cam
     assert client.get("/api/cameras").json() == [cam]
