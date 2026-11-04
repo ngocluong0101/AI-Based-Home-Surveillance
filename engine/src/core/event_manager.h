@@ -48,6 +48,14 @@ typedef struct {
  */
 void event_manager_init(EventManager *em, double absence_timeout_s);
 
+/*
+ * Change the timeout of a manager that is already in use (a camera whose settings were edited while the
+ * engine runs). The tracks it remembers keep their last-seen time and are judged against the new value
+ * from the next call on. Same rounding and clamping as event_manager_init(). Like every other call it
+ * must not run at the same time as event_manager_process() on the same manager.
+ */
+void event_manager_set_absence_timeout(EventManager *em, double absence_timeout_s);
+
 /* Free the track table. The manager is empty and reusable by event_manager_init() afterwards;
  * calling it again, or on a zeroed struct, is harmless. */
 void event_manager_destroy(EventManager *em);

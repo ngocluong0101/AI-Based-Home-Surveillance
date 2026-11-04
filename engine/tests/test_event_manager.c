@@ -206,6 +206,33 @@ void test_event_manager_destroy_is_safe(void)
     CHECK(event_manager_track_count(&em) == 0);
 }
 
+void test_event_manager_timeout_can_change_while_running(void)
+{
+    EventManager em;
+    Detection d = make_det(0, 1, 0.9f);
+    PersonDetectedEvent out[1];
+    const int64_t S = 1000000000LL;
+
+    event_manager_init(&em, 10.0);
+    CHECK(event_manager_process(&em, &d, 1, 0, out, 1) == 1);          /* first sight: an event */
+
+    /* With 10 s the person is still "the same" after 2 s away; with 1 s it is a new event. */
+    event_manager_set_absence_timeout(&em, 1.0);
+    CHECK(event_manager_process(&em, &d, 1, S / 2, out, 1) == 0);      /* away 0.5 s < 1 s */
+    CHECK(event_manager_process(&em, &d, 1, S / 2 + 2 * S, out, 1) == 1);   /* away 2 s > 1 s */
+
+    /* Raised again: 47 s away is within 100 s, so no event. */
+    event_manager_set_absence_timeout(&em, 100.0);
+    CHECK(event_manager_process(&em, &d, 1, 50 * S, out, 1) == 0);
+
+    /* An absurd value is clamped, not overflowed: nothing ever expires. */
+    event_manager_set_absence_timeout(&em, 1e30);
+    CHECK(event_manager_process(&em, &d, 1, 1000000 * S, out, 1) == 0);
+    CHECK(event_manager_track_count(&em) == 1);
+
+    event_manager_destroy(&em);
+}
+
 void test_event_manager_instances_are_independent(void)
 {
     /* One manager per source: the same track ID in two sources is two different people. */

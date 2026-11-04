@@ -53,7 +53,8 @@ Current state of the repository:
 - **De-duplication lives in the engine.** A person is reported once per track and again only after being away for
   `ABSENCE_TIMEOUT` seconds. `src/events/person_detected.py` is the reference; the C port passes the same test vectors.
 - **The backend decides, the manager applies.** The camera list and each camera's wanted state live in PostgreSQL; a
-  reconciler thread pushes the list to the Engine manager, which restarts `ds_engine` when the list changes.
+  reconciler thread pushes the list to the Engine manager, which tells the running `ds_engine` to add, remove or
+  re-configure cameras (SIGHUP) and restarts it only when the list does not fit in the room the engine has.
 - **Heartbeats tell the backend what the engine sees** (state, FPS, people in view, per camera, every 5 s); silence means
   offline. Telegram is sent by the backend only, from a thread of its own, so it cannot delay the engine's events.
 
@@ -116,6 +117,7 @@ takes only the ones marked *compose* from `.env`.
 | `SNAPSHOT_RETENTION_DAYS`, `SNAPSHOT_CLEANUP_INTERVAL` | `7`, `100` | snapshots older than this are deleted (and the events lose their picture); the cleanup runs every N new snapshots and at least hourly (*compose*: retention) |
 | `BACKUP_INTERVAL_SECONDS`, `BACKUP_KEEP`, `BACKUP_PATH` | `86400`, `7`, `../data/backups` | *compose* only: how often the database is dumped, how many dumps are kept, and the host directory they go to (relative to the compose file) |
 | `ENGINE_MANAGER_URL` | none = the backend only records the wanted state | where the backend finds the Engine manager |
+| `ENGINE_MAX_CAMERAS` | `8` | places in the running engine: cameras can be added and removed without a restart while there are at most this many (more than that restarts it once, with room for that many). An empty place costs a little GPU and memory (about +4 points of GPU and +260 MiB VRAM for 4 cameras in a batch of 12) and needs a TensorRT engine of that batch size (built once, ~150 s). `0` = no spare places: a changed list restarts the engine, only a changed setting does not |
 | `ENGINE_COMMAND`, `ENGINE_CONFIG`, `ENGINE_TRACKER_CONFIG`, `ENGINE_RUNTIME_DIR`, `ENGINE_EXTRA_ARGS` | `engine/build/ds_engine`, `engine/configs/pgie_yolov8n.txt`, `engine/configs/tracker_nvdcf.yml`, `data/run`, empty | how the manager starts the engine ([Engine manager](#engine-manager)) |
 | `ENGINE_BACKEND_URL`, `ENGINE_HEARTBEAT_URL` | `http://127.0.0.1:8000/internal/events`, derived from the previous | where the engine posts events and heartbeats |
 | `ENGINE_STREAM_URL`, `MEDIAMTX_WEBRTC_URL`, `MEDIAMTX_PATH_PREFIX` | empty = no video, none, `live` | publishing and watching the live video ([Live video](#live-video)) |
@@ -137,8 +139,8 @@ Not here, and where to find it:
   - `ai_enabled` (default on): off keeps the picture but nobody is detected, tracked, counted (the camera reports "people: unknown"
     rather than 0) or alerted. The detector still runs on the frames, so it saves no GPU time.
 
-  The engine reads these once when it starts, so changing one of them restarts the engine like changing an address does: all
-  running cameras lose their picture for a few seconds. Renaming a camera does not.
+  A change to one of them is applied to the running engine within a second or two (the manager rewrites the cameras file and
+  sends the engine SIGHUP): no camera loses its picture. Renaming a camera changes nothing in the engine.
 - If an old `.env` still has `RTSP_URL`, `VIDEO_SOURCE`, `CONFIDENCE_THRESHOLD`, `RECONNECT_DELAY`, `APP_ENV` or `MP4_PATH`
   (left over from the removed command-line tool), nothing reads them: delete those lines.
 
@@ -292,17 +294,21 @@ How it works. The database says which cameras should run (enabled, not deleted, 
 the backend compares that list with the one the manager reports (by a hash) and pushes it when they differ, right after a camera
 changes and every few seconds anyway, so a manager that was down or restarted gets the list when it is back, and the API calls
 never wait for it. The manager starts the engine with the list, and when the list changes (a camera started, stopped, disabled,
-deleted, or its URI changed) it stops the engine with SIGTERM (the engine prints its summary and flushes its spool, up to
-`stop_timeout` 25 s, then SIGKILL) and starts it again; everything that is not a camera setting (renaming, thresholds) does not restart
-it. All cameras lose a few seconds of video at each change. If the engine crashes it is started again after 1 s, 2 s, ... up to 60 s
+deleted, or its URI changed) there are two ways. If the new list fits in the places the running engine has (`ENGINE_MAX_CAMERAS`),
+the manager rewrites the cameras file and sends the engine SIGHUP; the engine reads it again, adds the new cameras, takes the
+removed ones out and updates the settings of the others, and no camera loses its picture. Otherwise (more cameras than places, an
+empty list, or the engine said it could not apply the change: its `reload: ...` line is watched) it stops the engine with SIGTERM (the
+engine prints its summary and flushes its spool, up to `stop_timeout` 25 s, then SIGKILL) and starts it again, with room for the
+new list, and all cameras lose a few seconds of video. Renaming a camera does neither. A process younger than 3 s is not signalled
+(`reload_after`): it may not have set up its handler yet. If the engine crashes it is started again after 1 s, 2 s, ... up to 60 s
 (a run longer than 30 s resets the delay). Exit code 0 means every source ended (video files): it is not restarted until the list changes.
 
 RTSP URLs hold passwords, so they never appear on the engine's command line: the manager writes them to
 `ENGINE_RUNTIME_DIR/cameras.ini` (mode 600) and passes `--cameras-file`; the token goes in `DS_ENGINE_TOKEN`. What the engine prints
 is logged (passwords in URLs replaced) to `logs/engine_manager.log`. The settings are the `ENGINE_*` entries of `.env.example`.
 Each `[camera.<id>]` group also carries the camera's `conf_threshold`, `absence_timeout` and `ai_enabled` (see Configuration). They are
-part of what the manager compares, so a new value restarts the engine; `ABSENCE_TIMEOUT` of `.env` is only the engine's default
-for a camera without one.
+part of what the manager compares, so a new value is sent to the engine as above (no restart); `ABSENCE_TIMEOUT` of `.env` is only
+the engine's default for a camera without one.
 
 To run the engine in the DeepStream container, make `ENGINE_COMMAND` the whole prefix, with the runtime directory, the snapshot directory
 and the config files mounted at the same absolute paths, for example:
@@ -547,6 +553,7 @@ Options:
 - `--stream-bitrate KBPS`: bit rate of each published stream, 100-50000 (default 4000).
 - `--heartbeat-url URL`: POST the state of every camera to URL (e.g. `http://127.0.0.1:8000/internal/heartbeat`) every `--heartbeat-interval` seconds (1-3600, default 5); needs `--backend-url`. Off without it.
 - `--absence-timeout SEC`: how long a person must be out of sight before the same track ID raises a new event (default 10, same as `ABSENCE_TIMEOUT`); the default for every camera, a `--cameras-file` group can set its own.
+- `--max-cameras N`: room for N cameras (0-32; default: exactly the cameras given). The muxer and the detector are set up for a batch of N, so cameras can be added to the running engine (below). A place that is empty costs a little GPU and memory; needs a TensorRT engine of batch N; cannot be combined with `--output`.
 - `--fps-interval SEC`: how often the frame rate of each source is printed (default 5, 0 turns it off).
 - `--tracker-config FILE`: the `nvtracker` low-level config (required), `configs/tracker_nvdcf.yml` for NvDCF. The values in
   it are a starting point, not tuned.
@@ -554,6 +561,30 @@ Options:
 - `--rtsp-timeout SEC`: an RTSP camera that delivers no frame for SEC seconds is reconnected (default 10, 0 = only react to errors). See [RTSP cameras](#rtsp-cameras).
 
 Exit codes: `0` all sources reached EOS, or the engine was stopped with SIGINT/SIGTERM, `1` a pipeline error, `2` bad arguments, `3` the pipeline could not be built.
+
+### Changing cameras while the engine runs (SIGHUP)
+
+Started with `--cameras-file`, the engine reads that file again when it gets SIGHUP and brings itself in line with it, without
+stopping the pipeline:
+
+- a camera in the file that is not running is **added** to a free place (needs `--max-cameras`; the engine has as many places as
+  that, or as many as the cameras it started with);
+- a running camera that left the file, or whose address changed (a removal and an addition), is **taken out**: its source is stopped,
+  its muxer pad released, its slot freed. With `--stream-url` its video stops and the camera that takes the place later publishes
+  under its own `cam<ID>`;
+- the settings (`conf_threshold`, `absence_timeout`, `ai_enabled`) of every camera that stays are **updated**. The detection
+  filter (`settings_probe`) and the event logic read them on every frame, so the change takes effect within a frame or two.
+
+The list is all or nothing: if the file does not parse, names a camera twice, needs more places than are free or the engine writes
+`--output`, nothing at all changes and the engine prints why (`reload: nothing applied, ...`; the engine manager then restarts the
+engine). Cameras given with `--camera` are not in the file and are not touched. The messages (`reload: camera_id=3 added in slot 2`,
+`reload: done, 1 added, 0 removed, 2 with new settings`) never contain an address. Test tools: `engine/tools/check_reload.sh`
+(settings), `engine/tools/check_dynamic.sh` (adding and removing, `STREAM=1` also with video).
+
+Limits: `nvstreamdemux` hands out its `src_N` pads only while the pipeline is built, so every place gets its pad up front and the
+branch that encodes a camera stays in the pipeline (idle) when the camera leaves; the next camera of that place uses it. Each such
+branch holds an NVENC session while it exists, and the GPU has 12 of them. A place is not given to a new camera at once after it is
+freed (the place that has been free the longest is used first), because a last frame of the old camera may still be on its way.
 The program never prints a full URI, only its scheme.
 
 ### Streaming
@@ -630,7 +661,12 @@ Results on an RTX 4060 Laptop (8 GB), 16 cores, 15 GB RAM, detection and trackin
 - The decoder (NVDEC) is the limit, not the neural network: reading files as fast as possible saturates at about 850 frames per second.
   One engine for all cameras is the better layout: the same 8 cameras need 4 times the RAM and 3 times the CPU as 8 engines.
 - With the live video published (one NVENC session per camera with the boxes drawn) the limit is 12 cameras: when 24 encoder sessions were
-  tried, only 12 could start. Detection plus publishing together at 12 cameras was not measured.
+  tried, only 12 could start. **Detection and publishing together at 12 cameras** (`--cameras 12 --stream-url rtmp://127.0.0.1:1935/live`,
+  MediaMTX in another container, 25 s window): every camera held 30 fps (lowest reading 29.5), GPU 44% (max 47%), NVENC 27%, NVDEC 40%, whole-GPU
+  VRAM 2.9 GiB, engine RSS 2.2 GiB, CPU 148% of one core, no reconnect, and MediaMTX saw all 12 paths. The same 12 cameras without publishing
+  needed GPU 40% and 1.2-1.5 GiB of RAM: publishing adds the encoders and about 0.7 GiB.
+- Room for more cameras than run (`--max-cameras`, a batch bigger than the number of cameras): with 4 cameras in a batch of 12 instead of 4
+  the GPU went from 18% to 22-25%, VRAM by about 260 MiB, RAM by about 140 MiB and CPU from 25% to 28-31%; the frame rate stayed 30.
 - All cameras show the same video and run on localhost, and latency is not measured: take the numbers as an upper bound for 1080p H.264
   at 30 fps. Other resolutions, frame rates and codecs move the limits.
 
@@ -663,7 +699,7 @@ appears in the container logs. Four cameras write about 2 GB of snapshots an hou
 | The video is black or stays on "connecting" in the browser | `PUBLIC_HOST` is not the address the browser uses (WebRTC candidates point to it), or port 8889/tcp or 8189/udp is blocked |
 | Events do not appear in the web app | the camera must exist in the backend with the id the engine uses (otherwise HTTP 422, the event is dropped); a wrong `INTERNAL_TOKEN` gives 401 and the engine keeps the events in `ENGINE_RUNTIME_DIR/events.spool` and delivers them once it is right |
 | No Telegram message, event shows "disabled" | `ENABLE_TELEGRAM` is false or the token/chat id is empty; try `python scripts/test_telegram_snapshot.py`. An alert still pending after `NOTIFY_MAX_AGE` (10 min) is dropped |
-| All cameras lose the picture for a few seconds when one is added or removed | expected: one process serves all cameras, so the engine restarts when the camera list changes |
+| All cameras lose the picture for a few seconds when one is added | the engine had no free place: with `ENGINE_MAX_CAMERAS` places it takes cameras without a restart, and restarts once (with room for the new count) when the list is longer than that. The first start with a new number of places also builds a TensorRT engine for it (~150 s) |
 | A camera with a `file://` address stops after one pass and Start does nothing | the file ended; the engine does not restart until the camera list changes (Stop, then Start) |
 | `--output` gives an MP4 that cannot be played | stop the engine once with Ctrl-C and wait up to 5 s so that it can finish the file; a second Ctrl-C leaves it unplayable |
 | nginx answers 502 right after the backend container was recreated | wait a few seconds; nginx looks the backend up again every 10 s. Check `docker compose ps` for an unhealthy backend |

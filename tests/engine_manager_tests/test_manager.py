@@ -28,7 +28,8 @@ def make_manager(tmp_path, monkeypatch):
         monkeypatch.setenv("FAKE_MODE", mode)
         defaults = dict(command=[sys.executable, FAKE], engine_args=["--config", "x.txt"],
                         runtime_dir=tmp_path / "run", token=token, stop_timeout=3.0,
-                        backoff_base=0.2, backoff_max=0.8, stable_after=30.0, poll_interval=0.05)
+                        backoff_base=0.2, backoff_max=0.8, stable_after=30.0, poll_interval=0.05,
+                        reload_after=0.2)
         defaults.update(cfg)
         m = EngineManager(ManagerConfig(**defaults))
         m.start()
@@ -225,18 +226,151 @@ def test_cameras_file_carries_the_settings_that_are_set(tmp_path):
     assert third.strip() == "uri=rtsp://h/c"   # no key at all, so an older engine and a newer one read it alike
 
 
-def test_a_changed_setting_restarts_with_the_new_value(make_manager):
+def hups(rec):
+    return [json.loads(p.read_text()) for p in sorted(rec.glob("hup-[0-9]*.json"), key=lambda p: int(p.stem[4:]))]
+
+
+def test_a_changed_setting_is_reloaded_without_a_restart(make_manager):
     m = make_manager()
     m.set_cameras([CameraSpec(1, "rtsp://a/1", conf_threshold=0.25)], revision="a")
     wait_for(lambda: m.status()["state"] == "running")
+    pid = m.status()["pid"]
     m.set_cameras([CameraSpec(1, "rtsp://a/1", conf_threshold=0.25)], revision="b")   # nothing changed
     time.sleep(0.5)
+    assert m.status()["starts"] == 1 and hups(make_manager.rec) == []
+
+    m.set_cameras([CameraSpec(1, "rtsp://a/1", conf_threshold=0.6, ai_enabled=False)], revision="c")
+    wait_for(lambda: len(hups(make_manager.rec)) == 1)
+    # the file was already rewritten when the engine got the signal
+    seen = hups(make_manager.rec)[0]["cameras"]
+    assert "conf_threshold=0.6" in seen and "ai_enabled=false" in seen
+    st = m.status()
+    assert st["pid"] == pid and st["starts"] == 1 and st["reloads"] == 1 and st["state"] == "running"
+    assert len(runs(make_manager.rec)) == 1   # one process, never started again
+
+    # and the list now counts as applied: the same settings again do nothing
+    m.set_cameras([CameraSpec(1, "rtsp://a/1", conf_threshold=0.6, ai_enabled=False)], revision="d")
+    time.sleep(0.5)
+    assert len(hups(make_manager.rec)) == 1 and m.status()["reloads"] == 1
+
+
+def test_a_young_engine_is_not_signalled_before_it_can_take_it(make_manager):
+    m = make_manager(reload_after=1.0)
+    m.set_cameras([CameraSpec(1, "rtsp://a/1", conf_threshold=0.25)])
+    wait_for(lambda: m.status()["state"] == "running")
+    t0 = time.monotonic()
+    m.set_cameras([CameraSpec(1, "rtsp://a/1", conf_threshold=0.6)])
+    time.sleep(0.5)
+    assert hups(make_manager.rec) == []   # still too young
+    wait_for(lambda: len(hups(make_manager.rec)) == 1)
+    assert time.monotonic() - t0 >= 0.9
     assert m.status()["starts"] == 1
 
-    m.set_cameras([CameraSpec(1, "rtsp://a/1", conf_threshold=0.6)], revision="c")
+
+def test_settings_changed_twice_end_with_the_last_values(make_manager):
+    m = make_manager()
+    m.set_cameras([CameraSpec(1, "rtsp://a/1")])
+    wait_for(lambda: m.status()["state"] == "running")
+    time.sleep(0.4)
+    m.set_cameras([CameraSpec(1, "rtsp://a/1", conf_threshold=0.5)])
+    wait_for(lambda: m.status()["reloads"] == 1)
+    m.set_cameras([CameraSpec(1, "rtsp://a/1", conf_threshold=0.7)])
+    wait_for(lambda: m.status()["reloads"] == 2)
+    wait_for(lambda: len(hups(make_manager.rec)) == 2)
+    assert "conf_threshold=0.7" in hups(make_manager.rec)[1]["cameras"]
+    assert m.status()["starts"] == 1
+
+
+def test_a_changed_setting_together_with_a_new_camera_restarts(make_manager):
+    m = make_manager()
+    m.set_cameras([CameraSpec(1, "rtsp://a/1", conf_threshold=0.25)])
+    wait_for(lambda: m.status()["state"] == "running")
+    m.set_cameras([CameraSpec(1, "rtsp://a/1", conf_threshold=0.6), CameraSpec(2, "rtsp://a/2")])
     wait_for(lambda: m.status()["starts"] == 2 and m.status()["state"] == "running")
     wait_for(lambda: len(runs(make_manager.rec)) == 2)
     assert "conf_threshold=0.6" in runs(make_manager.rec)[1]["cameras"]
+    assert m.status()["reloads"] == 0
+
+
+def test_cameras_come_and_go_within_the_room_without_a_restart(make_manager):
+    m = make_manager(max_cameras=4)
+    m.set_cameras([cam(1), cam(2)])
+    wait_for(lambda: m.status()["state"] == "running")
+    assert m.status()["capacity"] == 4
+    argv = runs(make_manager.rec)[0]["argv"]
+    assert argv[argv.index("--max-cameras") + 1] == "4"   # room for 4 although 2 run
+    pid = m.status()["pid"]
+
+    m.set_cameras([cam(1), cam(2), cam(3)])            # a camera comes
+    wait_for(lambda: len(hups(make_manager.rec)) == 1)
+    assert "[camera.3]" in hups(make_manager.rec)[0]["cameras"]
+    m.set_cameras([cam(2), cam(3)])                    # one goes
+    wait_for(lambda: len(hups(make_manager.rec)) == 2)
+    assert "[camera.1]" not in hups(make_manager.rec)[1]["cameras"]
+    m.set_cameras([cam(2), cam(3), cam(5), cam(6)])    # two more: now full
+    wait_for(lambda: len(hups(make_manager.rec)) == 3)
+
+    st = m.status()
+    assert st["pid"] == pid and st["starts"] == 1 and st["reloads"] == 3
+    assert st["running_cameras"] == [2, 3, 5, 6]
+    assert len(runs(make_manager.rec)) == 1
+
+
+def test_a_list_bigger_than_the_room_restarts_with_more_room(make_manager):
+    m = make_manager(max_cameras=2)
+    m.set_cameras([cam(1), cam(2)])
+    wait_for(lambda: m.status()["state"] == "running")
+    m.set_cameras([cam(1), cam(2), cam(3)])
+    wait_for(lambda: m.status()["starts"] == 2 and m.status()["state"] == "running")
+    wait_for(lambda: len(runs(make_manager.rec)) == 2)
+    argv = runs(make_manager.rec)[1]["argv"]
+    assert argv[argv.index("--max-cameras") + 1] == "3"   # never fewer places than cameras
+    assert m.status()["capacity"] == 3 and hups(make_manager.rec) == []
+
+
+def test_without_room_a_new_camera_restarts_as_before(make_manager):
+    m = make_manager()   # max_cameras = 0: exactly the cameras given
+    m.set_cameras([cam(1)])
+    wait_for(lambda: m.status()["state"] == "running")
+    assert "--max-cameras" not in runs(make_manager.rec)[0]["argv"]
+    m.set_cameras([cam(1), cam(2)])
+    wait_for(lambda: m.status()["starts"] == 2 and m.status()["state"] == "running")
+    assert hups(make_manager.rec) == []
+
+
+def test_removing_the_last_camera_stops_the_engine_not_reloads_it(make_manager):
+    m = make_manager(max_cameras=4)
+    m.set_cameras([cam(1)])
+    wait_for(lambda: m.status()["state"] == "running")
+    m.set_cameras([])
+    wait_for(lambda: m.status()["state"] == "stopped")
+    assert hups(make_manager.rec) == []
+
+
+def test_an_engine_that_cannot_apply_a_reload_is_restarted(make_manager, monkeypatch):
+    monkeypatch.setenv("FAKE_RELOAD_FAIL", "1")   # this engine answers every SIGHUP with "reload: nothing applied"
+    m = make_manager(max_cameras=4)
+    m.set_cameras([cam(1)])
+    wait_for(lambda: m.status()["state"] == "running")
+    first = m.status()["pid"]
+
+    m.set_cameras([cam(1), cam(2)])
+    wait_for(lambda: m.status()["starts"] == 2 and m.status()["state"] == "running")
+    wait_for(lambda: len(runs(make_manager.rec)) == 2)
+    assert m.status()["pid"] != first
+    assert len(hups(make_manager.rec)) == 1                    # it was asked once, said it could not
+    assert "[camera.2]" in runs(make_manager.rec)[1]["cameras"]   # and the new process has the whole list
+    time.sleep(0.5)
+    assert m.status()["starts"] == 2                           # no restart loop
+
+
+def test_hot_reload_can_be_turned_off(make_manager):
+    m = make_manager(hot_reload=False)
+    m.set_cameras([CameraSpec(1, "rtsp://a/1", conf_threshold=0.25)])
+    wait_for(lambda: m.status()["state"] == "running")
+    m.set_cameras([CameraSpec(1, "rtsp://a/1", conf_threshold=0.6)])
+    wait_for(lambda: m.status()["starts"] == 2 and m.status()["state"] == "running")
+    assert hups(make_manager.rec) == []
 
 
 def test_bad_uris_are_refused_before_anything_changes(make_manager):

@@ -6,6 +6,10 @@ the cameras file with its mode), prints a line that has a password in it, then b
   crash          exit 3 after a moment
   finish         exit 0 at once (every source ended)
   stubborn       ignore SIGTERM
+In every mode but stubborn it also takes SIGHUP like the real engine (a reload of the settings): it copies the cameras
+file as it is at that moment to $FAKE_ENGINE_DIR/hup-<n>.json (n counts the signals), so a test can see that the file
+was already rewritten when the signal arrived. It then prints what the real engine prints: "reload: done, ..." or, when
+FAKE_RELOAD_FAIL is set, "reload: nothing applied, ..." (the engine could not do what the file asks).
 """
 import json
 import os
@@ -18,6 +22,24 @@ mode = os.environ.get("FAKE_MODE", "run")
 
 args = sys.argv[1:]
 cams_path = args[args.index("--cameras-file") + 1]
+
+
+def on_hup(*_):
+    k = len([f for f in os.listdir(rec_dir) if f.startswith("hup-")]) + 1
+    with open(cams_path, encoding="utf-8") as src:
+        text = src.read()
+    tmp = os.path.join(rec_dir, f"hup-tmp-{k}")
+    with open(tmp, "w") as dst:
+        json.dump({"cameras": text}, dst)
+    os.replace(tmp, os.path.join(rec_dir, f"hup-{k}.json"))
+    if os.environ.get("FAKE_RELOAD_FAIL"):
+        print("reload: nothing applied, there is no free place for the new cameras (see --max-cameras) "
+              "(the engine has to be restarted for that)", flush=True)
+    else:
+        print("reload: done, 0 added, 0 removed, 0 with new settings", flush=True)
+
+
+signal.signal(signal.SIGHUP, on_hup)   # before anything is recorded: the manager may signal at once
 n = len([f for f in os.listdir(rec_dir) if f.startswith("run-")]) + 1
 with open(cams_path, encoding="utf-8") as f:
     cams = f.read()

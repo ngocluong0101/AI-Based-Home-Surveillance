@@ -106,6 +106,9 @@
 /* Class id of "person" in the nvinfer output (the YOLOv8 parser reports only this class). */
 #define PERSON_CLASS_ID 0
 
+/* Most cameras one engine is asked to have room for (--max-cameras). */
+#define MAX_CAMERAS_LIMIT 32
+
 /* Live stream of each camera to MediaMTX (ROADMAP 4.1): the encoder settings of the stream branch. A
  * key frame every second at 30 fps lets a browser that joins late start within a second. */
 #define STREAM_BITRATE_DEFAULT_KBPS 4000
@@ -144,10 +147,19 @@ typedef struct {
     gint camera_id;
     gchar *uri;
     gboolean is_rtsp;
-    /* Per-camera settings from the cameras file. Set before the pipeline runs, only read after. */
-    gdouble conf_threshold;   /* detections below it are dropped before tracking; 0 = keep what the detector gives */
-    gdouble absence_timeout;  /* seconds out of sight after which a track raises a new event */
-    gboolean ai_enabled;      /* FALSE: the picture goes on, but nobody is detected, tracked or reported */
+    /* Per-camera settings from the cameras file. Set before the pipeline runs; SIGHUP (on_reload, main
+     * thread) may change them later while the probes (streaming threads) read them, hence atomic. */
+    _Atomic gdouble conf_threshold;   /* detections below it are dropped before tracking; 0 = keep what the detector gives */
+    _Atomic gdouble absence_timeout;  /* seconds out of sight after which a track raises a new event */
+    _Atomic gboolean ai_enabled;      /* FALSE: the picture goes on, but nobody is detected, tracked or reported */
+    gdouble em_timeout;               /* probe only: the timeout the EventManager was last given */
+    gboolean from_file;               /* the camera came from --cameras-file, so SIGHUP may change its settings */
+    /* A slot holds one camera. There are as many slots as the muxer has batch places (num_sources); a slot
+     * with uri == NULL is free. source_id is the slot number, which is also the muxer pad index and the
+     * frame_meta->source_id the probes see. active = the camera is in the running pipeline: the probes, the
+     * heartbeat and the timers look at active slots only. */
+    _Atomic gboolean active;
+    gint64 freed_us;                  /* monotonic time the slot was emptied; the longest-free slot is reused first */
     /* Reconnect (RTSP only). The reconnecting itself is done by nvurisrcbin (rtsp-reconnect-interval);
      * this is what the engine knows and reports. Everything but last_frame_us and reanchor belongs
      * to the main thread. */
@@ -159,6 +171,8 @@ typedef struct {
     _Atomic gboolean eos_seen;     /* file sources: their EOS passed the muxer sink pad (mux_eos_probe); never set for RTSP */
     GstElement *bin;     /* nvurisrcbin, owned by the pipeline */
     GstPad *mux_sinkpad; /* request pad "sink_<source_id>" of nvstreammux; we hold one ref */
+    GstPad *demux_pad;   /* request pad "src_<source_id>" of nvstreamdemux (--stream-url), asked for when the pipeline is built:
+                          * the demuxer hands out pads only then. It stays until the end; we hold one ref */
     /* Written by the streaming thread (probe). frame_count is atomic because the FPS timer reads
      * it while the pipeline runs; the other counters are read only after it stopped, so they
      * need no lock. */
@@ -242,7 +256,13 @@ typedef struct AppCtx {
     gboolean hb_failing;                  /* worker only: the last one was refused (reported once) */
     _Atomic guint64 heartbeats_sent;
     _Atomic guint64 heartbeats_failed;
-    gboolean filter_detections;  /* some camera has a confidence threshold or has AI off: settings_probe is needed */
+    /* The pieces a camera is added to or taken out of while the pipeline runs (main thread only). */
+    GstElement *streammux;
+    GstElement *demux;        /* NULL without --stream-url */
+    gboolean live;
+    /* Held by detection_probe while it works on a batch, and by the main thread while it fills or empties a
+     * slot: a camera is never freed under the feet of the probe. */
+    GMutex slot_lock;
 } AppCtx;
 
 static gchar **opt_cameras = NULL;
@@ -260,6 +280,7 @@ static gchar *opt_stream_url = NULL;
 static gint opt_stream_bitrate = STREAM_BITRATE_DEFAULT_KBPS;
 static gint opt_heartbeat_interval = HEARTBEAT_INTERVAL_DEFAULT_S;
 static gint opt_rtsp_timeout = RTSP_TIMEOUT_DEFAULT_S;
+static gint opt_max_cameras = 0;
 static gdouble opt_absence_timeout = 10.0;  /* same default as ABSENCE_TIMEOUT in src/config */
 
 static GOptionEntry option_entries[] = {
@@ -286,6 +307,9 @@ static GOptionEntry option_entries[] = {
       "combined with --output", "BASE" },
     { "stream-bitrate", 0, 0, G_OPTION_ARG_INT, &opt_stream_bitrate,
       "Bit rate of each published stream in kbit/s, 100-50000 (default 4000)", "KBPS" },
+    { "max-cameras", 0, 0, G_OPTION_ARG_INT, &opt_max_cameras,
+      "Batch size of the muxer and the detector: room for this many cameras, so that cameras can be added "
+      "while the engine runs (0 = exactly the cameras given at start)", "N" },
     { "rtsp-timeout", 0, 0, G_OPTION_ARG_INT, &opt_rtsp_timeout,
       "Seconds without a frame after which an RTSP camera is switched off and on again, 0 = only "
       "react to errors (default 10)", "SEC" },
@@ -324,11 +348,26 @@ typedef struct {
 /* camera id -> CameraSettings, for the cameras that came from the cameras file */
 static GHashTable *file_settings = NULL;
 
+static GHashTable *new_settings_table(void)
+{
+    return g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_free);
+}
+
+/* The settings a camera runs with: what the file says, else the defaults (no extra filter, the
+ * --absence-timeout, AI on). `table` may hold no entry for it. */
+static void settings_of(const GHashTable *table, gint camera_id, gdouble *conf, gdouble *absence, gboolean *ai)
+{
+    const CameraSettings *cs = table != NULL ? g_hash_table_lookup((GHashTable *)table, GINT_TO_POINTER(camera_id)) : NULL;
+    *conf = cs != NULL ? cs->conf_threshold : 0.0;
+    *ai = cs != NULL ? cs->ai_enabled : TRUE;
+    *absence = (cs != NULL && cs->absence_timeout >= 0.0) ? cs->absence_timeout : opt_absence_timeout;
+}
+
 /*
  * Read the optional conf_threshold=, absence_timeout= and ai_enabled= of one [camera.<ID>] group and
- * remember them for init_sources(). Messages name the group, never the address.
+ * store them in `settings` (camera id -> CameraSettings). Messages name the group, never the address.
  */
-static gboolean read_camera_settings(GKeyFile *kf, const gchar *group)
+static gboolean read_camera_settings(GKeyFile *kf, const gchar *group, GHashTable *settings)
 {
     gchar *end = NULL;
     gint64 id = g_ascii_strtoll(group + strlen("camera."), &end, 10);
@@ -364,9 +403,7 @@ static gboolean read_camera_settings(GKeyFile *kf, const gchar *group)
         }
     }
 
-    if (file_settings == NULL)
-        file_settings = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_free);
-    g_hash_table_replace(file_settings, GINT_TO_POINTER((gint)id), g_memdup2(&s, sizeof(s)));
+    g_hash_table_replace(settings, GINT_TO_POINTER((gint)id), g_memdup2(&s, sizeof(s)));
     return TRUE;
 }
 
@@ -391,10 +428,10 @@ static gboolean parse_camera_arg(const gchar *arg, gint *camera_id, gchar **uri)
 }
 
 /*
- * Append "ID=URI" specs read from a key file to `specs`. The file holds credentials, so it must
+ * Append "ID=URI" specs read from a key file to `specs` and the per-camera settings to `settings`. The file holds credentials, so it must
  * not be readable by group/others. Error messages never include the URI.
  */
-static gboolean load_cameras_file(const gchar *path, GPtrArray *specs)
+static gboolean load_cameras_file(const gchar *path, GPtrArray *specs, GHashTable *settings)
 {
     GStatBuf st;
     if (g_stat(path, &st) != 0) {
@@ -428,7 +465,7 @@ static gboolean load_cameras_file(const gchar *path, GPtrArray *specs)
             ok = FALSE;
         } else {
             g_ptr_array_add(specs, g_strdup_printf("%s=%s", *g + strlen("camera."), uri));
-            if (!read_camera_settings(kf, *g))
+            if (!read_camera_settings(kf, *g, settings))
                 ok = FALSE;
         }
         g_free(uri);
@@ -438,46 +475,103 @@ static gboolean load_cameras_file(const gchar *path, GPtrArray *specs)
     return ok;
 }
 
-/* Build SourceCtx[N] from the "ID=URI" specs. Returns FALSE (and prints why) on error. */
+/*
+ * Put a camera into a free slot: its settings, its EventManager and fresh counters. `spec` is "ID=URI";
+ * `settings` is the camera-id -> CameraSettings table of the cameras file (NULL for a --camera camera).
+ * The slot is not active yet. Prints why (never the address) and returns FALSE if the spec is bad or
+ * the camera id is already in use. Call with app->slot_lock held once the pipeline runs.
+ */
+static gboolean slot_fill(AppCtx *app, SourceCtx *src, const gchar *spec, gboolean from_file,
+                          const GHashTable *settings)
+{
+    gint camera_id = 0;
+    gchar *uri = NULL;
+    if (!parse_camera_arg(spec, &camera_id, &uri)) {
+        g_printerr("Source #%u has a bad format, expected ID=URI with ID an integer >= 0\n", src->source_id);
+        return FALSE;
+    }
+    for (guint j = 0; j < app->num_sources; j++) {
+        if (app->sources[j].uri != NULL && app->sources[j].camera_id == camera_id) {
+            g_printerr("camera_id %d is declared more than once\n", camera_id);
+            g_free(uri);
+            return FALSE;
+        }
+    }
+
+    src->camera_id = camera_id;
+    src->uri = uri;
+    src->from_file = from_file;
+    gdouble conf, absence;
+    gboolean ai;
+    settings_of(settings, camera_id, &conf, &absence, &ai);
+    src->conf_threshold = conf;
+    src->ai_enabled = ai;
+    src->absence_timeout = absence;
+    src->em_timeout = absence;
+    event_manager_init(&src->events, absence);
+    src->track_frames = g_hash_table_new(g_direct_hash, g_direct_equal);
+
+    gchar *scheme = g_uri_parse_scheme(src->uri);
+    src->is_rtsp = (scheme != NULL && g_ascii_strcasecmp(scheme, "rtsp") == 0);
+    g_free(scheme);
+
+    src->state = SOURCE_RUNNING;
+    src->lost_us = 0;
+    src->reconnects = 0;
+    atomic_store_explicit(&src->last_frame_us, g_get_monotonic_time(), memory_order_relaxed);
+    atomic_store_explicit(&src->reanchor, FALSE, memory_order_relaxed);
+    atomic_store_explicit(&src->eos_seen, FALSE, memory_order_relaxed);
+    atomic_store_explicit(&src->frame_count, 0, memory_order_relaxed);
+    atomic_store_explicit(&src->people_now, 0, memory_order_relaxed);
+    src->fps_prev_frames = 0;
+    src->hb_prev_frames = 0;
+    src->object_count = 0;
+    src->untracked_count = 0;
+    src->stream_start_ns = 0;
+    src->have_stream_start = FALSE;
+    src->event_count = 0;
+    src->event_errors = 0;
+    src->pub_failed = FALSE;
+    src->pub_failed_us = 0;
+    src->pub_failures = 0;
+    return TRUE;
+}
+
+/* Empty a slot (the counterpart of slot_fill). The stream branch and the mutex stay: they belong to the slot. */
+static void slot_clear(SourceCtx *src)
+{
+    g_free(src->uri);
+    src->uri = NULL;
+    event_manager_destroy(&src->events);
+    if (src->track_frames != NULL) {
+        g_hash_table_destroy(src->track_frames);
+        src->track_frames = NULL;
+    }
+}
+
+/*
+ * Build SourceCtx[slots] and fill the first slots from the "ID=URI" specs (--camera first, then the cameras
+ * file). There are max(cameras, --max-cameras) slots. Returns FALSE (and prints why) on error.
+ */
 static gboolean init_sources(AppCtx *app, const GPtrArray *specs)
 {
-    app->num_sources = specs->len;
+    app->num_sources = MAX(specs->len, (guint)MAX(opt_max_cameras, 0));
     app->sources = g_new0(SourceCtx, app->num_sources);
+    const guint n_cli = opt_cameras != NULL ? g_strv_length(opt_cameras) : 0;   /* --camera comes first in specs */
 
     for (guint i = 0; i < app->num_sources; i++) {
         SourceCtx *src = &app->sources[i];
         src->app = app;
         src->source_id = i;
-        src->track_frames = g_hash_table_new(g_direct_hash, g_direct_equal);
         g_mutex_init(&src->pub_lock);
         src->pub_pts_base = GST_CLOCK_TIME_NONE;
-
-        /* Do not echo the spec: it may hold a password. */
-        if (!parse_camera_arg(g_ptr_array_index(specs, i), &src->camera_id, &src->uri)) {
-            g_printerr("Source #%u has a bad format, expected ID=URI with ID an integer >= 0\n", i);
-            return FALSE;
-        }
-
+    }
+    for (guint i = 0; i < specs->len; i++) {
         /* A camera from the cameras file may carry its own settings; every other one gets the defaults. */
-        const CameraSettings *cs = file_settings != NULL
-            ? g_hash_table_lookup(file_settings, GINT_TO_POINTER(src->camera_id)) : NULL;
-        src->conf_threshold = cs != NULL ? cs->conf_threshold : 0.0;
-        src->ai_enabled = cs != NULL ? cs->ai_enabled : TRUE;
-        src->absence_timeout = (cs != NULL && cs->absence_timeout >= 0.0) ? cs->absence_timeout
-                                                                          : opt_absence_timeout;
-        event_manager_init(&src->events, src->absence_timeout);
-        if (!src->ai_enabled || src->conf_threshold > 0.0)
-            app->filter_detections = TRUE;
-
-        gchar *scheme = g_uri_parse_scheme(src->uri);
-        src->is_rtsp = (scheme != NULL && g_ascii_strcasecmp(scheme, "rtsp") == 0);
-        g_free(scheme);
-        for (guint j = 0; j < i; j++) {
-            if (app->sources[j].camera_id == src->camera_id) {
-                g_printerr("camera_id %d is declared more than once\n", src->camera_id);
-                return FALSE;
-            }
-        }
+        gboolean from_file = (i >= n_cli);
+        if (!slot_fill(app, &app->sources[i], g_ptr_array_index(specs, i), from_file,
+                       from_file ? file_settings : NULL))
+            return FALSE;
     }
     return TRUE;
 }
@@ -491,6 +585,8 @@ static void free_sources(AppCtx *app)
             g_hash_table_destroy(app->sources[i].track_frames);
         if (app->sources[i].mux_sinkpad != NULL)
             gst_object_unref(app->sources[i].mux_sinkpad);
+        if (app->sources[i].demux_pad != NULL)
+            gst_object_unref(app->sources[i].demux_pad);
         g_mutex_clear(&app->sources[i].pub_lock);
     }
     g_free(app->sources);
@@ -502,6 +598,8 @@ static void print_sources(const AppCtx *app)
 {
     for (guint i = 0; i < app->num_sources; i++) {
         const SourceCtx *src = &app->sources[i];
+        if (src->uri == NULL)
+            continue;
         gchar *scheme = g_uri_parse_scheme(src->uri);
         g_print("source_id=%u camera_id=%d scheme=%s conf_threshold=%.2f absence_timeout=%.1f ai=%s\n",
                 src->source_id, src->camera_id, scheme != NULL ? scheme : "?", src->conf_threshold,
@@ -533,6 +631,8 @@ static void print_stats(const AppCtx *app)
 
     for (guint i = 0; i < app->num_sources; i++) {
         const SourceCtx *src = &app->sources[i];
+        if (src->track_frames == NULL)
+            continue;   /* a free slot */
 
         /* tracks = distinct track IDs; short = seen in fewer than SHORT_TRACK_FRAMES frames. */
         guint tracks = g_hash_table_size(src->track_frames);
@@ -593,7 +693,7 @@ static SourceCtx *source_of_message(AppCtx *app, GstMessage *msg, const gchar *d
     GstObject *obj = GST_MESSAGE_SRC(msg) != NULL ? gst_object_ref(GST_MESSAGE_SRC(msg)) : NULL;
     while (obj != NULL) {
         for (guint i = 0; i < app->num_sources; i++) {
-            if (GST_OBJECT(app->sources[i].bin) == obj) {
+            if (app->sources[i].active && GST_OBJECT(app->sources[i].bin) == obj) {
                 gst_object_unref(obj);
                 return &app->sources[i];
             }
@@ -603,6 +703,8 @@ static SourceCtx *source_of_message(AppCtx *app, GstMessage *msg, const gchar *d
         obj = parent;
     }
     for (guint i = 0; debug != NULL && i < app->num_sources; i++) {
+        if (!app->sources[i].active)
+            continue;
         gchar *needle = g_strdup_printf("/GstDsNvUriSrcBin:source-%u/", app->sources[i].source_id);
         gboolean found = strstr(debug, needle) != NULL;
         g_free(needle);
@@ -753,7 +855,7 @@ static gboolean stream_retry_tick(gpointer data)
 
     for (guint i = 0; i < app->num_sources; i++) {
         SourceCtx *src = &app->sources[i];
-        if (src->stream_bin == NULL || !src->pub_failed ||
+        if (!src->active || src->stream_bin == NULL || !src->pub_failed ||
             now - src->pub_failed_us < (gint64)STREAM_RETRY_S * G_USEC_PER_SEC)
             continue;
         pub_destroy(src);
@@ -794,7 +896,7 @@ static gboolean watchdog_tick(gpointer data)
 
     for (guint i = 0; i < app->num_sources; i++) {
         SourceCtx *src = &app->sources[i];
-        if (!src->is_rtsp)
+        if (!src->active || !src->is_rtsp)
             continue;
         gint64 last = atomic_load_explicit(&src->last_frame_us, memory_order_relaxed);
         if (src->state == SOURCE_RECONNECTING) {
@@ -863,6 +965,144 @@ static gboolean on_signal(gpointer data)
         }
     }
     g_main_loop_quit(app->loop);
+    return G_SOURCE_CONTINUE;
+}
+
+static gboolean add_source(AppCtx *app, SourceCtx *src);
+static void detach_source(AppCtx *app, SourceCtx *src);
+
+/*
+ * SIGHUP: read the cameras file again and bring the running engine in line with it, without stopping the
+ * pipeline:
+ *  - a camera that is in the file but not running is added (to a free slot: the engine has as many as
+ *    --max-cameras, or as many cameras as it started with);
+ *  - a running camera that left the file, or whose address changed, is taken out (the second case is a
+ *    removal plus an addition);
+ *  - the settings (conf_threshold, absence_timeout, ai_enabled) of every camera that stays are updated.
+ * It is all or nothing for the list: if the file does not parse, names a camera twice, takes a camera id
+ * a --camera camera has, needs more slots than are free or the engine writes --output, nothing at all is
+ * changed and the engine says why (the engine manager restarts it for those). Cameras given with --camera
+ * are not in the file and are left alone. Messages never contain an address.
+ */
+static gboolean on_reload(gpointer data)
+{
+    AppCtx *app = (AppCtx *)data;
+
+    if (opt_cameras_file == NULL) {
+        g_print("reload: ignored, the engine was not started with --cameras-file\n");
+        return G_SOURCE_CONTINUE;
+    }
+
+    GPtrArray *specs = g_ptr_array_new_with_free_func(g_free);
+    GHashTable *settings = new_settings_table();
+    gboolean ok = load_cameras_file(opt_cameras_file, specs, settings);
+    gint *ids = g_new0(gint, specs->len + 1);
+    gchar **uris = g_new0(gchar *, specs->len + 1);
+    gboolean *keep = g_new0(gboolean, app->num_sources);   /* per slot: the camera stays as it is */
+    gboolean *add = g_new0(gboolean, specs->len + 1);      /* per file entry: to be added */
+    const char *refusal = NULL;
+
+    for (guint i = 0; ok && i < specs->len; i++) {
+        if (!parse_camera_arg(g_ptr_array_index(specs, i), &ids[i], &uris[i])) {
+            ok = FALSE;
+            break;
+        }
+        for (guint k = 0; k < i; k++)
+            if (ids[k] == ids[i])
+                refusal = "a camera is named twice in the cameras file";
+    }
+
+    guint adds = 0, removals = 0, free_slots = 0;
+    for (guint i = 0; ok && refusal == NULL && i < specs->len; i++) {
+        const SourceCtx *same_id = NULL;
+        for (guint j = 0; j < app->num_sources; j++)
+            if (app->sources[j].active && app->sources[j].camera_id == ids[i])
+                same_id = &app->sources[j];
+        if (same_id != NULL && !same_id->from_file) {
+            refusal = "the file names a camera that was given with --camera";
+        } else if (same_id != NULL && strcmp(same_id->uri, uris[i]) == 0) {
+            keep[same_id->source_id] = TRUE;
+        } else {
+            add[i] = TRUE;
+            adds++;
+        }
+    }
+    for (guint j = 0; ok && refusal == NULL && j < app->num_sources; j++) {
+        if (app->sources[j].uri == NULL)
+            free_slots++;
+        else if (app->sources[j].active && app->sources[j].from_file && !keep[j])
+            removals++;
+    }
+    if (ok && refusal == NULL && (adds > 0 || removals > 0)) {
+        if (opt_output != NULL)
+            refusal = "cameras cannot be added or removed while --output is written";
+        else if (adds > free_slots + removals)
+            refusal = "there is no free place for the new cameras (see --max-cameras)";
+    }
+
+    if (!ok) {
+        g_print("reload: the cameras file could not be used, nothing changed\n");
+    } else if (refusal != NULL) {
+        g_print("reload: nothing applied, %s (the engine has to be restarted for that)\n", refusal);
+    } else {
+        guint removed = 0, added = 0, changed = 0;
+
+        for (guint j = 0; j < app->num_sources; j++) {
+            SourceCtx *src = &app->sources[j];
+            if (src->active && src->from_file && !keep[j]) {
+                detach_source(app, src);
+                removed++;
+            }
+        }
+        for (guint i = 0; i < specs->len; i++) {
+            if (!add[i])
+                continue;
+            SourceCtx *slot = NULL;   /* the free slot that has been free the longest: a frame of the previous camera may still be on its way */
+            for (guint j = 0; j < app->num_sources; j++)
+                if (app->sources[j].uri == NULL && (slot == NULL || app->sources[j].freed_us < slot->freed_us))
+                    slot = &app->sources[j];
+            if (slot == NULL)
+                break;   /* cannot happen: counted above */
+            g_mutex_lock(&app->slot_lock);
+            gboolean filled = slot_fill(app, slot, g_ptr_array_index(specs, i), TRUE, settings);
+            g_mutex_unlock(&app->slot_lock);
+            if (!filled)
+                continue;
+            if (add_source(app, slot)) {
+                added++;
+                g_print("reload: camera_id=%d added in slot %u\n", slot->camera_id, slot->source_id);
+            } else {
+                g_printerr("reload: camera_id=%d could not be added\n", slot->camera_id);
+                detach_source(app, slot);
+            }
+        }
+        for (guint j = 0; j < app->num_sources; j++) {
+            SourceCtx *src = &app->sources[j];
+            if (!keep[j] || !src->active)
+                continue;
+            gdouble conf, absence;
+            gboolean ai;
+            settings_of(settings, src->camera_id, &conf, &absence, &ai);
+            if (conf == src->conf_threshold && absence == src->absence_timeout && ai == src->ai_enabled)
+                continue;
+            src->conf_threshold = conf;
+            src->absence_timeout = absence;
+            src->ai_enabled = ai;
+            changed++;
+            g_print("reload: camera_id=%d conf_threshold=%.2f absence_timeout=%.1f ai=%s\n",
+                    src->camera_id, conf, absence, ai ? "on" : "off");
+        }
+        g_print("reload: done, %u added, %u removed, %u with new settings\n", added, removed, changed);
+    }
+
+    for (guint i = 0; i < specs->len; i++)
+        g_free(uris[i]);
+    g_free(uris);
+    g_free(ids);
+    g_free(keep);
+    g_free(add);
+    g_hash_table_destroy(settings);
+    g_ptr_array_free(specs, TRUE);
     return G_SOURCE_CONTINUE;
 }
 
@@ -1449,14 +1689,16 @@ static GstPadProbeReturn settings_probe(GstPad *pad, GstPadProbeInfo *info, gpoi
         if (frame_meta->source_id >= app->num_sources)
             continue;
         const SourceCtx *src = &app->sources[frame_meta->source_id];
-        if (src->ai_enabled && src->conf_threshold <= 0.0)
+        const gboolean ai = src->ai_enabled;
+        const gdouble min_conf = src->conf_threshold;
+        if (ai && min_conf <= 0.0)
             continue;
 
         NvDsMetaList *l_obj = frame_meta->obj_meta_list;
         while (l_obj != NULL) {
             NvDsMetaList *next = l_obj->next;   /* removing the object frees this list node */
             NvDsObjectMeta *obj = (NvDsObjectMeta *)l_obj->data;
-            if (!src->ai_enabled || obj->confidence < src->conf_threshold)
+            if (!ai || obj->confidence < min_conf)
                 nvds_remove_obj_meta_from_frame(frame_meta, obj);
             l_obj = next;
         }
@@ -1482,6 +1724,9 @@ static GstPadProbeReturn detection_probe(GstPad *pad, GstPadProbeInfo *info, gpo
     if (batch_meta == NULL)
         return GST_PAD_PROBE_OK;
 
+    /* A camera taken out by the main thread is not freed while this runs. */
+    g_mutex_lock(&app->slot_lock);
+
     /* Events of this batch wait here, grouped by frame, until the snapshots are encoded. Created on
      * the first event only: most batches have none. */
     GPtrArray *pending = NULL;
@@ -1496,6 +1741,8 @@ static GstPadProbeReturn detection_probe(GstPad *pad, GstPadProbeInfo *info, gpo
         if (frame_meta->source_id >= app->num_sources)
             continue;
         SourceCtx *src = &app->sources[frame_meta->source_id];
+        if (!src->active)
+            continue;   /* a frame of a camera that was just taken out */
 
         guint total = 0, untracked = 0;
         size_t n = extract_person_detections(frame_meta, dets, G_N_ELEMENTS(dets), &total,
@@ -1519,6 +1766,13 @@ static GstPadProbeReturn detection_probe(GstPad *pad, GstPadProbeInfo *info, gpo
         if (!src->have_stream_start || atomic_exchange(&src->reanchor, FALSE)) {
             src->stream_start_ns = g_get_real_time() * 1000 - (gint64)frame_meta->buf_pts;
             src->have_stream_start = TRUE;
+        }
+        /* A SIGHUP may have changed the timeout; only this thread touches the EventManager, so it is
+         * handed over here. */
+        const gdouble timeout = src->absence_timeout;
+        if (timeout != src->em_timeout) {
+            event_manager_set_absence_timeout(&src->events, timeout);
+            src->em_timeout = timeout;
         }
         PersonDetectedEvent events[MAX_DETECTIONS_PER_FRAME];
         int emitted = event_manager_process(&src->events, dets, n,
@@ -1575,6 +1829,7 @@ static GstPadProbeReturn detection_probe(GstPad *pad, GstPadProbeInfo *info, gpo
     }
     if (mapped)
         gst_buffer_unmap(buf, &map);
+    g_mutex_unlock(&app->slot_lock);
     return GST_PAD_PROBE_OK;
 }
 
@@ -1585,6 +1840,8 @@ static gboolean report_fps(gpointer data)
 
     for (guint i = 0; i < app->num_sources; i++) {
         SourceCtx *src = &app->sources[i];
+        if (!src->active)
+            continue;
         guint64 now = atomic_load_explicit(&src->frame_count, memory_order_relaxed);
         g_print("fps source_id=%u camera_id=%d %.1f %s\n", src->source_id, src->camera_id,
                 (double)(now - src->fps_prev_frames) / (double)opt_fps_interval,
@@ -1608,28 +1865,31 @@ static gboolean heartbeat_tick(gpointer data)
     gint64 now = g_get_monotonic_time();
     double seconds = (double)(now - app->hb_prev_us) / G_USEC_PER_SEC;
     HeartbeatCamera *cameras = g_new0(HeartbeatCamera, app->num_sources);
+    guint n = 0;   /* the cameras that are in the pipeline now */
 
     for (guint i = 0; i < app->num_sources; i++) {
         SourceCtx *src = &app->sources[i];
+        if (!src->active)
+            continue;
+        HeartbeatCamera *c = &cameras[n++];
         guint64 frames = atomic_load_explicit(&src->frame_count, memory_order_relaxed);
         gint64 last = atomic_load_explicit(&src->last_frame_us, memory_order_relaxed);
-        cameras[i].camera_id = src->camera_id;
-        g_strlcpy(cameras[i].state, source_state_name(source_state(src)), sizeof(cameras[i].state));
-        cameras[i].fps = seconds > 0.0 ? (double)(frames - src->hb_prev_frames) / seconds : 0.0;
-        cameras[i].last_frame_age = (double)(now - last) / G_USEC_PER_SEC;
+        c->camera_id = src->camera_id;
+        g_strlcpy(c->state, source_state_name(source_state(src)), sizeof(c->state));
+        c->fps = seconds > 0.0 ? (double)(frames - src->hb_prev_frames) / seconds : 0.0;
+        c->last_frame_age = (double)(now - last) / G_USEC_PER_SEC;
         gint people = atomic_load_explicit(&src->people_now, memory_order_relaxed);
         /* With AI off nobody is looked for, so "0 people" would be a claim the engine cannot make. */
-        cameras[i].people = (src->ai_enabled && frames > 0 && now - last <= PEOPLE_FRESH_US) ? people : -1;
+        c->people = (src->ai_enabled && frames > 0 && now - last <= PEOPLE_FRESH_US) ? people : -1;
         src->hb_prev_frames = frames;
     }
     app->hb_prev_us = now;
 
-    size_t cap = heartbeat_json_capacity(app->num_sources);
+    size_t cap = heartbeat_json_capacity(n);
     QueueItem *item = g_new0(QueueItem, 1);
     item->kind = ITEM_HEARTBEAT;
     item->heartbeat_json = g_malloc(cap);
-    if (heartbeat_to_json(app->pipeline_run_id, cameras, app->num_sources, item->heartbeat_json,
-                          cap) < 0) {
+    if (heartbeat_to_json(app->pipeline_run_id, cameras, n, item->heartbeat_json, cap) < 0) {
         queue_item_free(item);   /* cannot happen: cap is sized for it */
     } else {
         atomic_store_explicit(&app->heartbeat_pending, TRUE, memory_order_release);
@@ -1748,18 +2008,129 @@ static gboolean build_stream_branch(GstElement *pipeline, GstElement *demux, Sou
         return FALSE;
     }
 
-    gchar *pad_name = g_strdup_printf("src_%u", src->source_id);
-    GstPad *demux_src = gst_element_request_pad_simple(demux, pad_name);
-    g_free(pad_name);
-    if (demux_src == NULL || gst_pad_link(demux_src, ghost) != GST_PAD_LINK_OK) {
-        g_printerr("Could not link nvstreamdemux to the stream branch of camera %d\n", src->camera_id);
-        if (demux_src != NULL)
-            gst_object_unref(demux_src);
-        return FALSE;   /* the bin belongs to the pipeline now */
+    (void)demux;
+    GstPadLinkReturn linked = (src->demux_pad != NULL) ? gst_pad_link(src->demux_pad, ghost) : GST_PAD_LINK_REFUSED;
+    if (linked != GST_PAD_LINK_OK) {
+        g_printerr("Could not link nvstreamdemux to the stream branch of camera %d (%s)\n", src->camera_id,
+                   src->demux_pad == NULL ? "no pad" : gst_pad_link_get_name(linked));
+        gst_bin_remove(GST_BIN(pipeline), bin);   /* so that a later try does not meet a bin of the same name */
+        return FALSE;
     }
-    gst_object_unref(demux_src);
     src->stream_bin = bin;
     return TRUE;
+}
+
+/*
+ * Put the source bin of a camera into the pipeline: nvurisrcbin, and the muxer pad "sink_<source_id>" it is
+ * linked to when it has found its video (on_source_pad_added). The bin starts with the pipeline, or with
+ * add_source() when the pipeline already runs. Returns FALSE (after printing why) on error; detach_source()
+ * undoes whatever was done.
+ */
+static gboolean attach_source(AppCtx *app, GstElement *pipeline, SourceCtx *src)
+{
+    gchar *bin_name = g_strdup_printf("source-%u", src->source_id);
+    src->bin = make_element(pipeline, "nvurisrcbin", bin_name);
+    g_free(bin_name);
+    if (src->bin == NULL)
+        return FALSE;
+    g_object_set(src->bin, "uri", src->uri, NULL);
+    if (src->is_rtsp)
+        g_object_set(src->bin, "rtsp-reconnect-interval", (guint)opt_rtsp_timeout,
+                     "rtsp-reconnect-attempts", -1, NULL);
+
+    /* Request "sink_<source_id>" so that source_id == the muxer pad index == the
+     * frame_meta->source_id seen in the probe. */
+    gchar *pad_name = g_strdup_printf("sink_%u", src->source_id);
+    src->mux_sinkpad = gst_element_request_pad_simple(app->streammux, pad_name);
+    if (src->mux_sinkpad == NULL)
+        g_printerr("Could not request pad '%s' from nvstreammux\n", pad_name);
+    g_free(pad_name);
+    if (src->mux_sinkpad == NULL)
+        return FALSE;
+    if (!src->is_rtsp)
+        gst_pad_add_probe(src->mux_sinkpad, GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM, mux_eos_probe, src, NULL);
+
+    g_signal_connect(src->bin, "pad-added", G_CALLBACK(on_source_pad_added), src);
+    atomic_store(&src->active, TRUE);
+    return TRUE;
+}
+
+/*
+ * The encoding branch of a slot, once. It stays in the pipeline when the camera goes: nvstreamdemux cannot
+ * give the same pad out twice, so the next camera of the slot uses the branch that is there (its encoder idles
+ * meanwhile). Returns TRUE and sets *built when it had to be made.
+ */
+static gboolean attach_branch(AppCtx *app, GstElement *pipeline, SourceCtx *src, gboolean *built)
+{
+    *built = FALSE;
+    if (app->demux == NULL || src->stream_bin != NULL)
+        return TRUE;
+    if (!build_stream_branch(pipeline, app->demux, src, app->live))
+        return FALSE;
+    *built = TRUE;
+    return TRUE;
+}
+
+/*
+ * Add a camera to the running pipeline (main thread). The slot has been filled with slot_fill(). The stream
+ * branch is brought up first, so that the first frames have somewhere to go, then the source.
+ */
+static gboolean add_source(AppCtx *app, SourceCtx *src)
+{
+    gboolean built = FALSE;
+    if (!attach_branch(app, app->pipeline, src, &built))
+        return FALSE;
+    if (built && !gst_element_sync_state_with_parent(src->stream_bin))
+        return FALSE;
+    if (!attach_source(app, app->pipeline, src))
+        return FALSE;
+    if (!gst_element_sync_state_with_parent(src->bin)) {
+        g_printerr("Could not start the source of camera %d\n", src->camera_id);
+        return FALSE;
+    }
+    atomic_store_explicit(&src->last_frame_us, g_get_monotonic_time(), memory_order_relaxed);
+    if (opt_stream_url != NULL && !pub_create(src)) {   /* tried again by the timer */
+        src->pub_failed = TRUE;
+        src->pub_failed_us = g_get_monotonic_time();
+    }
+    return TRUE;
+}
+
+/*
+ * Take a camera out of the running pipeline and free its slot (main thread). Safe on a camera that is only
+ * partly added. The muxer pad is released the way NVIDIA's runtime add/delete sample does: the source is
+ * stopped, the pad gets a flush-stop, then it is released. The stream branch stays (see attach_branch).
+ */
+static void detach_source(AppCtx *app, SourceCtx *src)
+{
+    atomic_store(&src->active, FALSE);   /* the probes and timers leave it alone from now on */
+    if (opt_stream_url != NULL) {
+        pub_destroy(src);
+        src->pub_failed = FALSE;
+    }
+    if (src->bin != NULL)
+        gst_element_set_state(src->bin, GST_STATE_NULL);
+    if (src->mux_sinkpad != NULL) {
+        GstPad *peer = gst_pad_get_peer(src->mux_sinkpad);
+        if (peer != NULL) {
+            gst_pad_unlink(peer, src->mux_sinkpad);
+            gst_object_unref(peer);
+        }
+        gst_pad_send_event(src->mux_sinkpad, gst_event_new_flush_stop(FALSE));
+        gst_element_release_request_pad(app->streammux, src->mux_sinkpad);
+        gst_object_unref(src->mux_sinkpad);
+        src->mux_sinkpad = NULL;
+    }
+    if (src->bin != NULL) {
+        gst_bin_remove(GST_BIN(app->pipeline), src->bin);
+        src->bin = NULL;
+    }
+    g_print("source_id=%u camera_id=%d: removed (frames=%" G_GUINT64_FORMAT " events=%" G_GUINT64_FORMAT ")\n",
+            src->source_id, src->camera_id, (guint64)src->frame_count, src->event_count);
+    g_mutex_lock(&app->slot_lock);   /* not while the probe is working on a batch */
+    slot_clear(src);
+    g_mutex_unlock(&app->slot_lock);
+    src->freed_us = g_get_monotonic_time();
 }
 
 static GstElement *build_pipeline(AppCtx *app)
@@ -1803,21 +2174,31 @@ static GstElement *build_pipeline(AppCtx *app)
     }
 
     gboolean live = FALSE;
+    guint present = 0;
     for (guint i = 0; i < app->num_sources; i++) {
+        if (app->sources[i].uri == NULL)
+            continue;
+        present++;
         gchar *scheme = g_uri_parse_scheme(app->sources[i].uri);
         if (scheme != NULL && g_ascii_strcasecmp(scheme, "rtsp") == 0)
             live = TRUE;
         g_free(scheme);
     }
-    g_object_set(streammux, "batch-size", app->num_sources, "width", MUXER_WIDTH, "height",
+    if (app->num_sources > present)
+        live = TRUE;   /* room for more: whatever is added later is most likely a camera, and the muxer must not wait for all of them */
+    app->streammux = streammux;
+    app->demux = demux;
+    app->live = live;
+    const guint batch = app->num_sources;
+    g_object_set(streammux, "batch-size", batch, "width", MUXER_WIDTH, "height",
                  MUXER_HEIGHT, "batched-push-timeout", MUXER_BATCH_TIMEOUT_USEC, "live-source",
                  live, NULL);
     if (opt_stream_url != NULL)
         g_object_set(streammux, "buffer-pool-size",
-                     MIN((guint)MUXER_POOL_MAX, (guint)STREAM_POOL_EXTRA + app->num_sources), NULL);
+                     MIN((guint)MUXER_POOL_MAX, (guint)STREAM_POOL_EXTRA + batch), NULL);
 
     /* batch-size after config-file-path, so it overrides any batch-size in the config. */
-    g_object_set(pgie, "config-file-path", opt_config, "batch-size", app->num_sources, NULL);
+    g_object_set(pgie, "config-file-path", opt_config, "batch-size", batch, NULL);
     g_object_set(tracker, "ll-lib-file", TRACKER_LIB, "ll-config-file", opt_tracker_config,
                  "tracker-width", TRACKER_WIDTH, "tracker-height", TRACKER_HEIGHT, NULL);
     /* sync=FALSE: files run as fast as the GPU allows. The event logic uses the stream PTS, not
@@ -1842,31 +2223,8 @@ static GstElement *build_pipeline(AppCtx *app)
 
     for (guint i = 0; i < app->num_sources; i++) {
         SourceCtx *src = &app->sources[i];
-
-        gchar *bin_name = g_strdup_printf("source-%u", src->source_id);
-        src->bin = make_element(pipeline, "nvurisrcbin", bin_name);
-        g_free(bin_name);
-        if (src->bin == NULL)
+        if (src->uri != NULL && !attach_source(app, pipeline, src))
             goto fail;
-        g_object_set(src->bin, "uri", src->uri, NULL);
-        if (src->is_rtsp)
-            g_object_set(src->bin, "rtsp-reconnect-interval", (guint)opt_rtsp_timeout,
-                         "rtsp-reconnect-attempts", -1, NULL);
-
-        /* Request "sink_<source_id>" so that source_id == the muxer pad index == the
-         * frame_meta->source_id seen in the probe. */
-        gchar *pad_name = g_strdup_printf("sink_%u", src->source_id);
-        src->mux_sinkpad = gst_element_request_pad_simple(streammux, pad_name);
-        if (src->mux_sinkpad == NULL)
-            g_printerr("Could not request pad '%s' from nvstreammux\n", pad_name);
-        g_free(pad_name);
-        if (src->mux_sinkpad == NULL)
-            goto fail;
-        if (!src->is_rtsp)
-            gst_pad_add_probe(src->mux_sinkpad, GST_PAD_PROBE_TYPE_EVENT_DOWNSTREAM, mux_eos_probe,
-                              src, NULL);
-
-        g_signal_connect(src->bin, "pad-added", G_CALLBACK(on_source_pad_added), src);
     }
 
     if (!gst_element_link_many(streammux, pgie, tracker, NULL)) {
@@ -1884,8 +2242,19 @@ static GstElement *build_pipeline(AppCtx *app)
         goto fail;
     }
 
+    /* A pad for every slot now, linked to its branch when the slot gets a camera (see src->demux_pad). */
     for (guint i = 0; demux != NULL && i < app->num_sources; i++) {
-        if (!build_stream_branch(pipeline, demux, &app->sources[i], live))
+        gchar *demux_pad_name = g_strdup_printf("src_%u", i);
+        app->sources[i].demux_pad = gst_element_request_pad_simple(demux, demux_pad_name);
+        if (app->sources[i].demux_pad == NULL)
+            g_printerr("Could not request pad '%s' from nvstreamdemux\n", demux_pad_name);
+        g_free(demux_pad_name);
+        if (app->sources[i].demux_pad == NULL)
+            goto fail;
+    }
+    for (guint i = 0; demux != NULL && i < app->num_sources; i++) {
+        gboolean built;
+        if (app->sources[i].uri != NULL && !attach_branch(app, pipeline, &app->sources[i], &built))
             goto fail;
     }
 
@@ -1898,15 +2267,15 @@ static GstElement *build_pipeline(AppCtx *app)
     gst_pad_add_probe(tracker_src, GST_PAD_PROBE_TYPE_BUFFER, detection_probe, app, NULL);
     gst_object_unref(tracker_src);
 
-    if (app->filter_detections) {
-        GstPad *pgie_src = gst_element_get_static_pad(pgie, "src");
-        if (pgie_src == NULL) {
-            g_printerr("Could not get the src pad of nvinfer\n");
-            goto fail;
-        }
-        gst_pad_add_probe(pgie_src, GST_PAD_PROBE_TYPE_BUFFER, settings_probe, app, NULL);
-        gst_object_unref(pgie_src);
+    /* Always attached, because a SIGHUP can turn a filter on later; with the default settings it only
+     * looks at each frame's two settings and moves on. */
+    GstPad *pgie_src = gst_element_get_static_pad(pgie, "src");
+    if (pgie_src == NULL) {
+        g_printerr("Could not get the src pad of nvinfer\n");
+        goto fail;
     }
+    gst_pad_add_probe(pgie_src, GST_PAD_PROBE_TYPE_BUFFER, settings_probe, app, NULL);
+    gst_object_unref(pgie_src);
 
     return pipeline;
 
@@ -1915,6 +2284,7 @@ fail:
     for (guint i = 0; i < app->num_sources; i++) {
         app->sources[i].bin = NULL;
         app->sources[i].stream_bin = NULL;
+        atomic_store(&app->sources[i].active, FALSE);
     }
     return NULL;
 }
@@ -1923,6 +2293,7 @@ int main(int argc, char *argv[])
 {
     AppCtx app = { 0 };
     GError *error = NULL;
+    g_mutex_init(&app.slot_lock);
 
     GOptionContext *ctx = g_option_context_new("- DeepStream engine (N sources, 1 pipeline)");
     g_option_context_add_main_entries(ctx, option_entries, NULL);
@@ -1939,7 +2310,8 @@ int main(int argc, char *argv[])
     GPtrArray *specs = g_ptr_array_new_with_free_func(g_free);
     for (gchar **c = opt_cameras; c != NULL && *c != NULL; c++)
         g_ptr_array_add(specs, g_strdup(*c));
-    if (opt_cameras_file != NULL && !load_cameras_file(opt_cameras_file, specs)) {
+    file_settings = new_settings_table();
+    if (opt_cameras_file != NULL && !load_cameras_file(opt_cameras_file, specs, file_settings)) {
         g_ptr_array_free(specs, TRUE);
         return EXIT_BAD_ARGS;
     }
@@ -1957,6 +2329,17 @@ int main(int argc, char *argv[])
 
     if (!(opt_absence_timeout >= 0.0 && opt_absence_timeout <= 86400.0)) {
         g_printerr("--absence-timeout must be between 0 and 86400 seconds\n");
+        g_ptr_array_free(specs, TRUE);
+        return EXIT_BAD_ARGS;
+    }
+
+    if (opt_max_cameras < 0 || opt_max_cameras > MAX_CAMERAS_LIMIT) {
+        g_printerr("--max-cameras must be between 0 and %d\n", MAX_CAMERAS_LIMIT);
+        g_ptr_array_free(specs, TRUE);
+        return EXIT_BAD_ARGS;
+    }
+    if (opt_max_cameras > 0 && opt_output != NULL) {
+        g_printerr("--max-cameras cannot be combined with --output (the tiled video has a fixed layout)\n");
         g_ptr_array_free(specs, TRUE);
         return EXIT_BAD_ARGS;
     }
@@ -2037,6 +2420,10 @@ int main(int argc, char *argv[])
     }
     print_sources(&app);
 
+    /* Installed this early so that a SIGHUP during the start (which can include minutes of TensorRT
+     * building) waits for the main loop instead of killing the process; on_reload() runs once it runs. */
+    guint sighup_id = g_unix_signal_add(SIGHUP, on_reload, &app);
+
     if (!publisher_start(&app)) {
         g_printerr("Could not start the publisher thread\n");
         free_sources(&app);
@@ -2073,6 +2460,8 @@ int main(int argc, char *argv[])
             app.start_us = g_get_monotonic_time();
             if (opt_stream_url != NULL) {
                 for (guint i = 0; i < app.num_sources; i++) {
+                    if (!app.sources[i].active)
+                        continue;
                     if (!pub_create(&app.sources[i])) {   /* tried again by the timer */
                         app.sources[i].pub_failed = TRUE;
                         app.sources[i].pub_failed_us = g_get_monotonic_time();
@@ -2084,18 +2473,17 @@ int main(int argc, char *argv[])
                 app.hb_prev_us = app.start_us;
                 heartbeat_id = g_timeout_add_seconds((guint)opt_heartbeat_interval, heartbeat_tick, &app);
             }
-            for (guint i = 0; i < app.num_sources; i++) {   /* the clock of the "no frames" check */
-                atomic_store_explicit(&app.sources[i].last_frame_us, app.start_us,
-                                      memory_order_relaxed);
-                if (app.sources[i].is_rtsp && watchdog_id == 0)
-                    watchdog_id = g_timeout_add_seconds(WATCHDOG_INTERVAL_S, watchdog_tick, &app);
-            }
+            for (guint i = 0; i < app.num_sources; i++)   /* the clock of the "no frames" check */
+                atomic_store_explicit(&app.sources[i].last_frame_us, app.start_us, memory_order_relaxed);
+            /* Always: a camera that is added later may be an RTSP one. */
+            watchdog_id = g_timeout_add_seconds(WATCHDOG_INTERVAL_S, watchdog_tick, &app);
             guint sigint_id = g_unix_signal_add(SIGINT, on_signal, &app);
             guint sigterm_id = g_unix_signal_add(SIGTERM, on_signal, &app);
             g_main_loop_run(app.loop);
             app.end_us = g_get_monotonic_time();
             g_source_remove(sigint_id);
             g_source_remove(sigterm_id);
+            g_source_remove(sighup_id);
             if (app.eos_timer_id != 0)
                 g_source_remove(app.eos_timer_id);
             if (fps_timer_id != 0)
@@ -2124,6 +2512,7 @@ int main(int argc, char *argv[])
         g_async_queue_unref(app.event_queue);
     g_main_loop_unref(app.loop);
     free_sources(&app);
+    g_mutex_clear(&app.slot_lock);
     g_clear_pointer(&file_settings, g_hash_table_destroy);
     g_free(opt_cameras_file);
     g_free(opt_config);

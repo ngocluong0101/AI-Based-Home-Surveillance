@@ -71,11 +71,13 @@ class Engine:
     """One ds_engine process; a thread parses its periodic fps lines."""
 
     def __init__(self, index: int, cameras: list[int], uris: dict[int, str], config: Path, tracker: Path,
-                 interval: int = 2, stream_url: str | None = None):
+                 interval: int = 2, stream_url: str | None = None, max_cameras: int = 0):
         cmd = ["stdbuf", "-oL", "-eL", str(ENGINE_DIR / "build" / "ds_engine"), "--config", str(config),
                "--tracker-config", str(tracker), "--fps-interval", str(interval)]
         if stream_url:
             cmd += ["--stream-url", stream_url]   # one H.264 encoder (NVENC session) per camera
+        if max_cameras:
+            cmd += ["--max-cameras", str(max_cameras)]
         for cam in cameras:
             cmd += ["--camera", f"{cam}={uris[cam]}"]
         self.index = index
@@ -158,6 +160,8 @@ def window(rows: list[dict], t0: float, t1: float) -> list[dict]:
 
 def run_case(args, layout: str, n: int, workdir: Path, tracker: Path, sampler: Sampler) -> dict:
     batch = n if layout == "single" else 1
+    if args.max_cameras:   # room for more cameras than run: batch size of the engine, as ds_engine --max-cameras
+        batch = max(batch, args.max_cameras)
     config = make_config(batch, workdir)
     uri = (f"file://{args.video}" if args.source == "files" else f"rtsp://127.0.0.1:{args.port}/cam")
     uris = {cam: uri for cam in range(1, n + 1)}
@@ -171,7 +175,7 @@ def run_case(args, layout: str, n: int, workdir: Path, tracker: Path, sampler: S
     try:
         for i, cams in enumerate(groups):
             engines.append(Engine(i, cams, uris, config, tracker, 1 if args.source == "files" else 2,
-                                  stream_url=args.stream_url))
+                                  stream_url=args.stream_url, max_cameras=args.max_cameras))
             if layout == "multi":
                 time.sleep(2.0)   # start-up of one process is heavy; do not stack them
         sampler.pids = [e.proc.pid for e in engines]
@@ -206,7 +210,9 @@ def run_case(args, layout: str, n: int, workdir: Path, tracker: Path, sampler: S
         per_cam = []   # (median fps, min fps, lines that were not RUNNING)
         for e in engines:
             for cam in e.cameras:
-                got = [s for s in e.samples if s[1] == cam and ready_at - 2.5 <= s[0] <= end + 2.5]
+                # The interval that made the camera "ready" is the first non-zero one and usually a partial one (the camera
+                # started a moment before it was printed), so the window starts after it.
+                got = [s for s in e.samples if s[1] == cam and ready_at + 0.1 <= s[0] <= end + 2.5]
                 if args.source == "files" and len(got) > 2:
                     got = got[1:-1]   # the first interval includes the ramp-up, the last is partial
                 fps = [s[2] for s in got if s[2] > 0] or [e.final.get(cam, 0.0)]
@@ -271,6 +277,9 @@ def main() -> int:
     ap.add_argument("--stop-on-fail", action="store_true",
                     help="stop raising N for a layout after a failed case")
     ap.add_argument("--port", type=int, default=8554)
+    ap.add_argument("--max-cameras", type=int, default=0, metavar="M",
+                    help="run the engine with room for M cameras (batch size M) although only --cameras N run: "
+                         "what it costs to be able to add cameras without a restart")
     ap.add_argument("--stream-url", metavar="BASE",
                     help="also publish every camera with boxes drawn, as ds_engine --stream-url does "
                          "(e.g. rtmp://127.0.0.1:1935/live): detection AND video encoding together, one NVENC session "
@@ -292,7 +301,7 @@ def main() -> int:
         layouts = ["single", "multi"] if args.layout == "both" else [args.layout]
         for layout in layouts:
             for n in args.cameras:
-                ensure_engine(n if layout == "single" else 1, args, workdir, tracker)
+                ensure_engine(max(n if layout == "single" else 1, args.max_cameras), args, workdir, tracker)
                 if args.source == "rtsp":
                     server = subprocess.Popen([str(binary), args.video, str(args.port), "/cam"],
                                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,

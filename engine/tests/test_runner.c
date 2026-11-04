@@ -28,6 +28,7 @@ void test_event_manager_shared_vectors(void);
 void test_event_manager_output_capacity(void);
 void test_event_manager_destroy_is_safe(void);
 void test_event_manager_instances_are_independent(void);
+void test_event_manager_timeout_can_change_while_running(void);
 
 /* tests/test_event_record.c */
 void test_event_record_golden_json(void);
@@ -64,6 +65,7 @@ static const TestCase TESTS[] = {
     { "event_manager_output_capacity", test_event_manager_output_capacity },
     { "event_manager_destroy_is_safe", test_event_manager_destroy_is_safe },
     { "event_manager_instances_are_independent", test_event_manager_instances_are_independent },
+    { "event_manager_timeout_can_change_while_running", test_event_manager_timeout_can_change_while_running },
     { "event_record_golden_json", test_event_record_golden_json },
     { "event_record_json_parses_back", test_event_record_json_parses_back },
     { "event_record_timestamp_is_utc", test_event_record_timestamp_is_utc },

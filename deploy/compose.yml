@@ -110,6 +110,7 @@ services:
     environment:
       ENGINE_BACKEND_URL: http://backend:8000/internal/events
       ENGINE_STREAM_URL: rtmp://mediamtx:1935/live
+      ENGINE_MAX_CAMERAS: ${ENGINE_MAX_CAMERAS:-8}
       INTERNAL_TOKEN: ${INTERNAL_TOKEN:?set INTERNAL_TOKEN in .env}
       ENABLE_SNAPSHOT: "true"
       ABSENCE_TIMEOUT: ${ABSENCE_TIMEOUT:-10}

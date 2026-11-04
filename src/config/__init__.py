@@ -77,6 +77,12 @@ ENGINE_STREAM_URL: str = os.getenv("ENGINE_STREAM_URL") or ""
 MEDIAMTX_WEBRTC_URL: Optional[str] = os.getenv("MEDIAMTX_WEBRTC_URL") or None   # e.g. http://192.168.1.20:8889
 MEDIAMTX_PATH_PREFIX: str = os.getenv("MEDIAMTX_PATH_PREFIX") or "live"
 ENGINE_EXTRA_ARGS: str = os.getenv("ENGINE_EXTRA_ARGS") or ""
+# Room for this many cameras in the running engine: cameras can be added and removed without restarting it
+# while there are at most this many (more than that restarts it with a bigger batch). Each place costs a
+# little GPU and memory even when empty (about +2% GPU and +65 MiB VRAM per place measured for 4 cameras in a
+# batch of 12), and needs a TensorRT engine of that batch size (built on first use, ~150 s). 0 = exactly the
+# cameras that run; then only a change of settings is applied without a restart.
+ENGINE_MAX_CAMERAS: int = _parse_int(os.getenv("ENGINE_MAX_CAMERAS"), 8)
 # Where the backend finds the manager; unset = the backend does not manage an engine
 ENGINE_MANAGER_URL: Optional[str] = os.getenv("ENGINE_MANAGER_URL") or None
 
@@ -118,6 +124,7 @@ __all__ = [
     "HEARTBEAT_STALE_AFTER",
     "NOTIFY_MAX_AGE",
     "ENGINE_EXTRA_ARGS",
+    "ENGINE_MAX_CAMERAS",
     "ENGINE_STREAM_URL",
     "MEDIAMTX_WEBRTC_URL",
     "MEDIAMTX_PATH_PREFIX",

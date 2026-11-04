@@ -29,6 +29,8 @@ log = logging.getLogger(__name__)
 engine_log = logging.getLogger("engine")   # what the engine itself prints
 
 _SECRET_IN_URL = re.compile(r"(\w+://)[^/\s@]+@")
+# What the engine prints (after "reload: ") when it did not do what the cameras file asked.
+_RELOAD_REFUSED = re.compile(r"nothing applied|could not|ignored")
 
 
 @dataclass(frozen=True)
@@ -36,8 +38,8 @@ class CameraSpec:
     id: int
     uri: str
     # Per-camera settings, written to the cameras file when given; None = the engine's default. They are part
-    # of the spec on purpose: the manager restarts the engine when the list differs, and the engine reads
-    # these once at start.
+    # of the spec on purpose: when only they differ the engine is told to read the file again (SIGHUP) instead
+    # of being restarted; a different list of cameras or addresses still restarts it.
     conf_threshold: float | None = None    # detections below it are dropped (0-1)
     absence_timeout: float | None = None   # seconds out of sight before the same person raises a new event
     ai_enabled: bool | None = None         # False: the picture goes on, nobody is detected
@@ -57,6 +59,14 @@ class ManagerConfig:
     backoff_max: float = 60.0
     stable_after: float = 30.0               # a run this long makes the next crash start from backoff_base again
     poll_interval: float = 0.2
+    # Changed settings are applied without a restart: the cameras file is rewritten and the engine gets SIGHUP.
+    # It can take the signal only once it has set up its handler, so a younger process waits this long first.
+    hot_reload: bool = True
+    reload_after: float = 3.0
+    # Room for this many cameras in the engine (its --max-cameras), so that cameras can be added and removed
+    # without a restart as long as the list fits. 0 = exactly the cameras given at start: then only a change
+    # of settings is applied without a restart.
+    max_cameras: int = 0
 
     @classmethod
     def from_env(cls) -> "ManagerConfig":
@@ -80,7 +90,8 @@ class ManagerConfig:
         args += shlex.split(config.ENGINE_EXTRA_ARGS)
         return cls(command=shlex.split(config.ENGINE_COMMAND), engine_args=args,
                    runtime_dir=runtime, token=config.INTERNAL_TOKEN,
-                   engine_config=Path(config.ENGINE_CONFIG).resolve())
+                   engine_config=Path(config.ENGINE_CONFIG).resolve(),
+                   max_cameras=max(config.ENGINE_MAX_CAMERAS, 0))
 
 
 # Keys of an nvinfer config that hold a file path; relative ones are relative to the config's directory.
@@ -169,6 +180,11 @@ def write_cameras_file(path: Path, cameras: list[CameraSpec]) -> None:
         raise
 
 
+def _same_cameras(a: tuple[CameraSpec, ...], b: tuple[CameraSpec, ...]) -> bool:
+    """The same cameras at the same addresses (the settings may differ)."""
+    return [(c.id, c.uri) for c in a] == [(c.id, c.uri) for c in b]
+
+
 @dataclass
 class _Run:
     proc: subprocess.Popen
@@ -185,6 +201,9 @@ class _State:
     started_at: datetime | None = None
     running_ids: tuple[int, ...] = ()
     revision: str | None = None
+    reloads: int = 0                # times the running engine was told to read the cameras file again (SIGHUP)
+    capacity: int = 0               # cameras the running engine has room for
+    reload_failed: bool = False     # the engine said it could not apply a reload: it is restarted
     desired: tuple[CameraSpec, ...] = ()
     backoff: float = 0.0
     next_start: float = 0.0
@@ -237,6 +256,8 @@ class EngineManager:
                 "starts": st.starts,
                 "last_exit_code": st.last_exit_code,
                 "last_error": st.last_error,
+                "reloads": st.reloads,
+                "capacity": st.capacity,
                 "running_cameras": list(st.running_ids),
                 "desired_cameras": [c.id for c in st.desired],
                 "revision": st.revision,
@@ -265,12 +286,21 @@ class EngineManager:
             if rc is not None:
                 self._on_exit(rc)
                 return
-            if want == self._ran_for:
+            if self._st.reload_failed:
+                log.warning("the engine could not apply the new camera list, restarting it")
+            elif want == self._ran_for:
                 if self._st.backoff and now - run.started >= self.cfg.stable_after:
                     with self._lock:
                         self._st.backoff = 0.0   # it has been fine for long enough
                 return
-            log.info("camera list changed, restarting the engine")
+            elif self.cfg.hot_reload and self._can_reload(want):
+                # Only settings differ, or cameras come and go within the room the engine has. Wait until it
+                # can take a signal, then tell it.
+                if now - run.started < self.cfg.reload_after or self._reload(run, want):
+                    return
+                log.info("camera list changed, restarting the engine")
+            else:
+                log.info("camera list changed, restarting the engine")
             self._terminate()   # then fall through and start it with the new list
 
         with self._lock:
@@ -288,6 +318,33 @@ class EngineManager:
                 return
         self._spawn(want)
 
+    def _can_reload(self, want: tuple[CameraSpec, ...]) -> bool:
+        """Can the running engine take this list without a restart? Same cameras at the same addresses (only
+        settings differ), or, when it has room, any list that fits in it. Never an empty list: that stops it."""
+        if not want:
+            return False
+        if _same_cameras(self._ran_for, want):
+            return True
+        with self._lock:
+            capacity = self._st.capacity
+        return self.cfg.max_cameras > 0 and len(want) <= capacity
+
+    def _reload(self, run: _Run, cameras: tuple[CameraSpec, ...]) -> bool:
+        """Write the new cameras file and tell the running engine to read it. False = it could not be done
+        (the caller restarts the engine instead)."""
+        try:
+            write_cameras_file(self.cfg.runtime_dir / "cameras.ini", list(cameras))
+            run.proc.send_signal(signal.SIGHUP)
+        except (OSError, ValueError) as exc:
+            log.error("could not reload the settings, restarting instead: %s", exc)
+            return False
+        self._ran_for = cameras
+        with self._lock:
+            self._st.reloads += 1
+            self._st.running_ids = tuple(c.id for c in cameras)
+        log.info("camera list changed, the engine was told to read it (no restart)")
+        return True
+
     def _spawn(self, cameras: tuple[CameraSpec, ...]) -> None:
         cfg = self.cfg
         cameras_file = cfg.runtime_dir / "cameras.ini"
@@ -297,14 +354,18 @@ class EngineManager:
         if cfg.token:
             env["DS_ENGINE_TOKEN"] = cfg.token
         self._ran_for = cameras
+        # Places in the engine: the room asked for, or more if more cameras than that run.
+        capacity = max(cfg.max_cameras, len(cameras)) if cfg.max_cameras > 0 else len(cameras)
+        if cfg.max_cameras > 0:
+            args += ["--max-cameras", str(capacity)]
         try:
             if cfg.engine_config is not None:
-                pgie, trt_engine = write_engine_config(cfg.engine_config, cfg.runtime_dir, len(cameras))
+                pgie, trt_engine = write_engine_config(cfg.engine_config, cfg.runtime_dir, capacity)
                 args += ["--config", str(pgie)]
                 if trt_engine is not None and not trt_engine.exists():
                     log.warning("no TensorRT engine for %d camera(s) yet (%s): the engine builds it at "
                                 "this start, which takes about 2-3 minutes, then keeps it",
-                                len(cameras), trt_engine.name)
+                                capacity, trt_engine.name)
             write_cameras_file(cameras_file, list(cameras))
             proc = subprocess.Popen(args, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                     stderr=subprocess.STDOUT, start_new_session=True)
@@ -314,25 +375,33 @@ class EngineManager:
             self._failed(f"could not start: {exc}")
             return
         reader = threading.Thread(target=self._pump, args=(proc,), name="engine-output", daemon=True)
-        reader.start()
         with self._lock:
             st = self._st
             st.run = _Run(proc, time.monotonic(), reader)
+            st.capacity = capacity
+            st.reload_failed = False
             st.name = "running"
             st.starts += 1
             st.started_at = datetime.now(timezone.utc)
             st.running_ids = tuple(c.id for c in cameras)
             st.last_error = None
+        reader.start()
         log.info("engine started (pid %d) for cameras %s", proc.pid, [c.id for c in cameras])
 
-    @staticmethod
-    def _pump(proc: subprocess.Popen) -> None:
-        """Copy the engine's output into the log, with passwords in URLs removed."""
+    def _pump(self, proc: subprocess.Popen) -> None:
+        """Copy the engine's output into the log, with passwords in URLs removed. A reload the engine says it
+        could not apply (no place left, a camera that would not start, a file it could not read) is noted: the
+        engine is restarted with the list then, so that what runs is never different from what was asked."""
         assert proc.stdout is not None
         for raw in proc.stdout:
             line = _SECRET_IN_URL.sub(r"\1***@", raw.decode("utf-8", errors="replace").rstrip())
-            if line:
-                engine_log.info(line)
+            if not line:
+                continue
+            engine_log.info(line)
+            if line.startswith("reload: ") and _RELOAD_REFUSED.search(line):
+                with self._lock:
+                    if self._st.run is not None and self._st.run.proc is proc:
+                        self._st.reload_failed = True
 
     def _failed(self, why: str) -> None:
         with self._lock:

@@ -165,7 +165,7 @@ function Form({ camera, onDone }: { camera?: Camera; onDone: () => void }) {
           <small className="muted">Off: the picture is still shown, but nobody is detected, counted or reported.</small>
         </label>
         {camera && (
-          <span className="field-hint">Saving a change to these three restarts the detection engine: running cameras lose their picture for a few seconds.</span>
+          <span className="field-hint">A change to these three is applied within a second or two, without interrupting any camera.</span>
         )}
 
         <div className="test-box">

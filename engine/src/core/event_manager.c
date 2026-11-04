@@ -8,13 +8,18 @@
 /* Timeouts beyond this (about 146 years) are clamped so the conversion to ns cannot overflow. */
 #define MAX_TIMEOUT_NS (INT64_MAX / 2)
 
-void event_manager_init(EventManager *em, double absence_timeout_s)
+void event_manager_set_absence_timeout(EventManager *em, double absence_timeout_s)
 {
     double ns = absence_timeout_s * 1e9;
 
     em->absence_timeout_ns = ns >= (double)MAX_TIMEOUT_NS    ? MAX_TIMEOUT_NS
                              : ns <= -(double)MAX_TIMEOUT_NS ? -MAX_TIMEOUT_NS
                              : (int64_t)(ns + (ns >= 0 ? 0.5 : -0.5));
+}
+
+void event_manager_init(EventManager *em, double absence_timeout_s)
+{
+    event_manager_set_absence_timeout(em, absence_timeout_s);
     em->tracks = NULL;
     em->num_tracks = 0;
     em->cap_tracks = 0;
