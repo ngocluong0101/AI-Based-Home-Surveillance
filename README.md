@@ -3,8 +3,6 @@
 Detects and tracks people on several cameras at once, raises one `PERSON_DETECTED` event per person with a snapshot,
 shows everything live in a web app and sends Telegram alerts.
 
-[![Deploy demo to GitHub Pages](https://github.com/ngocluong0101/AI-Based-Home-Surveillance/actions/workflows/pages.yml/badge.svg)](https://github.com/ngocluong0101/AI-Based-Home-Surveillance/actions/workflows/pages.yml)
-
 **[Live demo](https://ngocluong0101.github.io/AI-Based-Home-Surveillance/)**: the real web app in your browser with made-up
 cameras and people, so nothing has to be installed (no GPU, no backend). Add and start cameras, open events, try the wall; a
 new detection arrives every 15-30 s. The code is in `frontend/src/demo/`.
