@@ -8,6 +8,10 @@ shows everything live in a web app and sends Telegram alerts.
 - **Web app** (React): dashboard, camera wall, live video with boxes, event gallery, camera management.
 - **Runs on one machine in a LAN** with Docker Compose. No login (do not expose it to the internet as it is).
 
+**[Live demo](https://ngocluong0101.github.io/AI-Based-Home-Surveillance/)**: the real web app in your browser with made-up
+cameras and people, so nothing has to be installed (no GPU, no backend). Add and start cameras, open events, try the wall; a
+new detection arrives every 15-30 s. The code is in `frontend/src/demo/`.
+
 ## How it works
 
 ```text
@@ -177,6 +181,11 @@ ENGINE_COMMAND="docker run --rm --network host --gpus all -u 1000:1000 -e DS_ENG
 For live video run MediaMTX (`docker run -d --rm --network host bluenviron/mediamtx:latest`; RTMP 1935, WebRTC 8889) and set
 `ENGINE_STREAM_URL=rtmp://127.0.0.1:1935/live` and `MEDIAMTX_WEBRTC_URL=http://<address the browser uses>:8889`.
 `BACKEND_URL=http://host:8000 npm run dev` points the dev server at another backend.
+
+The **demo** (`npm run dev:demo`, `npm run build:demo` → `frontend/dist-demo`) is the same app with a small backend written in
+the browser (`frontend/src/demo/`): five made-up cameras, events with drawn snapshots, people walking through drawn rooms
+instead of WebRTC video. It is published to GitHub Pages by `.github/workflows/pages.yml` on every push to `main` that touches
+`frontend/` (once: repository Settings → Pages → Source: GitHub Actions). A normal build never loads the demo code.
 
 TensorRT engines are per batch size (`engine/models/yolov8n.onnx_b<N>_gpu0_fp16.engine`); the manager picks the right one.
 **Delete them whenever you export the ONNX again.**

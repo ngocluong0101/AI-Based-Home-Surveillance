@@ -1,7 +1,8 @@
 import { AnimatePresence, motion } from "motion/react";
-import { Bell, Cctv, Grid2x2, LayoutDashboard, PanelLeftClose, PanelLeftOpen, ShieldCheck, UserRound, Video, WifiOff } from "lucide-react";
+import { Bell, Cctv, Grid2x2, Info, LayoutDashboard, PanelLeftClose, PanelLeftOpen, ShieldCheck, UserRound, Video, WifiOff } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Toaster, toast } from "sonner";
+import { DEMO, REPO_URL } from "../demo/flag";
 import { EventDrawer } from "../components/EventDrawer";
 import { StatusDot } from "../components/ui/StatusDot";
 import { EventDrawerContext } from "../hooks/useEventDrawer";
@@ -114,6 +115,17 @@ export function AppLayout({
         </aside>
 
         <div className="main">
+          {DEMO && (
+            <div className="demo-banner" role="note">
+              <Info size={15} />
+              <span>Live demo with made-up cameras and people. Nothing leaves your browser; reloading starts over.</span>
+              {REPO_URL && (
+                <a href={REPO_URL} target="_blank" rel="noreferrer">
+                  Source code
+                </a>
+              )}
+            </div>
+          )}
           <AnimatePresence>
             {connection === "closed" && (
               <motion.div className="banner" role="alert" initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }}>

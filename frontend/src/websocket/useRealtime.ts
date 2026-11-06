@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { PersonEvent } from "../types";
+import { DEMO } from "../demo/flag";
 import { applyMessage, parseMessage } from "./messages";
 
 export type Connection = "connecting" | "open" | "closed";
@@ -15,6 +16,20 @@ export function useRealtime(onNewEvent?: (event: PersonEvent) => void): Connecti
   onNewEventRef.current = onNewEvent;
 
   useEffect(() => {
+    if (DEMO) {
+      // No socket in the public demo: a pretend one feeds the same cache (loaded only in that build).
+      setState("open");
+      let stopDemo: (() => void) | undefined;
+      let cancelled = false;
+      void import("../demo/realtime").then((m) => {
+        if (!cancelled) stopDemo = m.startDemoRealtime(qc, (event) => onNewEventRef.current?.(event));
+      });
+      return () => {
+        cancelled = true;
+        stopDemo?.();
+      };
+    }
+
     let ws: WebSocket | null = null;
     let timer: number | undefined;
     let attempt = 0;

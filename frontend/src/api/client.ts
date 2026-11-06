@@ -1,3 +1,5 @@
+import { DEMO } from "../demo/flag";
+
 export class ApiError extends Error {
   constructor(
     public status: number,
@@ -24,6 +26,11 @@ export function describeDetail(detail: unknown): string | null {
 
 /** JSON request against the backend (same origin: the dev server proxies /api). */
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  if (DEMO) {
+    // The public demo has no backend: a small one in the browser answers (loaded only in that build).
+    const { handle } = await import("../demo/server");
+    return handle<T>(path, init);
+  }
   const response = await fetch(path, {
     ...init,
     headers: init?.body ? { "Content-Type": "application/json" } : undefined,

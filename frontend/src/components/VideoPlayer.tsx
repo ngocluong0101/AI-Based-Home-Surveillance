@@ -1,14 +1,19 @@
 import { useQuery } from "@tanstack/react-query";
 import { AnimatePresence, motion } from "motion/react";
 import { Maximize2, VideoOff, WifiOff } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { api } from "../api";
+import { DEMO } from "../demo/flag";
+import { useCameraName } from "../hooks/queries";
 import type { Health } from "../utils/health";
 import { connectWhep } from "../utils/whep";
 import { Spinner } from "./ui/Spinner";
 import { ErrorState } from "./ui/States";
 
 const RETRY_MS = 3000;
+
+// The public demo draws its own picture instead of connecting to a media server (the code is loaded only in that build).
+const DemoFeed = DEMO ? lazy(() => import("../demo/DemoFeed")) : null;
 
 type Phase = "idle" | "connecting" | "live";
 
@@ -34,6 +39,7 @@ export function VideoPlayer({
     refetchInterval: 5000,
     retry: false,
   });
+  const nameOf = useCameraName();
   const box = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [phase, setPhase] = useState<Phase>("idle");
@@ -44,6 +50,10 @@ export function VideoPlayer({
   const available = link.data?.available ?? false;
 
   useEffect(() => {
+    if (DEMO) {
+      setPhase(available ? "live" : "idle"); // nothing to connect to: the demo draws the picture itself
+      return;
+    }
     if (!whepUrl || !available) {
       setPhase("idle");
       return;
@@ -137,7 +147,15 @@ export function VideoPlayer({
 
   return (
     <div className={`player ${phase === "live" ? "live" : ""} ${compact ? "compact" : ""}`} ref={box}>
-      <video ref={videoRef} autoPlay muted playsInline />
+      {DEMO && DemoFeed ? (
+        phase === "live" && (
+          <Suspense fallback={null}>
+            <DemoFeed cameraId={cameraId} cameraName={nameOf(cameraId)} />
+          </Suspense>
+        )
+      ) : (
+        <video ref={videoRef} autoPlay muted playsInline />
+      )}
       {phase === "live" && (
         <>
           {chips}

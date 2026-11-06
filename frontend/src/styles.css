@@ -91,6 +91,11 @@ a { color: inherit; }
 .page-head p { color: var(--muted); margin-top: 0.15rem; }
 .banner { display: flex; align-items: center; gap: 0.6rem; padding: 0.55rem clamp(1rem, 3vw, 2rem); background: var(--warn-soft); color: var(--warn); border-bottom: 1px solid rgba(251, 191, 36, 0.3); overflow: hidden; }
 
+.demo-banner { display: flex; align-items: center; flex-wrap: wrap; gap: 0.3rem 0.6rem; padding: 0.5rem clamp(1rem, 3vw, 2rem); background: var(--accent-soft, rgba(79, 140, 255, 0.14)); color: var(--text); border-bottom: 1px solid var(--line); font-size: 0.85rem; }
+.demo-banner svg { flex: none; color: var(--accent); }
+.demo-banner a { margin-left: auto; color: var(--accent); font-weight: 500; text-decoration: none; }
+.demo-banner a:hover { text-decoration: underline; }
+
 /* ---------- Surfaces ---------- */
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
 .panel { padding: 1rem 1.1rem; }
@@ -210,7 +215,7 @@ tr.is-new { animation: arrive 0.5s var(--ease); }
 .stage-head h2 { font-size: 1.2rem; letter-spacing: -0.01em; display: flex; align-items: center; gap: 0.6rem; }
 .player { position: relative; background: #000; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; aspect-ratio: 16 / 9; box-shadow: var(--shadow); }
 .player.live { border-color: rgba(52, 211, 153, 0.35); box-shadow: var(--shadow), 0 0 28px rgba(52, 211, 153, 0.08); }
-.player video { width: 100%; height: 100%; object-fit: contain; display: block; }
+.player video, .player canvas { width: 100%; height: 100%; object-fit: contain; display: block; }
 .player-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0.6rem; padding: 1rem; text-align: center; color: #b6c0cf; background: radial-gradient(circle at 50% 40%, rgba(20, 28, 40, 0.85), rgba(5, 8, 12, 0.96)); }
 .player-overlay strong { color: var(--fg); }
 .player-tag { position: absolute; top: 0.75rem; left: 0.75rem; display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.2rem 0.55rem; border-radius: 6px; background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(6px); font-size: 0.72rem; font-weight: 650; letter-spacing: 0.08em; color: #fff; }
