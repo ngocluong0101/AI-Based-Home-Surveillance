@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
-export type Page = "dashboard" | "monitoring" | "events" | "cameras";
-export const PAGES: Page[] = ["dashboard", "monitoring", "events", "cameras"];
+export type Page = "dashboard" | "wall" | "monitoring" | "events" | "cameras";
+export const PAGES: Page[] = ["dashboard", "wall", "monitoring", "events", "cameras"];
 
 export interface Route {
   page: Page;

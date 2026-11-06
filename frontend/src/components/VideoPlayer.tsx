@@ -13,7 +13,21 @@ const RETRY_MS = 3000;
 type Phase = "idle" | "connecting" | "live";
 
 /** Live video of one camera (boxes and track IDs are drawn by the engine). Retries while the camera is expected. */
-export function VideoPlayer({ cameraId, shouldRun, health }: { cameraId: number; shouldRun: boolean; health: Health }) {
+export function VideoPlayer({
+  cameraId,
+  shouldRun,
+  health,
+  chips,
+  compact = false,
+}: {
+  cameraId: number;
+  shouldRun: boolean;
+  health: Health;
+  /** Drawn over the picture while it is live (FPS, people). */
+  chips?: React.ReactNode;
+  /** A small tile (camera wall): shorter messages. */
+  compact?: boolean;
+}) {
   const link = useQuery({
     queryKey: ["stream", cameraId],
     queryFn: () => api.cameraStream(cameraId),
@@ -122,10 +136,11 @@ export function VideoPlayer({ cameraId, shouldRun, health }: { cameraId: number;
   }
 
   return (
-    <div className={`player ${phase === "live" ? "live" : ""}`} ref={box}>
+    <div className={`player ${phase === "live" ? "live" : ""} ${compact ? "compact" : ""}`} ref={box}>
       <video ref={videoRef} autoPlay muted playsInline />
       {phase === "live" && (
         <>
+          {chips}
           <span className="player-tag">
             <span className="dot dot-bad dot-pulse" /> LIVE
           </span>

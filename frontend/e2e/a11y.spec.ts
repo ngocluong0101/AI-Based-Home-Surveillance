@@ -24,6 +24,7 @@ test.beforeEach(async ({ request }) => {
 
 for (const [name, hash] of [
   ["the dashboard", "#/dashboard"],
+  ["the wall", "#/wall"],
   ["monitoring", "#/monitoring"],
   ["events", "#/events"],
   ["cameras", "#/cameras"],
@@ -47,9 +48,23 @@ test("the camera form (add and edit) has no accessibility violations", async ({ 
   await scan(page, "the edit-camera form");
 });
 
+test("events as a table and a focused wall tile have no accessibility violations", async ({ page, request }) => {
+  await page.goto("/#/events");
+  await page.getByRole("button", { name: "Table" }).click();
+  await expect(page.getByRole("row").nth(1)).toBeVisible();
+  await scan(page, "events as a table");
+
+  const cameras = (await (await request.get("/api/cameras")).json()) as { id: number }[];
+  await page.goto(`/#/wall/${cameras[0].id}`);
+  await page.getByRole("button", { name: "Back to wall" }).waitFor();
+  await page.waitForLoadState("networkidle");
+  await expect(page.locator(".player-overlay").first()).toHaveCSS("opacity", "1");   // it fades in; colours measured half way through are not its colours
+  await scan(page, "a focused wall tile");
+});
+
 test("the event drawer and the delete dialog have no accessibility violations", async ({ page }) => {
   await page.goto("/#/events");
-  await page.getByRole("row").nth(1).click();
+  await page.getByRole("button", { name: /A11y/ }).first().click();   // a card of the gallery
   await expect(page.getByRole("dialog")).toBeVisible();
   await scan(page, "the event drawer");
   await page.keyboard.press("Escape");

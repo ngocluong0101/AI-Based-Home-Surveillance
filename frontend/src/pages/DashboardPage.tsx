@@ -1,6 +1,8 @@
 import { AnimatePresence, motion } from "motion/react";
 import { Activity, Bell, Camera as CameraIcon, CircleAlert, Play, Square, Users, Video, Wifi } from "lucide-react";
+import { CoverImage } from "../components/CoverImage";
 import { EventItem } from "../components/EventItem";
+import { LiveChips } from "../components/LiveChips";
 import { Badge } from "../components/ui/Badge";
 import { Skeleton } from "../components/ui/Skeleton";
 import { StatCard } from "../components/ui/StatCard";
@@ -14,39 +16,41 @@ import {
   useEventsToday,
   useEventsTodayByCamera,
   useFleet,
+  useLatestSnapshot,
   type FleetItem,
 } from "../hooks/queries";
 import { useOpenEvent } from "../hooks/useEventDrawer";
 import { useNow } from "../hooks/useNow";
+import { relativeTime } from "../utils/format";
 import { totalPeople } from "../utils/health";
 import { useHighlighted } from "../websocket/recentEvents";
 
+/** A camera: the picture of its last detection as the cover (click = watch live), what it is doing, and start/stop. */
 function CameraCard({ item, today, onWatch }: { item: FleetItem; today: number | undefined; onWatch: (id: number) => void }) {
   const { camera, stream, health, lastError, status } = item;
   const control = useCameraControl();
+  const latest = useLatestSnapshot(camera.id);
+  const now = useNow();
   const shouldRun = status?.should_run ?? camera.desired_state === "running";
+  const online = health.tone === "ok";
   return (
-    <article className={`card cam-card ${health.tone === "ok" ? "is-online" : ""}`}>
+    <article className={`card cam-card ${online ? "is-online" : ""}`}>
+      <button className="cover" onClick={() => onWatch(camera.id)} aria-label={`Watch ${camera.name}`}>
+        <CoverImage src={latest.url} dim={!online} />
+        <LiveChips stream={stream} />
+        <span className="cover-note">
+          {latest.at ? `Last detection ${relativeTime(latest.at, now)}` : latest.pending ? "Loading..." : "No detections yet"}
+        </span>
+        <span className="cover-play" aria-hidden="true">
+          <Video size={18} />
+        </span>
+      </button>
       <div className="cam-head">
         <h3>
-          <StatusDot tone={health.tone} pulse={health.tone === "ok"} />
+          <StatusDot tone={health.tone} pulse={online} />
           <span>{camera.name}</span>
         </h3>
         <Badge tone={health.tone}>{health.label}</Badge>
-      </div>
-      <div className="metrics">
-        <div className="metric">
-          <b>{stream?.reporting && stream.fps !== null ? stream.fps.toFixed(1) : "-"}</b>
-          <span>FPS</span>
-        </div>
-        <div className="metric">
-          <b>{stream?.reporting && stream.people != null ? stream.people : "-"}</b>
-          <span>People now</span>
-        </div>
-        <div className="metric">
-          <b>{today ?? "-"}</b>
-          <span>Events today</span>
-        </div>
       </div>
       {lastError && (
         <p className="err-text">
@@ -54,10 +58,10 @@ function CameraCard({ item, today, onWatch }: { item: FleetItem; today: number |
         </p>
       )}
       {control.isError && <p className="err-text">{control.error.message}</p>}
-      <div className="cam-actions">
-        <button className="btn btn-sm" onClick={() => onWatch(camera.id)}>
-          <Video size={15} /> Watch
-        </button>
+      <div className="cam-foot">
+        <span className="muted">
+          <b>{today ?? "-"}</b> events today
+        </span>
         <button className="btn btn-sm" disabled={control.isPending} onClick={() => control.mutate({ id: camera.id, run: !shouldRun })}>
           {shouldRun ? <Square size={14} /> : <Play size={14} />}
           {shouldRun ? "Stop" : "Start"}
@@ -72,8 +76,8 @@ function CameraSkeletons() {
     <div className="cam-grid">
       {[0, 1].map((i) => (
         <div key={i} className="card cam-card">
+          <Skeleton height={140} />
           <Skeleton width="60%" height={18} />
-          <Skeleton height={44} />
           <Skeleton height={30} />
         </div>
       ))}

@@ -1,19 +1,25 @@
-import { Bell, ChevronLeft, ChevronRight, FilterX } from "lucide-react";
+import { Bell, ChevronLeft, ChevronRight, FilterX, LayoutGrid, List } from "lucide-react";
 import { useState } from "react";
 import { ConfidenceBar } from "../components/ConfidenceBar";
+import { EventCard } from "../components/EventCard";
 import { Thumb } from "../components/Thumb";
 import { Badge } from "../components/ui/Badge";
+import { Segmented } from "../components/ui/Segmented";
 import { Skeleton } from "../components/ui/Skeleton";
 import { EmptyState, ErrorState } from "../components/ui/States";
 import { useCameraName, useCameras, useEvents } from "../hooks/queries";
 import { useOpenEvent } from "../hooks/useEventDrawer";
 import { useNow } from "../hooks/useNow";
 import type { EventStatus } from "../types";
-import { formatTime, localDayStart, relativeTime } from "../utils/format";
+import { formatTime, groupByDay, localDayStart, relativeTime } from "../utils/format";
 import { useHighlighted } from "../websocket/recentEvents";
 
-const PAGE = 20;
+const PAGE = 24;
 const COLUMNS = 7;
+
+type View = "gallery" | "table";
+const VIEW_KEY = "events-view";
+const savedView = (): View => (localStorage.getItem(VIEW_KEY) === "table" ? "table" : "gallery");
 
 export function EventsPage() {
   const cameras = useCameras();
@@ -27,6 +33,11 @@ export function EventsPage() {
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [offset, setOffset] = useState(0);
+  const [view, setViewState] = useState<View>(savedView);
+  const setView = (v: View) => {
+    localStorage.setItem(VIEW_KEY, v);
+    setViewState(v);
+  };
 
   const events = useEvents({
     cameraId,
@@ -53,6 +64,35 @@ export function EventsPage() {
     setOffset(0);
   };
   const total = events.data?.total ?? 0;
+  const dim = { opacity: events.isPlaceholderData ? 0.55 : 1, transition: "opacity 0.15s" };
+
+  const gallery = events.data ? (
+    <div className="gallery" style={dim}>
+      {groupByDay(events.data.items, now).map((g) => (
+        <section key={g.key} aria-labelledby={`day-${g.key}`}>
+          <h2 className="day" id={`day-${g.key}`}>
+            {g.label} <span>{g.items.length}</span>
+          </h2>
+          <div className="shots">
+            {g.items.map((e) => (
+              <EventCard key={e.event_id} event={e} cameraName={cameraName(e.camera_id)} now={now} highlighted={highlighted.has(e.event_id)} onOpen={open} />
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  ) : (
+    <div className="gallery">
+      <div className="shots">
+        {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+          <div key={i} className="shot">
+            <Skeleton style={{ aspectRatio: "16 / 9", height: "auto", borderRadius: 8 }} />
+            <Skeleton width="60%" style={{ marginTop: 10 }} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 
   let rows;
   if (events.isPending) {
@@ -122,6 +162,15 @@ export function EventsPage() {
             <FilterX size={16} /> Clear filters
           </button>
         )}
+        <Segmented
+          label="View"
+          value={view}
+          onChange={setView}
+          options={[
+            { value: "gallery", label: "Gallery", icon: <LayoutGrid size={15} aria-hidden="true" /> },
+            { value: "table", label: "Table", icon: <List size={15} aria-hidden="true" /> },
+          ]}
+        />
       </div>
 
       <div className="card">
@@ -135,8 +184,10 @@ export function EventsPage() {
           >
             {filtered && <button className="btn btn-sm" onClick={clear}>Clear filters</button>}
           </EmptyState>
+        ) : view === "gallery" ? (
+          gallery
         ) : (
-          <div className="table-wrap" style={{ opacity: events.isPlaceholderData ? 0.55 : 1, transition: "opacity 0.15s" }}>
+          <div className="table-wrap" style={dim}>
             <table>
               <thead>
                 <tr>

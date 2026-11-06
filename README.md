@@ -335,10 +335,18 @@ every test.
 `frontend/` is a dark, sidebar-based React + TypeScript + Vite app (TanStack Query for REST, one WebSocket for pushes,
 `motion` for animation, `lucide-react` icons, `sonner` toasts). Pages:
 
-- **Dashboard**: cameras / online / events today / events to review, recent events, one card per camera (state, FPS, events
-  today, Start/Stop) and a bar chart of events today by camera.
-- **Monitoring**: camera list with a status dot, live WebRTC video (boxes and track IDs drawn by the engine), FPS, events today,
-  pipeline status, last error, last update time and the latest events of the selected camera.
+- **Dashboard**: cameras / online / people now / events today, recent events, one card per camera (the picture of its last
+  detection, which you click to watch live; people in view and FPS as chips on the picture; state, events today, Start/Stop)
+  and a bar chart of events today by camera.
+- **Wall**: every camera at once, in a 1×1, 2×2 or 3×3 grid (paged when there are more cameras than tiles). A video stream
+  costs the browser bandwidth and decoding, so only 4 tiles play live at a time; the others show their last snapshot with a
+  *Go live* button that moves the live picture to that camera. The expand button on a tile focuses it
+  (`#/wall/<camera id>`, with a way back).
+- **Monitoring**: camera list with a status dot, live WebRTC video (boxes and track IDs drawn by the engine) with people and FPS
+  on the picture, events today, when the last person was seen, the latest events of the selected camera, and the engine's
+  details (last frame, heartbeat, starts, config applied) folded under *Diagnostics*. A problem with the camera is always shown.
+- **Events**: a gallery of snapshots grouped by day (Today, Yesterday, then dates) or, with the *Table* switch, the table with
+  confidence bars; the choice is remembered. Filters by camera, status and date, paging, and the detail drawer.
 - **Cameras**: list with Start/Stop, Test, Edit and Delete (with a confirmation), and an *Add camera* drawer: name, IP camera (RTSP) or video file, address,
   optional username and password in their own fields (special characters need no escaping; the password is stored on the server and never shown),
   and **Test connection**, which shows what works (reachable, login, video stream, codec, resolution). When editing, an empty address keeps the saved one.
@@ -409,6 +417,12 @@ next to the compose file.
   so `data/videos/a.mp4` is `file:///videos/a.mp4`. (A file camera ends when the file ends, and is not restarted until the camera list changes.)
 - The first start with a number of cameras that has no TensorRT engine yet builds it (2-3 minutes, in `engine/models/`, which must be
   writable by uid 1000); `docker compose logs engine` shows it. Delete `engine/models/*_b*_gpu0_fp16.engine` when the ONNX model changes.
+- **Stopping.** One camera: *Stop* on the Cameras page (the engine and the other cameras keep running). The whole system:
+  `docker compose --env-file .env -f deploy/compose.yml stop` pauses it (`start` brings it back); `... down` removes the containers and **keeps the data**
+  (`up -d` brings it back); `... down -v` also **deletes the database and the snapshots** (the dumps in `data/backups/` survive). The engine takes a few seconds
+  to stop because it writes out the events still waiting (`stop_grace_period` 45 s), so do not kill it. Every container has `restart: unless-stopped`: after a
+  reboot the system starts again by itself, but a container you stopped yourself (`stop`, `down`, `docker stop`) stays down until `up -d` or `start`.
+  A camera with a `file://` source stops by itself at the end of the file (state "Ended") and runs again only when you press Start.
 - Snapshots live in the `snapshots` volume (shared by engine and backend), the database in `pgdata`. `down` keeps them, `down -v` deletes them.
   Both are Docker volumes, so they live on the same disk as the containers; the backups below are copies of the database only (the snapshots are not backed up).
 - **Database backup.** The `backup` container (`deploy/backup.sh`) runs `pg_dump` once a day, checks that the dump can be read back,

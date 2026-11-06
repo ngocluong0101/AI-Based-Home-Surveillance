@@ -1,7 +1,7 @@
 import { AnimatePresence, motion } from "motion/react";
-import { Activity, Camera as CameraIcon, Clock, Gauge, UserRound, Users } from "lucide-react";
-import { CircleAlert, CircleCheck } from "lucide-react";
+import { Camera as CameraIcon, CircleAlert, Clock, UserRound } from "lucide-react";
 import { EventItem } from "../components/EventItem";
+import { LiveChips } from "../components/LiveChips";
 import { VideoPlayer } from "../components/VideoPlayer";
 import { Badge } from "../components/ui/Badge";
 import { Skeleton } from "../components/ui/Skeleton";
@@ -11,7 +11,7 @@ import { EmptyState, ErrorState } from "../components/ui/States";
 import { useCameraName, useCameras, useEvents, useEventsToday, useFleet, type FleetItem } from "../hooks/queries";
 import { useOpenEvent } from "../hooks/useEventDrawer";
 import { useNow } from "../hooks/useNow";
-import { clockTime, seconds } from "../utils/format";
+import { clockTime, relativeTime, seconds } from "../utils/format";
 import { useHighlighted } from "../websocket/recentEvents";
 
 function CameraList({ fleet, selectedId, onSelect }: { fleet: FleetItem[]; selectedId: number; onSelect: (id: number) => void }) {
@@ -35,8 +35,7 @@ function CameraList({ fleet, selectedId, onSelect }: { fleet: FleetItem[]; selec
   );
 }
 
-function LatestEvents({ cameraId }: { cameraId: number }) {
-  const events = useEvents({ cameraId, limit: 5, offset: 0 });
+function LatestEvents({ events }: { events: ReturnType<typeof useEvents> }) {
   const cameraName = useCameraName();
   const open = useOpenEvent();
   const highlighted = useHighlighted();
@@ -68,9 +67,11 @@ function LatestEvents({ cameraId }: { cameraId: number }) {
 function Stage({ item }: { item: FleetItem }) {
   const { camera, stream, status, health, lastError, updatedAt } = item;
   const today = useEventsToday(camera.id);
+  const latest = useEvents({ cameraId: camera.id, limit: 5, offset: 0 });
+  const now = useNow();
   const engine = status?.engine;
   const shouldRun = status?.should_run ?? camera.desired_state === "running";
-  const fps = stream?.reporting && stream.fps !== null ? stream.fps.toFixed(1) : "-";
+  const last = latest.data?.items[0];
 
   return (
     <div className="stage">
@@ -85,52 +86,47 @@ function Stage({ item }: { item: FleetItem }) {
         </span>
       </div>
 
-      <VideoPlayer key={camera.id} cameraId={camera.id} shouldRun={shouldRun} health={health} />
+      <VideoPlayer key={camera.id} cameraId={camera.id} shouldRun={shouldRun} health={health} chips={<LiveChips stream={stream} />} />
+
+      {lastError && (
+        <div className="errbox" role="alert" style={{ marginTop: 0 }}>
+          <CircleAlert size={18} style={{ flex: "none" }} />
+          <div>
+            <strong>Problem</strong>
+            <div>{lastError}</div>
+          </div>
+        </div>
+      )}
 
       <div className="strip">
-        <StatCard icon={Gauge} label="FPS" value={fps} tone={health.tone === "ok" ? "ok" : "idle"} />
-        <StatCard
-          icon={Users}
-          label="People now"
-          value={stream?.reporting && stream.people != null ? stream.people : "-"}
-          hint={stream?.reporting && stream.people == null ? "no recent frame" : "in view right now"}
-          tone={stream?.people ? "warn" : "idle"}
-        />
         <StatCard icon={UserRound} label="Events today" value={today.data} hint="people detected" loading={today.isPending} />
-        <StatCard icon={Activity} label="Status" value={health.label} tone={health.tone === "ok" ? "ok" : health.tone === "idle" ? "idle" : "warn"} />
+        <StatCard
+          icon={Clock}
+          label="Last detection"
+          value={latest.isPending ? undefined : last ? relativeTime(last.timestamp, now) : "None yet"}
+          hint={last ? clockTime(new Date(last.timestamp).getTime()) : undefined}
+          tone={last ? "accent" : "idle"}
+          loading={latest.isPending}
+        />
       </div>
 
-      <div className="detail-grid">
-        <section className="card panel">
-          <div className="panel-title">Pipeline</div>
-          <dl>
-            <dt>Engine</dt>
-            <dd>{engine ? (engine.manager === "reachable" ? engine.state : engine.manager.replace("_", " ")) : "-"}</dd>
-            <dt>Last frame</dt>
-            <dd>{stream?.reporting ? `${seconds(stream.last_frame_age)} ago` : "-"}</dd>
-            <dt>Heartbeat</dt>
-            <dd>{stream?.heartbeat_age != null ? `${seconds(stream.heartbeat_age)} ago` : "never"}</dd>
-            <dt>Starts</dt>
-            <dd>{engine?.starts ?? "-"}</dd>
-            <dt>Config applied</dt>
-            <dd>{engine?.applied == null ? "-" : engine.applied ? "yes" : "pending"}</dd>
-          </dl>
-          {lastError ? (
-            <div className="errbox" role="alert">
-              <CircleAlert size={18} style={{ flex: "none" }} />
-              <div>
-                <strong>Last error</strong>
-                <div>{lastError}</div>
-              </div>
-            </div>
-          ) : (
-            <div className="okbox">
-              <CircleCheck size={18} style={{ flex: "none" }} /> No errors
-            </div>
-          )}
-        </section>
-        <LatestEvents cameraId={camera.id} />
-      </div>
+      <LatestEvents events={latest} />
+
+      <details className="card panel diag">
+        <summary>Diagnostics</summary>
+        <dl>
+          <dt>Engine</dt>
+          <dd>{engine ? (engine.manager === "reachable" ? engine.state : engine.manager.replace("_", " ")) : "-"}</dd>
+          <dt>Last frame</dt>
+          <dd>{stream?.reporting ? `${seconds(stream.last_frame_age)} ago` : "-"}</dd>
+          <dt>Heartbeat</dt>
+          <dd>{stream?.heartbeat_age != null ? `${seconds(stream.heartbeat_age)} ago` : "never"}</dd>
+          <dt>Starts</dt>
+          <dd>{engine?.starts ?? "-"}</dd>
+          <dt>Config applied</dt>
+          <dd>{engine?.applied == null ? "-" : engine.applied ? "yes" : "pending"}</dd>
+        </dl>
+      </details>
     </div>
   );
 }

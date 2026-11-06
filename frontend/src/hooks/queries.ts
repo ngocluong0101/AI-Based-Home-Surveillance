@@ -66,6 +66,23 @@ export const useEvents = (filters: EventFilters) =>
     placeholderData: keepPreviousData,
   });
 
+/**
+ * The newest snapshot of a camera (and when it was taken): the cover of its card.
+ * Looks at the last few events because the newest one may have no image (the file was cleaned up or never written).
+ * Same query key family as the event lists, so a new event refreshes it.
+ */
+export function useLatestSnapshot(cameraId: number, enabled = true): { url: string | null; at: string | null; pending: boolean } {
+  const q = useQuery({
+    queryKey: ["events", { cameraId, limit: 3, offset: 0 }],
+    queryFn: () => api.events({ cameraId, limit: 3, offset: 0 }),
+    enabled,
+    placeholderData: keepPreviousData,
+  });
+  const items = q.data?.items ?? [];
+  const withImage = items.find((e) => e.snapshot_url);
+  return { url: withImage?.snapshot_url ?? null, at: (withImage ?? items[0])?.timestamp ?? null, pending: q.isPending && enabled };
+}
+
 /** One event, for the detail drawer: seeded from the lists, kept fresh by event.updated. */
 export function useEvent(eventId: string | null) {
   const qc = useQueryClient();
