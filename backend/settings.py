@@ -24,6 +24,9 @@ class Settings:
     snapshot_retention_days: int = 7
     snapshot_cleanup_every: int = 100       # run the cleaner after this many new snapshots (or hourly)
     cleanup_check_interval: float = 60.0    # seconds between looks at whether a cleanup is due; 0 = no janitor thread
+    # What the Settings page shows until somebody changes it (the stored value wins, see backend/app_settings.py).
+    default_conf_threshold: float = 0.25    # of a new camera: what the detector produces anyway
+    default_absence_timeout: float = 10.0   # of a new camera, seconds
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -42,4 +45,5 @@ class Settings:
             stream_path_prefix=config.MEDIAMTX_PATH_PREFIX,
             snapshot_retention_days=config.SNAPSHOT_RETENTION_DAYS,
             snapshot_cleanup_every=config.SNAPSHOT_CLEANUP_INTERVAL,
+            default_absence_timeout=config.ABSENCE_TIMEOUT,
         )

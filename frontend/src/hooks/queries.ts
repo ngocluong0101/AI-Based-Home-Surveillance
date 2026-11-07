@@ -1,6 +1,6 @@
 import { keepPreviousData, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
-import type { Camera, CameraStatus, CameraUpdate, EventFilters, EventStatus, LiveStatus, PersonEvent } from "../types";
+import type { AppSettingsUpdate, Camera, CameraStatus, CameraUpdate, EventFilters, EventStatus, LiveStatus, PersonEvent } from "../types";
 import { healthOf, lastErrorOf, streamOf, type Health } from "../utils/health";
 import { liveKey } from "../websocket/messages";
 
@@ -193,3 +193,16 @@ export function useDeleteCamera() {
 }
 
 export const useTestConnection = () => useMutation({ mutationFn: api.testConnection });
+
+/** What the Settings page shows and the Add camera form starts from. Polled slowly: the snapshot figures change as events arrive. */
+export const useSettings = () => useQuery({ queryKey: ["settings"], queryFn: api.settings, refetchInterval: 30000 });
+
+export function useUpdateSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: AppSettingsUpdate) => api.updateSettings(body),
+    onSuccess: (settings) => qc.setQueryData(["settings"], settings),
+  });
+}
+
+export const useTestNotification = () => useMutation({ mutationFn: api.testNotification });

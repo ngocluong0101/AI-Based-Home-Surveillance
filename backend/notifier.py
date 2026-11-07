@@ -5,6 +5,8 @@ or dead Telegram never delays the engine's delivery. The thread sends the pendin
 and records the outcome in `notify_status`:
 
   sent      Telegram accepted it
+  skipped   held back on purpose: alerts are switched off, or the event arrived in the quiet hours (Settings page);
+            the event is stored and shown as usual, only the message is not sent
   disabled  Telegram is not configured (ENABLE_TELEGRAM, token, chat id)
   failed    it stayed undeliverable for longer than `max_age` seconds; an alert that late is noise
 
@@ -27,6 +29,7 @@ from typing import Any, Callable
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session, sessionmaker
 
+from backend.app_settings import AppSettingsStore
 from backend.models import Event
 
 log = logging.getLogger(__name__)
@@ -45,7 +48,9 @@ class Notifier:
         interval: float,
         max_age: float,
         on_update: Callable[[uuid.UUID], None] | None = None,
+        store: AppSettingsStore | None = None,
     ) -> None:
+        self._store = store   # the alert rules of the Settings page; None = every event is sent
         self._session_factory = session_factory
         self._telegram = telegram
         self._snapshot_dir = Path(snapshot_dir)
@@ -71,9 +76,12 @@ class Notifier:
                 .limit(BATCH)
             ).all()   # the session ends here: no transaction stays open during a slow Telegram call
 
+        rules = self._store.get() if self._store is not None and rows else None   # one look per round
         now = datetime.now(timezone.utc)
         for row in rows:
-            if not self._telegram.enabled:
+            if rules is not None and rules.mutes(row.received_at):
+                self._mark(row.event_id, "skipped")
+            elif not self._telegram.enabled:
                 self._mark(row.event_id, "disabled")
             elif (now - row.received_at).total_seconds() > self.max_age:
                 log.warning("giving up on the Telegram alert for event %s: undeliverable for over %.0f s",

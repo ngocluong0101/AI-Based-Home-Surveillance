@@ -11,6 +11,9 @@ import type {
   EventStatus,
   PersonEvent,
   StreamLink,
+  AppSettings,
+  AppSettingsUpdate,
+  NotificationCheck,
 } from "../types";
 import { request } from "./client";
 
@@ -35,6 +38,10 @@ export const api = {
   testConnection: (body: ConnectionCheckBody) =>
     request<ConnectionCheckResult>("/api/cameras/test-connection", { method: "POST", body: JSON.stringify(body) }),
   engine: () => request<EngineSummary>("/api/engine"),
+  settings: () => request<AppSettings>("/api/settings"),
+  updateSettings: (body: AppSettingsUpdate) =>
+    request<AppSettings>("/api/settings", { method: "PATCH", body: JSON.stringify(body) }),
+  testNotification: () => request<NotificationCheck>("/api/settings/test-notification", { method: "POST" }),
   cameraStatus: (id: number) => request<CameraStatus>(`/api/cameras/${id}/status`),
   cameraStream: (id: number) => request<StreamLink>(`/api/cameras/${id}/stream`),
   startCamera: (id: number) => request<CameraStatus>(`/api/cameras/${id}/start`, { method: "POST" }),

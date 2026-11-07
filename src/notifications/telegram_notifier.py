@@ -53,6 +53,19 @@ class TelegramNotifier:
         self.logger.info("Notification sent (chat_id=%s) event=PERSON_DETECTED id=%s", self.chat_id, event.track_id)
         return True
 
+    def send_text(self, text: str) -> bool:
+        """Send a plain message (the Settings page's "send a test message"). Returns True on success, never raises."""
+        if not self.enabled:
+            return False
+        url = f"https://api.telegram.org/bot{self.token}/sendMessage"
+        try:
+            resp = requests.post(url, data={"chat_id": self.chat_id, "text": text}, timeout=5)
+            resp.raise_for_status()
+        except RequestException as exc:
+            self.logger.error("Failed to send Telegram message: %s", exc, exc_info=True)
+            return False
+        return True
+
     def _build_caption(self, event: Any) -> str:
         """Build a caption string for person-detected events.
 

@@ -28,6 +28,7 @@ for (const [name, hash] of [
   ["monitoring", "#/monitoring"],
   ["events", "#/events"],
   ["cameras", "#/cameras"],
+  ["settings", "#/settings"],
 ] as const) {
   test(`${name} has no accessibility violations`, async ({ page }) => {
     await page.goto(`/${hash}`);

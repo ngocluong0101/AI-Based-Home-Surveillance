@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
-import { Bell, Cctv, Grid2x2, Info, LayoutDashboard, PanelLeftClose, PanelLeftOpen, ShieldCheck, UserRound, Video, WifiOff } from "lucide-react";
+import { Bell, Cctv, Grid2x2, Info, LayoutDashboard, PanelLeftClose, PanelLeftOpen, Settings, ShieldCheck, UserRound, Video, WifiOff } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Toaster, toast } from "sonner";
 import { DEMO, REPO_URL } from "../demo/flag";
@@ -7,7 +7,7 @@ import { EventDrawer } from "../components/EventDrawer";
 import { StatusDot } from "../components/ui/StatusDot";
 import { EventDrawerContext } from "../hooks/useEventDrawer";
 import type { Page } from "../hooks/useHashRoute";
-import { useCameras, useUnreviewedCount } from "../hooks/queries";
+import { useCameras, useSettings, useUnreviewedCount } from "../hooks/queries";
 import type { PersonEvent } from "../types";
 import { percent } from "../utils/format";
 import { useRealtime, type Connection } from "../websocket/useRealtime";
@@ -20,6 +20,7 @@ const NAV: { page: Page; label: string; icon: typeof Bell }[] = [
   { page: "monitoring", label: "Monitoring", icon: Video },
   { page: "events", label: "Events", icon: Bell },
   { page: "cameras", label: "Cameras", icon: Cctv },
+  { page: "settings", label: "Settings", icon: Settings },
 ];
 
 const CONNECTION: Record<Connection, { label: string; tone: "ok" | "warn" }> = {
@@ -42,6 +43,7 @@ export function AppLayout({
 }) {
   const qc = useQueryClient();
   useCameras(); // keeps camera names warm for toasts and lists
+  useSettings(); // and what a new camera starts with, ready before the Add camera form opens
   const unreviewed = useUnreviewedCount();
   const [openId, setOpenId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem("sidebar-collapsed") === "1");

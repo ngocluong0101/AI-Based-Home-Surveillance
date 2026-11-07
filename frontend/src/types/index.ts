@@ -114,6 +114,42 @@ export interface CameraCreate {
 
 export type CameraUpdate = Partial<CameraCreate>;
 
+/** GET/PATCH /api/settings: what is changed from the Settings page, plus a few facts it cannot change. */
+export interface AppSettings {
+  alerts_enabled: boolean;
+  quiet_hours_enabled: boolean;
+  /** "HH:MM" in the server's local time. */
+  quiet_start: string;
+  quiet_end: string;
+  snapshot_retention_days: number;
+  /** What a new camera starts with. */
+  default_conf_threshold: number;
+  default_absence_timeout: number;
+  telegram_configured: boolean;
+  snapshot_count: number;
+  snapshot_bytes: number;
+  version: string;
+}
+
+export type AppSettingsUpdate = Partial<
+  Pick<
+    AppSettings,
+    | "alerts_enabled"
+    | "quiet_hours_enabled"
+    | "quiet_start"
+    | "quiet_end"
+    | "snapshot_retention_days"
+    | "default_conf_threshold"
+    | "default_absence_timeout"
+  >
+>;
+
+/** POST /api/settings/test-notification: a Telegram that does not work is ok=false with a reason. */
+export interface NotificationCheck {
+  ok: boolean;
+  message: string;
+}
+
 /** Either an address to try, or a saved camera (its address, password included, never leaves the server). */
 export type ConnectionCheckBody =
   | { camera_id: number; timeout?: number }

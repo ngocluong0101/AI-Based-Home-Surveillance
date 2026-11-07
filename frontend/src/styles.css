@@ -351,6 +351,21 @@ button.shot:hover { background: var(--surface-2); border-color: var(--line); }
 /* Cameras page: the engine's places, and the detection settings of a camera */
 .engine-note { display: flex; gap: 0.75rem; align-items: flex-start; padding: 0.8rem 1.1rem; margin-bottom: 1rem; }
 .engine-note svg { color: var(--muted); margin-top: 0.15rem; flex: none; }
+
+/* ---------- Settings ---------- */
+.settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 26rem), 1fr)); gap: 1rem; align-items: start; }
+.set-card { display: flex; flex-direction: column; gap: 1rem; }
+.set-card .panel-title { justify-content: flex-start; margin-bottom: 0; }
+.set-card .panel-title svg { color: var(--muted); flex: none; }
+.set-row { display: flex; flex-direction: column; gap: 0.6rem; }
+.set-row + .set-row { padding-top: 1rem; border-top: 1px solid var(--line); }
+.set-inline { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.set-note { color: var(--faint); font-size: 0.8rem; margin: 0; }
+.quiet-times, .set-card .field-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10rem), 1fr)); gap: 0.75rem; }
+.set-card .field input { width: 100%; min-width: 0; }
+.save-bar { position: sticky; bottom: 0.75rem; z-index: 5; display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 0.75rem; margin-top: 1rem; padding: 0.7rem 1rem; background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); }
+.save-bar .save-status { margin-right: auto; font-size: 0.88rem; }
+.save-bar .save-status.dirty { color: var(--warn); }
 .engine-line { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; }
 .engine-detail { margin-top: 0.3rem; color: var(--muted); font-size: 0.88rem; }
 .engine-warn { color: var(--warn); }

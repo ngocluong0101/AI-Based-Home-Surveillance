@@ -1,7 +1,19 @@
 import { expect, type APIRequestContext, type Page } from "@playwright/test";
 
-/** Every camera (and with it the engine's list) back to nothing, so that a test starts from the same place. */
+/** What the Settings page holds on a new installation. */
+const DEFAULT_SETTINGS = {
+  alerts_enabled: true,
+  quiet_hours_enabled: false,
+  quiet_start: "22:00",
+  quiet_end: "06:00",
+  snapshot_retention_days: 7,
+  default_conf_threshold: 0.25,
+  default_absence_timeout: 10,
+};
+
+/** Every camera (and with it the engine's list) back to nothing, and the settings to their defaults, so that a test starts from the same place. */
 export async function reset(request: APIRequest): Promise<void> {
+  expect((await request.patch("/api/settings", { data: DEFAULT_SETTINGS })).ok()).toBeTruthy();
   const cameras = (await (await request.get("/api/cameras")).json()) as { id: number }[];
   for (const c of cameras) {
     await request.post(`/api/cameras/${c.id}/stop`);

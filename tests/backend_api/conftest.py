@@ -88,7 +88,7 @@ def database_url():
 def db_engine(database_url):
     engine = create_engine(normalize_url(database_url))
     with engine.begin() as conn:
-        conn.execute(text("TRUNCATE events, cameras RESTART IDENTITY CASCADE"))
+        conn.execute(text("TRUNCATE events, cameras, app_settings RESTART IDENTITY CASCADE"))
     yield engine
     engine.dispose()
 

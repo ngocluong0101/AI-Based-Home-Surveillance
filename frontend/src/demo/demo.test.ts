@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import type { Camera, CameraStatus, ConnectionCheckResult, EventPage, PersonEvent } from "../types";
+import type { AppSettings, Camera, CameraStatus, ConnectionCheckResult, EventPage, NotificationCheck, PersonEvent } from "../types";
 import { FRAME_H, FRAME_W, peopleAt } from "./scene";
-import { handle, mask, resetDemo, setLatency } from "./server";
+import { alertStatusAt, handle, inQuietHours, mask, resetDemo, setLatency } from "./server";
 
 beforeEach(() => {
   setLatency(0);
@@ -144,6 +144,99 @@ describe("the demo backend: test connection", () => {
     expect((await check({ source_type: "file", source_uri: "/videos/a.txt" })).ok).toBe(false);
     expect((await check({ source_type: "rtsp", source_uri: "hello" })).ok).toBe(false);
     await expect(check({ camera_id: 99 })).rejects.toMatchObject({ status: 404 });
+  });
+});
+
+describe("the demo backend: settings", () => {
+  const SETTINGS: AppSettings = {
+    alerts_enabled: true,
+    quiet_hours_enabled: true,
+    quiet_start: "22:00",
+    quiet_end: "06:00",
+    snapshot_retention_days: 7,
+    default_conf_threshold: 0.25,
+    default_absence_timeout: 10,
+    telegram_configured: true,
+    snapshot_count: 0,
+    snapshot_bytes: 0,
+    version: "demo",
+  };
+  const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  const hoursFromNow = (h: number) => new Date(Date.now() + h * 3_600_000);
+
+  it("starts with the defaults, a Telegram that can be tried, and made-up storage figures", async () => {
+    const s = await get<AppSettings>("/api/settings");
+    expect(s).toMatchObject({
+      alerts_enabled: true,
+      quiet_hours_enabled: false,
+      quiet_start: "22:00",
+      quiet_end: "06:00",
+      snapshot_retention_days: 7,
+      default_conf_threshold: 0.25,
+      default_absence_timeout: 10,
+      telegram_configured: true,
+    });
+    expect(s.snapshot_count).toBeGreaterThan(50);
+    expect(s.snapshot_bytes).toBeGreaterThan(s.snapshot_count);
+  });
+
+  it("changes only what is sent and keeps it", async () => {
+    const changed = await send<AppSettings>("/api/settings", "PATCH", { alerts_enabled: false, snapshot_retention_days: 3 });
+    expect([changed.alerts_enabled, changed.snapshot_retention_days, changed.quiet_start]).toEqual([false, 3, "22:00"]);
+    expect((await get<AppSettings>("/api/settings")).alerts_enabled).toBe(false);
+  });
+
+  it("refuses what the real backend refuses, and changes nothing", async () => {
+    const before = await get<AppSettings>("/api/settings");
+    for (const bad of [
+      { quiet_start: "25:00" },
+      { quiet_end: "9:00" },
+      { snapshot_retention_days: 0 },
+      { snapshot_retention_days: 366 },
+      { snapshot_retention_days: 7.5 },
+      { default_conf_threshold: 1.5 },
+      { default_absence_timeout: -1 },
+      { alerts_enabled: null },
+      { unknown_setting: 1 },
+    ]) {
+      await expect(send("/api/settings", "PATCH", bad), JSON.stringify(bad)).rejects.toMatchObject({ status: 422 });
+    }
+    expect(await get<AppSettings>("/api/settings")).toEqual(before);
+  });
+
+  it("does not take quiet hours that start and end together", async () => {
+    await expect(send("/api/settings", "PATCH", { quiet_hours_enabled: true, quiet_end: "22:00" })).rejects.toMatchObject({ status: 422 });
+    expect((await get<AppSettings>("/api/settings")).quiet_hours_enabled).toBe(false);
+    await send("/api/settings", "PATCH", { quiet_start: "08:00", quiet_end: "08:00" }); // off: any time is fine
+    await expect(send("/api/settings", "PATCH", { quiet_hours_enabled: true })).rejects.toMatchObject({ status: 422 });
+  });
+
+  it("says plainly that a test message reaches nobody", async () => {
+    const r = await send<NotificationCheck>("/api/settings/test-notification", "POST");
+    expect(r.ok).toBe(true);
+    expect(r.message).toContain("Demo");
+  });
+
+  it("holds back the alert while alerts are off, and inside the quiet hours", async () => {
+    expect(alertStatusAt()).toBe("sent");
+    await send("/api/settings", "PATCH", { alerts_enabled: false });
+    expect(alertStatusAt()).toBe("skipped");
+    await send("/api/settings", "PATCH", { alerts_enabled: true, quiet_hours_enabled: true, quiet_start: hhmm(hoursFromNow(-1)), quiet_end: hhmm(hoursFromNow(1)) });
+    expect(alertStatusAt()).toBe("skipped");
+    await send("/api/settings", "PATCH", { quiet_start: hhmm(hoursFromNow(2)), quiet_end: hhmm(hoursFromNow(3)) });
+    expect(alertStatusAt()).toBe("sent");
+  });
+
+  it("covers the start minute of the quiet hours but not the end, and passes midnight", () => {
+    const at = (h: number, m: number) => new Date(2026, 0, 1, h, m, 30);
+    expect(inQuietHours(SETTINGS, at(23, 30))).toBe(true);
+    expect(inQuietHours(SETTINGS, at(3, 0))).toBe(true);
+    expect(inQuietHours(SETTINGS, at(22, 0))).toBe(true);
+    expect(inQuietHours(SETTINGS, at(6, 0))).toBe(false);
+    expect(inQuietHours(SETTINGS, at(12, 0))).toBe(false);
+    expect(inQuietHours({ ...SETTINGS, quiet_start: "13:00", quiet_end: "15:00" }, at(14, 59))).toBe(true);
+    expect(inQuietHours({ ...SETTINGS, quiet_start: "13:00", quiet_end: "15:00" }, at(15, 0))).toBe(false);
+    expect(inQuietHours({ ...SETTINGS, quiet_hours_enabled: false }, at(23, 0))).toBe(false);
   });
 });
 

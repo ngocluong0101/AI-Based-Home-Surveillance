@@ -14,8 +14,8 @@ export interface CameraFormValues {
   absenceTimeout: string;
 }
 
-/** What a new camera starts with: 0.25 is what the detector produces anyway, 10 s is the engine's default. */
-export const emptyForm = (): CameraFormValues => ({
+/** What a new camera starts with: what the Settings page says (`defaults`), else 0.25 (what the detector produces anyway) and 10 s. */
+export const emptyForm = (defaults?: { default_conf_threshold: number; default_absence_timeout: number }): CameraFormValues => ({
   name: "",
   sourceType: "rtsp",
   sourceUri: "",
@@ -23,8 +23,8 @@ export const emptyForm = (): CameraFormValues => ({
   password: "",
   enabled: true,
   aiEnabled: true,
-  confThreshold: "0.25",
-  absenceTimeout: "10",
+  confThreshold: String(defaults?.default_conf_threshold ?? 0.25),
+  absenceTimeout: String(defaults?.default_absence_timeout ?? 10),
 });
 
 const asNumber = (text: string): number => (text.trim() === "" ? NaN : Number(text));

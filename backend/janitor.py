@@ -14,6 +14,7 @@ import threading
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Callable
 
 from sqlalchemy import update
 from sqlalchemy.orm import Session, sessionmaker
@@ -33,7 +34,10 @@ class SnapshotJanitor:
         every_n: int,
         check_interval: float,
         max_idle: float = 3600.0,
+        retention_source: Callable[[], int] | None = None,
     ) -> None:
+        # The Settings page can change the number of days at any time: when given, it is asked at each pass.
+        self._retention_source = retention_source
         self._session_factory = session_factory
         self._snapshot_dir = Path(snapshot_dir)
         self._cleaner = SnapshotCleaner(retention_days)
@@ -51,6 +55,11 @@ class SnapshotJanitor:
         with self._lock:
             self._new_snapshots += 1
 
+    def nudge(self) -> None:
+        """Something changed (the retention): run at the next look instead of waiting for the hourly pass."""
+        with self._lock:
+            self._last_run = float("-inf")
+
     def due(self) -> bool:
         with self._lock:
             return (self._new_snapshots >= self._every_n
@@ -61,6 +70,11 @@ class SnapshotJanitor:
         with self._lock:
             self._new_snapshots = 0
             self._last_run = time.monotonic()
+        if self._retention_source is not None:
+            try:
+                self._cleaner = SnapshotCleaner(self._retention_source())
+            except Exception:   # keep cleaning with the days we had rather than not at all
+                log.exception("could not read the snapshot retention setting")
         deleted, errors = self._cleaner.cleanup(self._snapshot_dir)
         cutoff = datetime.now(timezone.utc) - timedelta(seconds=self._cleaner.retention_seconds)
         with self._session_factory() as db:

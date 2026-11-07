@@ -2,6 +2,9 @@
 // cameras and events kept in memory. A reload starts over. Nothing here is ever sent anywhere.
 import { ApiError } from "../api/client";
 import type {
+  AppSettings,
+  AppSettingsUpdate,
+  NotificationCheck,
   Camera,
   CameraCreate,
   CameraStatus,
@@ -30,6 +33,7 @@ interface World {
   events: PersonEvent[]; // newest first
   nextId: number;
   rng: () => number;
+  settings: AppSettings; // the figures about snapshots are made up when they are read (settingsView)
 }
 
 let latencyMs = 60;
@@ -100,7 +104,25 @@ function makeEvent(w: World, camera: Camera, t: number, status: EventStatus): Pe
 
 function build(now: number): World {
   const rng = mulberry32(20261106);
-  const w: World = { cameras: [], events: [], nextId: SEED_CAMERAS.length + 1, rng };
+  const w: World = {
+    cameras: [],
+    events: [],
+    nextId: SEED_CAMERAS.length + 1,
+    rng,
+    settings: {
+      alerts_enabled: true,
+      quiet_hours_enabled: false,
+      quiet_start: "22:00",
+      quiet_end: "06:00",
+      snapshot_retention_days: 7,
+      default_conf_threshold: 0.25,
+      default_absence_timeout: 10,
+      telegram_configured: true, // so that the test message can be tried; nothing is sent anywhere
+      snapshot_count: 0,
+      snapshot_bytes: 0,
+      version: "demo",
+    },
+  };
   SEED_CAMERAS.forEach((s, i) => {
     w.cameras.push({
       id: i + 1,
@@ -207,8 +229,76 @@ export function newLiveEvent(now = Date.now()): PersonEvent | null {
   if (!candidates.length) return null;
   const camera = candidates[Math.floor(w.rng() * candidates.length)];
   const event = makeEvent(w, camera, now, "new");
+  event.notify_status = alertStatusAt(now);
   w.events.unshift(event);
   return event;
+}
+
+// ---- settings
+
+const SNAPSHOT_BYTES = 86_000; // what a 1080p JPEG roughly weighs, for the made-up "in use" figure
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+const minutesOf = (hhmm: string): number => Number(hhmm.slice(0, 2)) * 60 + Number(hhmm.slice(3));
+
+/** The settings as the page reads them: the stored ones plus the made-up storage figures. */
+function settingsView(): AppSettings {
+  const s = get().settings;
+  const count = get().events.filter((e) => e.snapshot_url).length;
+  return { ...s, snapshot_count: count, snapshot_bytes: count * SNAPSHOT_BYTES };
+}
+
+/** Is a moment inside the quiet hours? The start minute is included, the end minute is not; they may pass midnight. */
+export function inQuietHours(s: AppSettings, at: Date): boolean {
+  if (!s.quiet_hours_enabled || s.quiet_start === s.quiet_end) return false;
+  const now = at.getHours() * 60 + at.getMinutes();
+  const start = minutesOf(s.quiet_start);
+  const end = minutesOf(s.quiet_end);
+  return start < end ? now >= start && now < end : now >= start || now < end;
+}
+
+/** What would happen to the Telegram alert of an event at this moment: it is sent, or held back on purpose. */
+export function alertStatusAt(now = Date.now()): "sent" | "skipped" {
+  const s = get().settings;
+  return !s.alerts_enabled || inQuietHours(s, new Date(now)) ? "skipped" : "sent";
+}
+
+function updateSettings(body: AppSettingsUpdate): AppSettings {
+  const refuse = (message: string): never => {
+    throw new ApiError(422, message);
+  };
+  const next = { ...get().settings };
+  for (const [key, value] of Object.entries(body)) {
+    if (value === null || value === undefined) refuse(`${key}: cannot be null`);
+    switch (key) {
+      case "alerts_enabled":
+      case "quiet_hours_enabled":
+        if (typeof value !== "boolean") refuse(`${key}: must be true or false`);
+        break;
+      case "quiet_start":
+      case "quiet_end":
+        if (typeof value !== "string" || !HHMM.test(value)) refuse(`${key}: must look like 22:00`);
+        break;
+      case "snapshot_retention_days":
+        if (!Number.isInteger(value) || (value as number) < 1 || (value as number) > 365) refuse("snapshot_retention_days: must be a whole number from 1 to 365");
+        break;
+      case "default_conf_threshold":
+        if (typeof value !== "number" || value < 0 || value > 1) refuse("default_conf_threshold: must be from 0 to 1");
+        break;
+      case "default_absence_timeout":
+        if (typeof value !== "number" || value < 0 || value > 86400) refuse("default_absence_timeout: must be from 0 to 86400");
+        break;
+      default:
+        refuse(`${key}: extra inputs are not permitted`);
+    }
+    Object.assign(next, { [key]: value });
+  }
+  if (next.quiet_hours_enabled && next.quiet_start === next.quiet_end) refuse("quiet_start and quiet_end must differ");
+  get().settings = next;
+  return settingsView();
+}
+
+function testNotification(): NotificationCheck {
+  return { ok: true, message: "Demo: nothing was sent, this page runs on made-up data. On a real installation the message goes to your Telegram." };
 }
 
 function testConnection(body: ConnectionCheckBody): ConnectionCheckResult {
@@ -345,6 +435,9 @@ export async function handle<T>(path: string, init?: RequestInit): Promise<T> {
     if (p === "/api/cameras" && method === "POST") return createCamera(body as CameraCreate);
     if (p === "/api/cameras/test-connection" && method === "POST") return testConnection(body as ConnectionCheckBody);
     if (p === "/api/engine") return engineSummary();
+    if (p === "/api/settings" && method === "GET") return settingsView();
+    if (p === "/api/settings" && method === "PATCH") return updateSettings(body as AppSettingsUpdate);
+    if (p === "/api/settings/test-notification" && method === "POST") return testNotification();
 
     const one = p.match(/^\/api\/cameras\/(\d+)$/);
     if (one) {

@@ -101,6 +101,7 @@ docker compose --env-file .env -f deploy/compose.yml start backend
 | **Monitoring** | live WebRTC video with boxes and track IDs, events today, last detection, latest events, engine details under *Diagnostics* |
 | **Events** | gallery of snapshots grouped by day (or a table), filters by camera / status / date, detail drawer with *Acknowledge* |
 | **Cameras** | add / edit / delete, Start/Stop, **Test connection** (reachable, login, stream, codec, resolution), per-camera detection settings, free engine places |
+| **Settings** | **Alerts on/off** (off: events are still saved and shown, no Telegram message) and **quiet hours**; Telegram status with a *Send test message* button (the token is never shown); how long snapshots are kept and how much space they use; what a new camera starts with; engine and version (read-only) |
 
 New events and camera states arrive over `WS /api/ws` without reloading (toast + highlight). Every screen has loading, empty and
 error states. Dark theme, keyboard and screen-reader friendly (axe WCAG 2.1 A/AA checked).
@@ -142,13 +143,18 @@ Under Docker, compose sets paths and URLs itself and takes only those marked *co
 | `HEARTBEAT_STALE_AFTER`, `NOTIFY_MAX_AGE` | `15`, `600` | seconds of silence before a camera counts offline; age after which a pending Telegram alert is dropped |
 | `LOG_LEVEL`, `LOG_FILE`, `LOG_MAX_BYTES`, `LOG_BACKUP_COUNT` | `INFO`, `logs/app.log`, 5 MB, `3` | rotating log file + terminal |
 
+`SNAPSHOT_RETENTION_DAYS` and `ABSENCE_TIMEOUT` are starting values: once someone changes the same setting on the **Settings** page,
+the stored value (in the database, table `app_settings`) wins. Nothing is stored until then, so an existing installation behaves as before.
+
 What counts as a person (`pre-cluster-threshold`, NMS) is in `engine/configs/pgie_yolov8n.txt`; tracking behaviour is in
 `engine/configs/tracker_nvdcf.yml`. Old `.env` lines `RTSP_URL`, `VIDEO_SOURCE`, `CONFIDENCE_THRESHOLD`, `RECONNECT_DELAY`,
 `APP_ENV`, `MP4_PATH` are read by nothing; delete them.
 
 **Telegram.** Create a bot with BotFather, get your chat ID, set the three variables above. The backend sends the alerts (photo if
 the snapshot exists, text otherwise), never the engine. A Telegram outage never loses or delays an event: alerts are retried with
-a growing pause (1 s → 60 s) and given up after `NOTIFY_MAX_AGE`. Try it: `python scripts/test_telegram_snapshot.py`.
+a growing pause (1 s → 60 s) and given up after `NOTIFY_MAX_AGE`. Try it: `python scripts/test_telegram_snapshot.py`, or press *Send test message* on the Settings page.
+When alerts are switched off, or an event arrives in the quiet hours, the event is stored and shown as usual and its `notify_status`
+is `skipped` (the other values: `pending`, `sent`, `disabled` = Telegram not set up, `failed`).
 
 ## Development without Docker
 
@@ -253,6 +259,8 @@ FastAPI + SQLAlchemy 2 + Alembic on PostgreSQL; interactive docs at `/docs`.
 | `GET /api/cameras/{id}/status` | wanted state, engine process state, and what the engine reports: `state` (`RUNNING`/`RECONNECTING`/`ENDED`), `fps`, `people`, `last_frame_age` |
 | `GET /api/cameras/{id}/stream` | `{whep_url, player_url, available}` for live video; 503 until `MEDIAMTX_WEBRTC_URL` is set |
 | `GET /api/engine` | engine as a whole: manager reachability, `capacity`, `running`, `wanted`, free `room` |
+| `GET/PATCH /api/settings` | what the Settings page changes: `alerts_enabled`, `quiet_hours_enabled`, `quiet_start`, `quiet_end` (`"HH:MM"`, server's local time), `snapshot_retention_days` (1-365), `default_conf_threshold`, `default_absence_timeout`; plus read-only `telegram_configured`, `snapshot_count`, `snapshot_bytes`, `version`. PATCH takes only the fields to change (unknown field, bad value, or quiet hours that start and end at the same minute: 422) |
+| `POST /api/settings/test-notification` | sends a test message to Telegram (whatever the alert switch says); `{ok, message}`, a Telegram that is not set up or refuses is `ok: false`, not an HTTP error |
 | `GET /api/events` | newest first; filters `camera_id`, `from`, `to`, `type`, `status`; `limit` (1-200), `offset`; answers `{items, total, limit, offset}` |
 | `GET /api/events/{id}`, `.../snapshot` | one event; its JPEG |
 | `PATCH /api/events/{id}` | `{"status": "new" \| "acknowledged"}` |

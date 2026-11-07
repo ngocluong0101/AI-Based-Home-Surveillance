@@ -12,6 +12,8 @@ from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
 
+from backend import __version__
+from backend.app_settings import AppSettings, AppSettingsStore
 from backend.db import make_engine, make_session_factory
 from backend.engine_client import EngineClient
 from backend.heartbeats import HeartbeatStore
@@ -20,7 +22,7 @@ from backend.models import Event
 from backend.notifier import Notifier
 from backend.realtime import CameraStatusPublisher, Hub
 from backend.reconciler import Reconciler
-from backend.routers import cameras, engine, events, health, internal, ws
+from backend.routers import cameras, engine, events, health, internal, settings as settings_router, ws
 from backend.routers.events import publish_event
 from backend.settings import Settings
 
@@ -62,7 +64,7 @@ def create_app(settings: Settings | None = None, engine_client: EngineClient | N
             app.state.reconciler.client.close()
         app.state.engine.dispose()
 
-    app = FastAPI(title="AI Home Surveillance", lifespan=lifespan)
+    app = FastAPI(title="AI Home Surveillance", version=__version__, lifespan=lifespan)
     app.state.settings = settings
     app.state.engine = make_engine(settings.database_url)   # connects lazily, on the first request
     app.state.session_factory = make_session_factory(app.state.engine)
@@ -79,11 +81,21 @@ def create_app(settings: Settings | None = None, engine_client: EngineClient | N
             if event is not None:
                 publish_event(app.state.hub, "event.updated", event)
 
+    app.state.telegram = telegram
+    # What can be changed from the Settings page; until it is, the values are the ones the environment gave.
+    app.state.app_settings = AppSettingsStore(
+        app.state.session_factory,
+        AppSettings(snapshot_retention_days=settings.snapshot_retention_days,
+                    default_conf_threshold=settings.default_conf_threshold,
+                    default_absence_timeout=settings.default_absence_timeout),
+    )
     app.state.notifier = Notifier(app.state.session_factory, telegram, settings.snapshot_dir,
-                                  settings.notify_interval, settings.notify_max_age, announce_update)
+                                  settings.notify_interval, settings.notify_max_age, announce_update,
+                                  store=app.state.app_settings)
     app.state.janitor = SnapshotJanitor(app.state.session_factory, settings.snapshot_dir,
                                         settings.snapshot_retention_days, settings.snapshot_cleanup_every,
-                                        settings.cleanup_check_interval)
+                                        settings.cleanup_check_interval,
+                                        retention_source=lambda: app.state.app_settings.get().snapshot_retention_days)
     app.state.camera_status = CameraStatusPublisher(app.state.heartbeats, app.state.hub)
 
     # Without an engine manager the start/stop endpoints still record what should run.
@@ -98,5 +110,6 @@ def create_app(settings: Settings | None = None, engine_client: EngineClient | N
     app.include_router(engine.router)
     app.include_router(events.router)
     app.include_router(internal.router)
+    app.include_router(settings_router.router)
     app.include_router(ws.router)
     return app

@@ -96,6 +96,53 @@ class CameraOut(BaseModel):
         return mask_uri(value)
 
 
+_HHMM = r"^([01]\d|2[0-3]):[0-5]\d$"
+
+
+class SettingsUpdate(BaseModel):
+    """PATCH /api/settings: only the settings that are present change."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    alerts_enabled: bool | None = None
+    quiet_hours_enabled: bool | None = None
+    quiet_start: str | None = Field(default=None, pattern=_HHMM)   # "22:00", server's local time
+    quiet_end: str | None = Field(default=None, pattern=_HHMM)
+    snapshot_retention_days: int | None = Field(default=None, ge=1, le=365)
+    default_conf_threshold: float | None = Field(default=None, ge=0, le=1)
+    default_absence_timeout: float | None = Field(default=None, ge=0, le=86400)
+
+    @model_validator(mode="after")
+    def _no_nulls(self) -> "SettingsUpdate":
+        for field in self.model_fields_set:
+            if getattr(self, field) is None:
+                raise ValueError(f"{field} cannot be null")
+        return self
+
+
+class SettingsOut(BaseModel):
+    """What the Settings page shows: the settings, plus what it may not change (read-only facts)."""
+
+    alerts_enabled: bool
+    quiet_hours_enabled: bool
+    quiet_start: str
+    quiet_end: str
+    snapshot_retention_days: int
+    default_conf_threshold: float
+    default_absence_timeout: float
+    telegram_configured: bool   # Telegram is set up in .env (token and chat id are never shown)
+    snapshot_count: int         # snapshot files on disk
+    snapshot_bytes: int
+    version: str
+
+
+class NotificationCheckOut(BaseModel):
+    """Result of "send a test message": a Telegram that does not work is ok=False with a reason, not an HTTP error."""
+
+    ok: bool
+    message: str
+
+
 class EngineInfo(BaseModel):
     manager: Literal["reachable", "unreachable", "not_configured"]
     state: str | None = None   # stopped | running | stopping | backoff | exited (the engine process)

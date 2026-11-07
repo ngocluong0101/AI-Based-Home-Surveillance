@@ -2,7 +2,7 @@ import { Loader2, PlugZap } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { api } from "../api";
-import { useCreateCamera, useTestConnection, useUpdateCamera } from "../hooks/queries";
+import { useCreateCamera, useSettings, useTestConnection, useUpdateCamera } from "../hooks/queries";
 import type { Camera } from "../types";
 import {
   emptyForm,
@@ -18,7 +18,8 @@ import { ConnectionResult } from "./ConnectionResult";
 import { Drawer } from "./ui/Drawer";
 
 function Form({ camera, onDone }: { camera?: Camera; onDone: () => void }) {
-  const [values, setValues] = useState<CameraFormValues>(() => (camera ? formFromCamera(camera) : emptyForm()));
+  const settings = useSettings(); // warmed by the layout, so it is there when the form opens
+  const [values, setValues] = useState<CameraFormValues>(() => (camera ? formFromCamera(camera) : emptyForm(settings.data)));
   const [errors, setErrors] = useState<FormErrors>({});
   const create = useCreateCamera();
   const update = useUpdateCamera();

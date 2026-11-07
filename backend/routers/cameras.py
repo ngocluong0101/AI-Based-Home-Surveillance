@@ -58,8 +58,15 @@ def list_cameras(db: Session = Depends(get_db)) -> list[Camera]:
 
 
 @router.post("", response_model=CameraOut, status_code=201)
-def create_camera(body: CameraCreate, db: Session = Depends(get_db)) -> Camera:
-    camera = Camera(**body.model_dump())
+def create_camera(body: CameraCreate, request: Request, db: Session = Depends(get_db)) -> Camera:
+    values = body.model_dump()
+    # A detection setting the request leaves out starts with what the Settings page says new cameras get.
+    defaults = request.app.state.app_settings.get()
+    if "conf_threshold" not in body.model_fields_set:
+        values["conf_threshold"] = defaults.default_conf_threshold
+    if "absence_timeout" not in body.model_fields_set:
+        values["absence_timeout"] = defaults.default_absence_timeout
+    camera = Camera(**values)
     db.add(camera)
     _commit_or_conflict(db)
     db.refresh(camera)

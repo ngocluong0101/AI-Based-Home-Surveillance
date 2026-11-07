@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import (
     BigInteger,
@@ -60,6 +61,16 @@ class Camera(Base):
     )
 
 
+class AppSetting(Base):
+    """One setting chosen in the web app (the Settings page); see backend/app_settings.py for what they are."""
+
+    __tablename__ = "app_settings"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[Any] = mapped_column(JSONB, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Event(Base):
     __tablename__ = "events"
 
@@ -81,7 +92,7 @@ class Event(Base):
         CheckConstraint("confidence >= 0 AND confidence <= 1", name="ck_events_confidence"),
         CheckConstraint("status IN ('new', 'acknowledged')", name="ck_events_status"),
         CheckConstraint(
-            "notify_status IN ('pending', 'sent', 'failed', 'disabled')", name="ck_events_notify_status"
+            "notify_status IN ('pending', 'sent', 'failed', 'disabled', 'skipped')", name="ck_events_notify_status"
         ),
         Index("ix_events_camera_timestamp", "camera_id", text("timestamp DESC")),
         Index("ix_events_timestamp", text("timestamp DESC")),
