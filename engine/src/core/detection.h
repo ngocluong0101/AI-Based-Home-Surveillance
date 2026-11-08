@@ -1,7 +1,7 @@
 /*
  * detection.h - one tracked person in one frame, as plain values.
  *
- * Pure C, no DeepStream or GLib: ds_engine.c copies the values out of NvDs*Meta into this struct
+ * Pure C, no DeepStream or GLib: probes.c copies the values out of NvDs*Meta into this struct
  * inside the pad probe (never keep NvDs*Meta pointers), and everything downstream (the
  * EventManager of Phase 2) works on Detection only. That also lets `make test-core` test it.
  */

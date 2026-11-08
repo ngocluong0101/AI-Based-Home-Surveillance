@@ -325,7 +325,7 @@ Tools in `engine/tools/`: `fake_receiver.py` (fake backend), `rtsp_test_server.c
 
 | Path | Content |
 |---|---|
-| `engine/` | `src/ds_engine.c` (DeepStream pipeline), `src/core/` (pure C with tests), `configs/`, `parser/` (YOLOv8 box parser), `tools/` |
+| `engine/` | `src/` (DeepStream engine in seven modules: `ds_engine.c` pipeline and `main`, `config.c`, `sources.c`, `probes.c`, `delivery.c`, `stream_out.c`, `report.c`; shared types in `app.h`), `src/core/` (pure C with tests), `configs/`, `parser/` (YOLOv8 box parser), `tools/` |
 | `engine_manager/` | service that supervises `ds_engine` |
 | `backend/` | FastAPI app, models, Alembic migrations, WebSocket hub, Telegram notifier, snapshot janitor |
 | `frontend/` | React + TypeScript + Vite app (`src/{api,websocket,hooks,components,layouts,pages,utils}`), `e2e/` |

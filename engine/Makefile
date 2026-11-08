@@ -16,7 +16,8 @@ TEST_BIN  := $(BUILD)/test_core
 PKGS      := gstreamer-1.0 gstreamer-app-1.0 libcurl json-glib-1.0
 
 CORE_SRCS := $(wildcard src/core/*.c)
-DS_SRCS   := src/ds_engine.c
+# The engine modules (ds_engine.c, config.c, sources.c, probes.c, delivery.c, stream_out.c, report.c)
+DS_SRCS   := $(wildcard src/*.c)
 TEST_SRCS := $(wildcard tests/*.c)
 
 WARN      := -Wall -Wextra
@@ -58,7 +59,11 @@ $(APP): $(APP_OBJS)
 
 $(BUILD)/%.o: src/%.c Makefile
 	@mkdir -p $(dir $@)
-	$(CC) -c -o $@ $(APP_CFLAGS) $<
+	$(CC) -c -o $@ $(APP_CFLAGS) -MMD -MP $<
+
+# -MMD writes a .d file per object listing the headers it used, so that changing app.h rebuilds every
+# module that includes it (the modules share it).
+-include $(APP_OBJS:.o=.d)
 
 test-core: $(TEST_BIN)
 	./$(TEST_BIN)
