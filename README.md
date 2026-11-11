@@ -269,25 +269,6 @@ FastAPI + SQLAlchemy 2 + Alembic on PostgreSQL; interactive docs at `/docs`.
 
 The browser talks to one origin, so no CORS setup is needed. Engine manager API (loopback, no auth): `PUT /cameras`, `GET /status`.
 
-## Performance
-
-RTX 4060 Laptop (8 GB), 1080p H.264 at 30 fps, `engine/tools/benchmark.py` (fake RTSP cameras, 25 s window):
-
-| Setup | Cameras | FPS each | GPU / NVDEC | RAM |
-|---|---|---|---|---|
-| one engine, detection only | 8 | 30 | 33% / 31% | 1.2 GiB |
-| one engine, detection only | 16 | 30 | 57% / 56% | 1.5 GiB |
-| one engine, detection only | 20 | 30 (dips to 24) | 75% / 74% | 1.8 GiB |
-| one engine, detection only | 24 | 30 (dips to 22.5) | 93% / 99% | 2.0 GiB |
-| one engine, detection only | 28 | 25.5, fails | 92% / 100% | 2.2 GiB |
-| 8 engines of one camera | 8 | 30 | 41% / 25% | 5.1 GiB |
-| one engine, detection + live video | 12 | 30 | 44% / 40% (NVENC 27%) | 2.2 GiB |
-
-The decoder (NVDEC) is the limit, not the network. With live video the limit is 12 cameras (NVENC sessions). Every camera showed the
-same video on localhost and latency was not measured: take these as an upper bound for 1080p H.264 at 30 fps.
-A 4-hour soak with 4 cameras (`deploy/soak.py`) kept 30 fps and never restarted anything, but engine RAM grew ~55 MiB/hour
-(930 → 1081 MiB, slowing at the end); cause not found yet, so watch it on 24/7 use.
-
 ## Tests
 
 ```bash
