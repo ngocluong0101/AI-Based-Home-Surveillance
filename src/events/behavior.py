@@ -73,6 +73,11 @@ class BehaviorConfig:
     fall_lost_s: float = 1.0
     fall_cooldown_s: float = 10.0
     fall_min_torso_px: float = 20.0
+    # fall, skeleton network (V2-5): a classifier scores the last second or so of a person's skeleton; the rules above need the person to stay
+    # down, the network reacts to the fall itself. 0 = rules only, 1 = the network decides (the rules are off), 2 = either of them
+    fall_net: int = 0
+    fall_net_thr: float = 0.9      # a score at or above this counts
+    fall_net_k: int = 3            # this many scores in a row make a fall (the cooldown is fall_cooldown_s, shared with the rules)
     # fight
     fight_speed: float = 3.0
     fight_decay_s: float = 2.0
@@ -167,6 +172,12 @@ class _FallState:
 
 
 @dataclass
+class _NetState:
+    run: int = 0                    # scores in a row at or above the threshold
+    first_ns: int = 0               # the end of the window of the first of them
+
+
+@dataclass
 class _ZoneState:
     inside_since: Optional[int] = None
     out_since: Optional[int] = None
@@ -177,6 +188,7 @@ class _ZoneState:
 class _Track:
     last_seen: int = 0
     fall: _FallState = field(default_factory=_FallState)
+    net: _NetState = field(default_factory=_NetState)
     zones: dict = field(default_factory=dict)         # zone_id -> _ZoneState
     prev_kp: Optional[list] = None
     prev_ns: int = 0
@@ -217,7 +229,8 @@ class BehaviorEngine:
                 return c
         return (p.box[0] + p.box[2] / 2.0, p.box[1] + p.box[3])
 
-    def process(self, people: Sequence[Person], now_ns: int) -> list[BehaviorEvent]:
+    def process(self, people: Sequence[Person], now_ns: int, scores: Sequence[tuple] = ()) -> list[BehaviorEvent]:
+        """`scores`: (track_id, probability of a fall, end_ns of the window it was computed on) that arrived since the last call, oldest first."""
         cfg = self.cfg
         events: list[BehaviorEvent] = []
 
@@ -236,7 +249,10 @@ class BehaviorEngine:
             if cfg.zones:
                 self._zone_rule(tr, p, fx, fy, now_ns, events)
             if cfg.fall:
-                self._fall_rule(tr, p, now_ns, events)
+                if cfg.fall_net != 1:
+                    self._fall_rule(tr, p, now_ns, events)
+                if cfg.fall_net != 0:
+                    self._net_rule(tr, p, [sc for sc in scores if sc[0] == p.track_id], now_ns, events)
             self._speeds(tr, p, now_ns)
 
         if cfg.fight:
@@ -338,6 +354,29 @@ class BehaviorEngine:
                 return
             st.up_since = None
             self._fall_down_step(st, p, now, h[0], h[1], st.max_angle, True, events)
+
+    def _net_rule(self, tr: _Track, p: Person, scores: list, now: int, events: list) -> None:
+        """The skeleton network says fall_net_k scores in a row at or above fall_net_thr: that is a fall, reported now, with the end of the first window
+        as the moment it began. Shares the cooldown with the rules; a person whose hips are in a lie_ok zone (bed, sofa) is never reported."""
+        cfg = self.cfg
+        st, net = tr.fall, tr.net
+        for _, prob, end_ns in scores:
+            if prob < cfg.fall_net_thr:
+                net.run = 0
+                continue
+            net.run += 1
+            if net.run == 1:
+                net.first_ns = end_ns
+            if net.run < cfg.fall_net_k or now < st.cooldown_until:
+                continue
+            m = _torso(p.keypoints, cfg.vis_min) if p.keypoints is not None else None
+            hx, hy = m[3] if m is not None else (p.box[0] + p.box[2] / 2.0, p.box[1] + p.box[3] / 2.0)
+            net.run = 0
+            if self._in_any("lie_ok", hx, hy):
+                continue
+            events.append(BehaviorEvent(FALL, (p.track_id,), min(1.0, max(0.0, prob)), -1, net.first_ns, now))
+            st.mode = "fired"
+            st.cooldown_until = now + int(cfg.fall_cooldown_s * S)
 
     def _fall_down_step(self, st: _FallState, p: Person, now: int, hx: float, hy: float, max_angle: float, measured: bool,
                         events: list) -> None:

@@ -3,6 +3,7 @@
  * per-camera settings (conf_threshold, absence_timeout, ai_enabled).
  */
 #include "config.h"
+#include "pose.h"
 
 #include <stddef.h>
 
@@ -38,9 +39,20 @@ gint opt_heartbeat_interval = HEARTBEAT_INTERVAL_DEFAULT_S;
 gint opt_rtsp_timeout = RTSP_TIMEOUT_DEFAULT_S;
 gint opt_max_cameras = 0;
 gchar *opt_dump_detections = NULL;
+gchar *opt_fall_model = NULL;
+gint opt_fall_model_window = 48;
+gint opt_fall_model_batch = 16;
+gboolean fall_model_ready = FALSE;
 gdouble opt_absence_timeout = 10.0;  /* same default as ABSENCE_TIMEOUT in src/config */
 
 static GOptionEntry option_entries[] = {
+    { "fall-model", 0, 0, G_OPTION_ARG_FILENAME, &opt_fall_model,
+      "ONNX file of the skeleton network that scores falls (eval/train/export_onnx.py); a TensorRT engine is built from it on first use. "
+      "Cameras opt in with fall_net=1|2 in the cameras file; without this (or when it cannot be loaded) they use the rules", "FILE" },
+    { "fall-model-window", 0, 0, G_OPTION_ARG_INT, &opt_fall_model_window,
+      "Frames of skeleton the network looks at (the T it was trained with), 8-128 (default 48)", "T" },
+    { "fall-model-batch", 0, 0, G_OPTION_ARG_INT, &opt_fall_model_batch,
+      "Most windows scored in one TensorRT call, 1-64 (default 16)", "N" },
     { "snapshot-dir", 0, 0, G_OPTION_ARG_FILENAME, &opt_snapshot_dir,
       "Save a JPEG of the whole frame for each PERSON_DETECTED event in DIR "
       "(created if missing); without it no snapshots are taken", "DIR" },
@@ -129,10 +141,12 @@ void behavior_settings_of(const GHashTable *table, gint camera_id, BehaviorSetti
     const CameraSettings *cs = table != NULL ? g_hash_table_lookup((GHashTable *)table, GINT_TO_POINTER(camera_id)) : NULL;
     if (cs != NULL) {
         *out = cs->beh;
-        return;
+    } else {
+        memset(out, 0, sizeof(*out));
+        behavior_config_default(&out->cfg);
     }
-    memset(out, 0, sizeof(*out));
-    behavior_config_default(&out->cfg);
+    if (!fall_model_ready)
+        out->cfg.fall_net = 0;     /* no model, no dependence on it */
 }
 
 gboolean behavior_settings_equal(const BehaviorSettings *a, const BehaviorSettings *b)
@@ -168,6 +182,7 @@ static const BehaviorKey BEHAVIOR_KEYS[] = {
     BKEY(fall_move_max, 0.0, 10.0), BKEY(fall_lying_aspect, 0.0, 10.0),
     BKEY(fall_stand_back_s, 0.0, 60.0), BKEY(fall_lost_s, 0.0, 60.0), BKEY(fall_cooldown_s, 0.0, 86400.0),
     BKEY(fall_min_torso_px, 0.0, 10000.0),
+    BKEY(fall_net, 0.0, 2.0), BKEY(fall_net_thr, 0.0, 1.0), BKEY(fall_net_k, 1.0, 100.0),
     BKEY(fight_speed, 0.0, 100.0), BKEY(fight_decay_s, 0.01, 600.0), BKEY(fight_threshold_s, 0.0, 600.0),
     BKEY(fight_rearm, 0.0, 600.0), BKEY(fight_cooldown_s, 0.0, 86400.0), BKEY(fight_max_dt_s, 0.0, 60.0),
     BKEY(zone_dwell_s, 0.0, 3600.0), BKEY(zone_exit_s, 0.0, 3600.0), BKEY(zone_rearm_s, 0.0, 86400.0),
@@ -510,6 +525,10 @@ gboolean config_load(int *argc, char ***argv, GPtrArray *specs)
     }
     if (opt_stream_url != NULL && opt_stream_url[strlen(opt_stream_url) - 1] == '/')
         opt_stream_url[strlen(opt_stream_url) - 1] = '\0';   /* BASE/cam<ID>, one slash */
+    if (opt_fall_model_window < 8 || opt_fall_model_window > POSE_HISTORY_FRAMES || opt_fall_model_batch < 1 || opt_fall_model_batch > 64) {
+        g_printerr("--fall-model-window must be 8-%d and --fall-model-batch 1-64\n", POSE_HISTORY_FRAMES);
+        return FALSE;
+    }
     if (opt_stream_bitrate < 100 || opt_stream_bitrate > 50000) {
         g_printerr("--stream-bitrate must be between 100 and 50000 kbit/s\n");
         return FALSE;
@@ -541,6 +560,7 @@ void config_free(void)
     g_free(opt_output);
     g_free(opt_dump_detections);
     g_free(opt_snapshot_dir);
+    g_free(opt_fall_model);
     g_free(opt_backend_url);
     g_free(opt_spool_file);
     g_free(opt_heartbeat_url);

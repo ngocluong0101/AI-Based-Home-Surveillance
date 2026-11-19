@@ -80,15 +80,24 @@ class Engine:
     """One ds_engine process; a thread parses its periodic fps lines."""
 
     def __init__(self, index: int, cameras: list[int], uris: dict[int, str], config: Path, tracker: Path,
-                 interval: int = 2, stream_url: str | None = None, max_cameras: int = 0):
+                 interval: int = 2, stream_url: str | None = None, max_cameras: int = 0, cameras_file: Path | None = None,
+                 fall_model: str | None = None):
         cmd = ["stdbuf", "-oL", "-eL", str(ENGINE_DIR / "build" / "ds_engine"), "--config", str(config),
                "--tracker-config", str(tracker), "--fps-interval", str(interval)]
         if stream_url:
             cmd += ["--stream-url", stream_url]   # one H.264 encoder (NVENC session) per camera
         if max_cameras:
             cmd += ["--max-cameras", str(max_cameras)]
-        for cam in cameras:
-            cmd += ["--camera", f"{cam}={uris[cam]}"]
+        if cameras_file is not None:        # per-camera behaviour settings need the cameras file (V2-5: fall_net)
+            cameras_file.write_text("".join(f"[camera.{cam}]\nuri={uris[cam]}\nbehaviors=fall\nfall_net=2\n\n" for cam in cameras))
+            cameras_file.chmod(0o600)
+            cmd += ["--cameras-file", str(cameras_file)]
+        else:
+            for cam in cameras:
+                cmd += ["--camera", f"{cam}={uris[cam]}"]
+        if fall_model:
+            cmd += ["--fall-model", fall_model]
+        self.net_stats = ""
         self.index = index
         self.cameras = cameras
         self.samples: list[tuple[float, int, float, str]] = []   # (monotonic, camera_id, fps, state)
@@ -107,6 +116,8 @@ class Engine:
             elif FINAL_LINE.match(line):
                 m = FINAL_LINE.match(line)
                 self.final[int(m.group(1))] = float(m.group(2))
+            elif line.startswith("fall model: windows"):
+                self.net_stats = line.strip()
             elif not line.startswith("event "):
                 self.tail = (self.tail + [line.rstrip()])[-8:]
 
@@ -184,7 +195,8 @@ def run_case(args, layout: str, n: int, workdir: Path, tracker: Path, sampler: S
     try:
         for i, cams in enumerate(groups):
             engines.append(Engine(i, cams, uris, config, tracker, 1 if args.source == "files" else 2,
-                                  stream_url=args.stream_url, max_cameras=args.max_cameras))
+                                  stream_url=args.stream_url, max_cameras=args.max_cameras,
+                                  cameras_file=(workdir / f"cameras_{i}.ini") if args.fall_model else None, fall_model=args.fall_model))
             if layout == "multi":
                 time.sleep(2.0)   # start-up of one process is heavy; do not stack them
         sampler.pids = [e.proc.pid for e in engines]
@@ -246,6 +258,7 @@ def run_case(args, layout: str, n: int, workdir: Path, tracker: Path, sampler: S
             "cpu_pct_one_core": round(100.0 * ticks / CLK_TCK / span, 1),
             "rss_mib": max((r["rss"] for r in mem_rows), default=0),
             "exit_codes": codes,
+            "fall_model": " | ".join(e.net_stats for e in engines if e.net_stats) or None,
             "window_s": round(span, 1),
         })
         row["ok"] = all(c == 0 for c in codes)
@@ -296,6 +309,7 @@ def main() -> int:
                     help="also publish every camera with boxes drawn, as ds_engine --stream-url does "
                          "(e.g. rtmp://127.0.0.1:1935/live): detection AND video encoding together, one NVENC session "
                          "per camera. Needs a RTMP server there (MediaMTX) and, in a container, --network host")
+    ap.add_argument("--fall-model", metavar="ONNX", help="also run the skeleton network on every camera (fall_net=2: rules + network); needs a pose --pgie")
     ap.add_argument("--out", help="write the rows as JSON to this file")
     args = ap.parse_args()
     PGIE_NAME = args.pgie

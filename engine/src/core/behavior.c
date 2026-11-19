@@ -28,6 +28,11 @@ typedef struct {
 } FallState;
 
 typedef struct {
+    int run;                  /* scores in a row at or above the threshold */
+    int64_t first_ns;         /* the end of the window of the first of them */
+} NetState;
+
+typedef struct {
     int has_inside_since, has_out_since, fired;
     int64_t inside_since, out_since;
 } ZoneState;
@@ -36,6 +41,7 @@ typedef struct {
     uint64_t id;
     int64_t last_seen;
     FallState fall;
+    NetState net;
     ZoneState zones[BEHAVIOR_MAX_ZONES];    /* by position in Behavior.zones */
     int has_prev;
     BehaviorKeypoint prev_kp[BEHAVIOR_KEYPOINTS];
@@ -89,6 +95,9 @@ void behavior_config_default(BehaviorConfig *c)
     c->fall_lost_s = 1.0;
     c->fall_cooldown_s = 10.0;
     c->fall_min_torso_px = 20.0;
+    c->fall_net = 0;
+    c->fall_net_thr = 0.9;
+    c->fall_net_k = 3;
     c->fight_speed = 3.0;
     c->fight_decay_s = 2.0;
     c->fight_threshold_s = 0.4;
@@ -341,6 +350,45 @@ static void fall_down_step(Behavior *b, FallState *st, const BehaviorPerson *p, 
     }
 }
 
+/* The skeleton network says fall_net_k scores in a row at or above fall_net_thr: a fall, reported now, with the end of the first window as
+ * the moment it began. Shares the cooldown with the rules; hips in a lie_ok zone are never reported. */
+static void net_rule(Behavior *b, Track *tr, const BehaviorPerson *p, const BehaviorScore *scores, size_t ns, int64_t now,
+                     BehaviorEvent *out, size_t cap, int *count)
+{
+    const BehaviorConfig *cfg = &b->cfg;
+    FallState *st = &tr->fall;
+    NetState *net = &tr->net;
+    for (size_t i = 0; i < ns; i++) {
+        if (scores[i].track_id != p->track_id)
+            continue;
+        if (scores[i].prob < cfg->fall_net_thr) {
+            net->run = 0;
+            continue;
+        }
+        net->run++;
+        if (net->run == 1)
+            net->first_ns = scores[i].end_ns;
+        if (net->run < (int)cfg->fall_net_k || now < st->cooldown_until)
+            continue;
+        Torso m;
+        double hx, hy;
+        if (p->has_pose && torso_of(p->kp, cfg->vis_min, &m)) {
+            hx = m.hx;
+            hy = m.hy;
+        } else {                                  /* no usable skeleton: the middle of the box */
+            hx = p->box[0] + p->box[2] / 2.0;
+            hy = p->box[1] + p->box[3] / 2.0;
+        }
+        net->run = 0;
+        if (in_any(b, BEHAVIOR_ZONE_LIE_OK, hx, hy))
+            continue;
+        double prob = scores[i].prob < 0.0 ? 0.0 : (scores[i].prob > 1.0 ? 1.0 : scores[i].prob);
+        push_event(out, cap, count, BEHAVIOR_FALL, p->track_id, 0, 1, prob, -1, net->first_ns, now);
+        st->mode = FALL_FIRED;
+        st->cooldown_until = now + ns_of(cfg->fall_cooldown_s);
+    }
+}
+
 static void fall_rule(Behavior *b, Track *tr, const BehaviorPerson *p, int64_t now, BehaviorEvent *out, size_t cap, int *count)
 {
     const BehaviorConfig *cfg = &b->cfg;
@@ -572,6 +620,12 @@ static void forget(Behavior *b, int64_t now)
 
 int behavior_process(Behavior *b, const BehaviorPerson *people, size_t n, int64_t now_ns, BehaviorEvent *out, size_t out_cap)
 {
+    return behavior_process_scored(b, people, n, NULL, 0, now_ns, out, out_cap);
+}
+
+int behavior_process_scored(Behavior *b, const BehaviorPerson *people, size_t n, const BehaviorScore *scores, size_t num_scores,
+                            int64_t now_ns, BehaviorEvent *out, size_t out_cap)
+{
     const BehaviorConfig *cfg = &b->cfg;
     int count = 0, oom = 0;
 
@@ -599,8 +653,12 @@ int behavior_process(Behavior *b, const BehaviorPerson *people, size_t n, int64_
         foot_of(p, cfg->vis_min, &fx, &fy);
         if (cfg->zones)
             zone_rule(b, tr, p, fx, fy, now_ns, out, out_cap, &count);
-        if (cfg->fall)
-            fall_rule(b, tr, p, now_ns, out, out_cap, &count);
+        if (cfg->fall) {
+            if (cfg->fall_net != 1.0)
+                fall_rule(b, tr, p, now_ns, out, out_cap, &count);
+            if (cfg->fall_net != 0.0)
+                net_rule(b, tr, p, scores, num_scores, now_ns, out, out_cap, &count);
+        }
         speeds_of(b, tr, p, now_ns);
     }
 

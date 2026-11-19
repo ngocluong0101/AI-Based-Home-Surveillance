@@ -244,6 +244,44 @@ def scenarios():
     ignore = {"kind": "ignore", "zone_id": 9, "points": [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]}
     out["ignore_zone_hides_everything"] = ("A fall inside an ignore zone (a TV): no event.", {"fall": True}, [ignore],
                                            seq(7.6, lambda t: [falling(800, t, 2.0, 0.6)]))
+    # ---- the skeleton network (V2-5): scores are (track, probability, end of its window) that arrive with the frame
+    def net_frames(prob_of, t_end=9.0, tid=1, fall_at=2.0):
+        """a person falling at fall_at, and one score per frame (the network scores every frame): prob_of(t) -> probability or None"""
+        frames = []
+        for t, people in seq(t_end, lambda t: [falling(800, t, fall_at, 0.6, tid=tid)]):
+            pr = prob_of(t)
+            frames.append((t, people, [] if pr is None else [[tid, round(pr, 4), int(round(t * S))]]))
+        return frames
+
+    out["net_fall_reported_when_the_scores_arrive_not_after_the_person_stays_down"] = (
+        "The network sees the fall: scores 0.95 from t = 2.4 s. fall_net = 1, k = 3: one FALL on the third score, 0.2 s after the first; occurred = the first window's end.",
+        {"fall": True, "fall_net": 1}, [], net_frames(lambda t: 0.95 if t >= 2.4 else 0.05))
+    out["net_either_reports_once"] = (
+        "fall_net = 2: the network reports at ~2.5 s; the rules would report at ~4 s but the cooldown they share stops the second event.",
+        {"fall": True, "fall_net": 2}, [], net_frames(lambda t: 0.95 if t >= 2.4 else 0.05))
+    out["net_either_rules_still_work_when_the_network_is_silent"] = (
+        "fall_net = 2 and no scores at all (the model is down): the rules report the fall as before.",
+        {"fall": True, "fall_net": 2}, [], net_frames(lambda t: None))
+    out["net_only_with_no_scores_reports_nothing"] = (
+        "fall_net = 1 and no scores: the rules are off, so nothing is reported (the engine falls back to fall_net = 0 itself when the model cannot load).",
+        {"fall": True, "fall_net": 1}, [], net_frames(lambda t: None))
+    out["net_run_must_be_unbroken"] = (
+        "Scores 0.95 0.95 0.2 0.95 0.95 (k = 3): the dip resets the count, no event.",
+        {"fall": True, "fall_net": 1}, [],
+        net_frames(lambda t: {2.4: 0.95, 2.4333: 0.95, 2.4667: 0.2, 2.5: 0.95, 2.5333: 0.95}.get(round(t, 4)), t_end=4.0))
+    out["net_threshold_is_inclusive_and_configurable"] = (
+        "fall_net_thr = 0.7, k = 2: scores of exactly 0.7 count.", {"fall": True, "fall_net": 1, "fall_net_thr": 0.7, "fall_net_k": 2}, [],
+        net_frames(lambda t: 0.7 if t >= 2.4 else 0.0, t_end=4.0))
+    out["net_in_a_lie_ok_zone_is_not_a_fall"] = (
+        "The network fires while the hips are in a sofa zone: nothing is reported.", {"fall": True, "fall_net": 1}, [lie_zone()],
+        net_frames(lambda t: 0.95 if t >= 2.4 else 0.05))
+    out["net_cooldown_then_second_fall"] = (
+        "Scores stay high for 3 s (one event), a second burst inside the 10 s cooldown is ignored, a third one after it is reported.",
+        {"fall": True, "fall_net": 1},
+        [], net_frames(lambda t: 0.95 if (2.4 <= t < 5.4 or 8.0 <= t < 9.0 or 14.0 <= t < 16.0) else 0.0, t_end=17.0))
+    out["net_scores_of_another_track_are_not_ours"] = (
+        "Scores addressed to track 7 while only track 1 is in view: nothing.", {"fall": True, "fall_net": 1}, [],
+        [(t, people, [[7, 0.99, int(round(t * S))]]) for t, people, _ in net_frames(lambda t: 0.0, t_end=4.0)])
     return out
 
 
@@ -256,10 +294,11 @@ def record(name, description, overrides, zones, frames):
     cfg = BehaviorConfig(**overrides)
     engine = BehaviorEngine(cfg, [Zone(z["kind"], [tuple(p) for p in z["points"]], z["zone_id"]) for z in zones], W, H)
     steps = []
-    for t, people in frames:
+    for t, people, *rest in frames:
         now = int(round(t * S))
-        events = engine.process([to_person(d) for d in people], now)
-        steps.append({"now_ns": now, "people": people,
+        scores = rest[0] if rest else []
+        events = engine.process([to_person(d) for d in people], now, [tuple(x) for x in scores])
+        steps.append({"now_ns": now, "people": people, **({"scores": scores} if scores else {}),
                       "expected_events": [{"type": e.type, "track_ids": list(e.track_ids), "zone_id": e.zone_id,
                                            "occurred_ns": e.occurred_ns, "score": round(e.score, 6)} for e in events],
                       "tracks_after": engine.track_count()})

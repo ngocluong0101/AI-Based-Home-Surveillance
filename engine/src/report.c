@@ -95,6 +95,14 @@ void print_stats(const AppCtx *app)
         total_frames += src->frame_count;
     }
 
+    if (app->fallnet != NULL) {
+        FallNetStats fs;
+        fallnet_stats(app->fallnet, &fs);
+        g_print("fall model: windows submitted=%" G_GUINT64_FORMAT " scored=%" G_GUINT64_FORMAT " dropped=%" G_GUINT64_FORMAT " errors=%" G_GUINT64_FORMAT
+                " batches=%" G_GUINT64_FORMAT " mean_batch_us=%.0f max_batch_us=%.0f queue_peak=%" G_GUINT64_FORMAT "\n",
+                fs.submitted, fs.scored, fs.dropped, fs.errors, fs.batches, fs.batches ? fs.total_batch_us / (double)fs.batches : 0.0,
+                fs.max_batch_us, fs.queue_peak);
+    }
     g_print("events published=%" G_GUINT64_FORMAT " dropped=%" G_GUINT64_FORMAT
             " pipeline_run_id=%s\n", (guint64)app->events_published, (guint64)app->events_dropped,
             app->pipeline_run_id);

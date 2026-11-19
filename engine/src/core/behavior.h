@@ -26,6 +26,9 @@ typedef struct {
     double vis_min, forget_s;
     double fall_down_deg, fall_up_deg, fall_drop_window_s, fall_hip_drop_min, fall_still_s, fall_settle_s, fall_hip_window_s,
         fall_move_max, fall_lying_aspect, fall_stand_back_s, fall_lost_s, fall_cooldown_s, fall_min_torso_px;
+    /* the skeleton network (V2-5), see fall_net in the Python specification: 0 rules only, 1 network only, 2 either; the numbers are doubles
+     * so that the per-camera settings table can hold them like the others */
+    double fall_net, fall_net_thr, fall_net_k;
     double fight_speed, fight_decay_s, fight_threshold_s, fight_rearm, fight_cooldown_s, fight_max_dt_s;
     double zone_dwell_s, zone_exit_s, zone_rearm_s;
 } BehaviorConfig;
@@ -63,6 +66,13 @@ typedef struct {
     int64_t now_ns;                              /* when it was emitted */
 } BehaviorEvent;
 
+/* A fall score the skeleton network produced for a track: the window ended at end_ns (the same clock as now_ns). */
+typedef struct {
+    uint64_t track_id;
+    double prob;
+    int64_t end_ns;
+} BehaviorScore;
+
 typedef struct Behavior Behavior;
 
 /* NULL when memory runs out. frame_w / frame_h (pixels) map the relative zones onto the picture. */
@@ -84,6 +94,10 @@ int behavior_set_zones(Behavior *b, const BehaviorZone *zones, size_t n);
  * Order of the events: for each person its restricted-area events, then its fall; then the fights, by pairs (i < j).
  */
 int behavior_process(Behavior *b, const BehaviorPerson *people, size_t n, int64_t now_ns, BehaviorEvent *out, size_t out_cap);
+
+/* The same with the scores that arrived since the last call (oldest first), which the fall_net setting turns into fall events. */
+int behavior_process_scored(Behavior *b, const BehaviorPerson *people, size_t n, const BehaviorScore *scores, size_t num_scores,
+                            int64_t now_ns, BehaviorEvent *out, size_t out_cap);
 
 size_t behavior_track_count(const Behavior *b);
 

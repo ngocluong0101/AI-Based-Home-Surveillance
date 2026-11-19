@@ -1,0 +1,295 @@
+{
+ "overrides": {
+  "fall_net_thr": "0.9",
+  "fall_net_k": "3",
+  "fall_still_s": "1.0",
+  "fall_net": "2"
+ },
+ "note": "UR Fall dev clips (640x480, rules tuned on them), N=1 camera, fake RTSP camera in real time, real engine + backend + PostgreSQL, alert = WebSocket event.created; impact = UR Fall annotation (coarse); Telegram/VLM not included",
+ "summary": {
+  "trials": 10,
+  "alerts": 10,
+  "total_s": {
+   "median": -0.5106160485,
+   "p95": -0.413469028,
+   "max": -0.413469028,
+   "min": -0.617616775
+  },
+  "label_vs_rule": {
+   "median": -0.7005015159999999,
+   "p95": -0.6000007980000002,
+   "max": -0.6000007980000002,
+   "min": -0.8010017100000001
+  },
+  "rule": {
+   "median": 0.1,
+   "p95": 0.1,
+   "max": 0.1,
+   "min": 0.1
+  },
+  "camera_to_backend": {
+   "median": 0.0821212035,
+   "p95": 0.089677443,
+   "max": 0.089677443,
+   "min": 0.079920887
+  },
+  "backend_to_ws": {
+   "median": 0.0035634065,
+   "p95": 0.004547522,
+   "max": 0.004547522,
+   "min": 0.003009559
+  }
+ },
+ "trials": [
+  {
+   "clip": "fall-01",
+   "repeat": 0,
+   "camera_id": 1,
+   "falls_received": 1,
+   "total_s": -0.473777478,
+   "stages_s": {
+    "label_vs_rule": -0.6680024429999998,
+    "rule": 0.1,
+    "camera_to_backend": 0.089677443,
+    "backend_to_ws": 0.004547522
+   },
+   "engine_clock_s": {
+    "occurred_minus_P_minus_rule_impact": 0.684559443
+   },
+   "packets_fitted": 120,
+   "snapshot": true,
+   "severity": "high",
+   "other_events": [
+    "FALL",
+    "PERSON_DETECTED"
+   ],
+   "impact_replay_vs_events_s": null,
+   "check_sum_s": 2.220446049250313e-16
+  },
+  {
+   "clip": "fall-01",
+   "repeat": 1,
+   "camera_id": 2,
+   "falls_received": 1,
+   "total_s": -0.477345059,
+   "stages_s": {
+    "label_vs_rule": -0.6680025839999999,
+    "rule": 0.1,
+    "camera_to_backend": 0.08624225,
+    "backend_to_ws": 0.004415275
+   },
+   "engine_clock_s": {
+    "occurred_minus_P_minus_rule_impact": 0.69070425
+   },
+   "packets_fitted": 120,
+   "snapshot": true,
+   "severity": "high",
+   "other_events": [
+    "FALL",
+    "PERSON_DETECTED"
+   ],
+   "impact_replay_vs_events_s": null,
+   "check_sum_s": 1.1102230246251565e-16
+  },
+  {
+   "clip": "fall-02",
+   "repeat": 0,
+   "camera_id": 3,
+   "falls_received": 1,
+   "total_s": -0.415580054,
+   "stages_s": {
+    "label_vs_rule": -0.6000007980000002,
+    "rule": 0.1,
+    "camera_to_backend": 0.081030326,
+    "backend_to_ws": 0.003390418
+   },
+   "engine_clock_s": {
+    "occurred_minus_P_minus_rule_impact": 0.695719326
+   },
+   "packets_fitted": 101,
+   "snapshot": true,
+   "severity": "high",
+   "other_events": [
+    "FALL",
+    "PERSON_DETECTED"
+   ],
+   "impact_replay_vs_events_s": null,
+   "check_sum_s": -2.220446049250313e-16
+  },
+  {
+   "clip": "fall-02",
+   "repeat": 1,
+   "camera_id": 4,
+   "falls_received": 1,
+   "total_s": -0.413469028,
+   "stages_s": {
+    "label_vs_rule": -0.6000011510000003,
+    "rule": 0.1,
+    "camera_to_backend": 0.082855047,
+    "backend_to_ws": 0.003677076
+   },
+   "engine_clock_s": {
+    "occurred_minus_P_minus_rule_impact": 0.686690047
+   },
+   "packets_fitted": 101,
+   "snapshot": true,
+   "severity": "high",
+   "other_events": [
+    "FALL",
+    "PERSON_DETECTED"
+   ],
+   "impact_replay_vs_events_s": null,
+   "check_sum_s": -2.7755575615628914e-16
+  },
+  {
+   "clip": "fall-03",
+   "repeat": 0,
+   "camera_id": 5,
+   "falls_received": 1,
+   "total_s": -0.58262993,
+   "stages_s": {
+    "label_vs_rule": -0.7660005530000005,
+    "rule": 0.1,
+    "camera_to_backend": 0.079920887,
+    "backend_to_ws": 0.003449737
+   },
+   "engine_clock_s": {
+    "occurred_minus_P_minus_rule_impact": 0.707489887
+   },
+   "packets_fitted": 120,
+   "snapshot": true,
+   "severity": "high",
+   "other_events": [
+    "FALL",
+    "PERSON_DETECTED"
+   ],
+   "impact_replay_vs_events_s": null,
+   "check_sum_s": 9.999994166065562e-10
+  },
+  {
+   "clip": "fall-03",
+   "repeat": 1,
+   "camera_id": 6,
+   "falls_received": 1,
+   "total_s": -0.582666687,
+   "stages_s": {
+    "label_vs_rule": -0.7670006570000005,
+    "rule": 0.1,
+    "camera_to_backend": 0.081207658,
+    "backend_to_ws": 0.003126313
+   },
+   "engine_clock_s": {
+    "occurred_minus_P_minus_rule_impact": 0.696213658
+   },
+   "packets_fitted": 120,
+   "snapshot": true,
+   "severity": "high",
+   "other_events": [
+    "FALL",
+    "PERSON_DETECTED"
+   ],
+   "impact_replay_vs_events_s": null,
+   "check_sum_s": 9.999994166065562e-10
+  },
+  {
+   "clip": "fall-04",
+   "repeat": 0,
+   "camera_id": 7,
+   "falls_received": 1,
+   "total_s": -0.617616775,
+   "stages_s": {
+    "label_vs_rule": -0.8010017100000001,
+    "rule": 0.1,
+    "camera_to_backend": 0.080375376,
+    "backend_to_ws": 0.003009559
+   },
+   "engine_clock_s": {
+    "occurred_minus_P_minus_rule_impact": 0.684289376
+   },
+   "packets_fitted": 68,
+   "snapshot": true,
+   "severity": "high",
+   "other_events": [
+    "FALL",
+    "PERSON_DETECTED"
+   ],
+   "impact_replay_vs_events_s": -0.03292350900000007,
+   "check_sum_s": -1.1102230246251565e-16
+  },
+  {
+   "clip": "fall-04",
+   "repeat": 1,
+   "camera_id": 8,
+   "falls_received": 1,
+   "total_s": -0.615462523,
+   "stages_s": {
+    "label_vs_rule": -0.8000016480000001,
+    "rule": 0.1,
+    "camera_to_backend": 0.08138736,
+    "backend_to_ws": 0.003151765
+   },
+   "engine_clock_s": {
+    "occurred_minus_P_minus_rule_impact": 0.70189336
+   },
+   "packets_fitted": 69,
+   "snapshot": true,
+   "severity": "high",
+   "other_events": [
+    "FALL",
+    "PERSON_DETECTED"
+   ],
+   "impact_replay_vs_events_s": -0.033930894000000045,
+   "check_sum_s": 0.0
+  },
+  {
+   "clip": "fall-05",
+   "repeat": 0,
+   "camera_id": 9,
+   "falls_received": 1,
+   "total_s": -0.510618336,
+   "stages_s": {
+    "label_vs_rule": -0.7000008169999998,
+    "rule": 0.1,
+    "camera_to_backend": 0.085120817,
+    "backend_to_ws": 0.004261664
+   },
+   "engine_clock_s": {
+    "occurred_minus_P_minus_rule_impact": 0.692736817
+   },
+   "packets_fitted": 120,
+   "snapshot": true,
+   "severity": "high",
+   "other_events": [
+    "FALL",
+    "PERSON_DETECTED"
+   ],
+   "impact_replay_vs_events_s": null,
+   "check_sum_s": 1.1102230246251565e-16
+  },
+  {
+   "clip": "fall-05",
+   "repeat": 1,
+   "camera_id": 10,
+   "falls_received": 1,
+   "total_s": -0.510613761,
+   "stages_s": {
+    "label_vs_rule": -0.7010022149999999,
+    "rule": 0.1,
+    "camera_to_backend": 0.086589215,
+    "backend_to_ws": 0.003799239
+   },
+   "engine_clock_s": {
+    "occurred_minus_P_minus_rule_impact": 0.686476215
+   },
+   "packets_fitted": 120,
+   "snapshot": true,
+   "severity": "high",
+   "other_events": [
+    "FALL",
+    "PERSON_DETECTED"
+   ],
+   "impact_replay_vs_events_s": null,
+   "check_sum_s": 0.0
+  }
+ ]
+}

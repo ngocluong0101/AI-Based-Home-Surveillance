@@ -66,6 +66,10 @@ void test_behavior_point_in_polygon(void);
 void test_behavior_output_capacity_and_zone_limits(void);
 void test_behavior_config_can_change_while_running(void);
 
+/* tests/test_skel_window.c */
+void test_skeleton_window_matches_the_python_specification(void);
+void test_skeleton_window_rejects_bad_arguments_and_an_empty_history(void);
+
 /* tests/test_pose.c */
 void test_pose_from_values_rejects_non_finite_numbers(void);
 void test_pose_normalize_centres_on_the_hips_and_scales_by_the_torso(void);
@@ -115,6 +119,8 @@ static const TestCase TESTS[] = {
     { "behavior_point_in_polygon", test_behavior_point_in_polygon },
     { "behavior_output_capacity_and_zone_limits", test_behavior_output_capacity_and_zone_limits },
     { "behavior_config_can_change_while_running", test_behavior_config_can_change_while_running },
+    { "skeleton_window_matches_the_python_specification", test_skeleton_window_matches_the_python_specification },
+    { "skeleton_window_rejects_bad_arguments_and_an_empty_history", test_skeleton_window_rejects_bad_arguments_and_an_empty_history },
     { NULL, NULL }, /* table terminator */
 };
 

@@ -24,6 +24,10 @@
  * grow. */
 #define EVENT_QUEUE_MAX 1024
 
+/* Scores of the skeleton network taken per frame (one per tracked person per frame is the most it can produce for one camera; older
+ * ones that did not fit stay for the next frame). */
+#define BEH_MAX_SCORES 64
+
 /* JPEG bytes that may wait in the queue (a 1080p frame is ~200 KB); beyond it a snapshot is skipped
  * and its events are published without one. */
 #define SNAPSHOT_QUEUE_MAX_BYTES (64 * 1024 * 1024)
@@ -557,14 +561,29 @@ GstPadProbeReturn detection_probe(GstPad *pad, GstPadProbeInfo *info, gpointer u
             BehaviorSettings fresh = src->beh_pending;
             g_mutex_unlock(&src->beh_lock);
             behavior_set_config(src->behavior, &fresh.cfg);
+            src->fall_net_on = fresh.cfg.fall && fresh.cfg.fall_net != 0.0 && app->fallnet != NULL;
             behavior_set_zones(src->behavior, fresh.zones, fresh.num_zones);
             memcpy(src->draw_zones, fresh.zones, sizeof(src->draw_zones));
             src->num_draw_zones = fresh.num_zones;
         }
         if (src->beh_active && src->behavior != NULL && src->beh_people != NULL) {
             nppl = collect_behavior_people(frame_meta, src->beh_people, BEH_MAX_PEOPLE);
-            nbev = behavior_process(src->behavior, src->beh_people, nppl,
-                                    src->stream_start_ns + (gint64)frame_meta->buf_pts, bev, G_N_ELEMENTS(bev));
+            /* The skeleton network (V2-5): a window of every person we have a skeleton of in this frame goes to the worker (which never
+             * blocks us); the scores that came back since the last frame go into the rules. */
+            BehaviorScore scores[BEH_MAX_SCORES];
+            size_t nscores = 0;
+            if (src->fall_net_on && app->fallnet != NULL) {
+                const gint64 at = src->stream_start_ns + (gint64)frame_meta->buf_pts;
+                const guint T = (guint)fallnet_window_len(app->fallnet);
+                for (guint i = 0; i < nppl; i++) {
+                    const PoseHistory *hist = g_hash_table_lookup(src->pose_hist, GSIZE_TO_POINTER((gsize)src->beh_people[i].track_id));
+                    if (hist != NULL && pose_history_skeleton_window(hist, frame_meta->frame_num, T, POSE_VISIBILITY_MIN, app->fallnet_window) == 0)
+                        fallnet_submit(app->fallnet, (int)src->source_id, src->beh_people[i].track_id, at, app->fallnet_window);
+                }
+                nscores = fallnet_take(app->fallnet, (int)src->source_id, scores, BEH_MAX_SCORES);
+            }
+            nbev = behavior_process_scored(src->behavior, src->beh_people, nppl, scores, nscores,
+                                           src->stream_start_ns + (gint64)frame_meta->buf_pts, bev, G_N_ELEMENTS(bev));
             if (nbev < 0)
                 nbev = 0;   /* out of memory: nothing reported for this frame */
             const gint64 now = src->stream_start_ns + (gint64)frame_meta->buf_pts;

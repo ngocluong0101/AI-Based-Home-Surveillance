@@ -89,6 +89,23 @@ nice -n 10 eval/.venv/bin/python eval/e2e/latency.py --clips fall-01,fall-02,fal
 ```
 Ngoài ra kiểm tra `docker ps -a | grep m4-` sau khi chạy (container `m4-latency-pg`, `m4-rtsp-*`, `m4-engine-*` phải tự mất; nếu một lần chạy bị ngắt giữa chừng thì `docker rm -f` chúng).
 
+## V2-5 — ST-GCN: dữ liệu → train → ONNX → TensorRT C++
+
+```bash
+# dữ liệu: UR Fall đầy đủ (30 chuỗi ngã + 40 ADL, cam0 RGB). Tải về datasets/urfall/_zips/ (xem datasets/README.md), rồi:
+eval/.venv/bin/python eval/train/prepare_urfall.py          # giải nén -> mp4 (NVENC) -> engine pose thật -> eval/work/urfall/<chuỗi>.csv
+# thử nghiệm: thang mô hình (MLP -> TCN -> ST-GCN), độ dài cửa sổ, bỏ vận tốc, 3 seed, cross-validation 5 fold theo CHUỖI
+nice -n 10 eval/train/run_experiments2.sh                    # ~30 phút trên laptop
+eval/.venv/bin/python eval/train/compare.py eval/work/train/cv_p_stgcn_T48.json --thr 0.8,0.9,0.95    # luật vs mô hình, mức sự kiện
+# mô hình cuối: huấn luyện trên mọi chuỗi, xuất ONNX (kèm kiểm PyTorch = ONNX Runtime), kiểm TensorRT FP16 + đo thời gian
+eval/.venv/bin/python eval/train/train.py --model stgcn --T 48 --final --epochs 30 --out eval/work/train/stgcn_T48.pt
+eval/.venv/bin/python eval/train/export_onnx.py eval/work/train/stgcn_T48.pt --out engine/models/stgcn_fall.onnx
+eval/tools/in_container.sh /bin/bash -c 'cd engine && make stgcn-check CUDA_VER=12.6'
+eval/tools/in_container.sh engine/build/stgcn_check /work/engine/models/stgcn_fall.onnx 48 /work/eval/work/train/ref_windows.f32 /work/eval/work/train/ref_probs.f32 16
+# trong engine: --fall-model engine/models/stgcn_fall.onnx và fall_net=2 trong [camera.N]; M3 với mô hình: engine/tools/benchmark.py --fall-model ...
+RUN_GPU_TESTS=1 pytest tests/engine_real/test_fall_model.py -v
+```
+
 ## Kiểm tra công cụ
 
 `eval/.venv/bin/python -m pytest tests/test_eval_tools.py` (13 test: IoU, ghép khung, letterbox, decode detection và pose, đọc cột keypoint của dump, và MOTA/IDF1 trên ca có đáp án tay).

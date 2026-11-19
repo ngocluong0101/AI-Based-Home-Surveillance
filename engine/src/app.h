@@ -19,6 +19,7 @@
 #include "event_record.h"
 #include "behavior.h"
 #include "config.h"
+#include "fallnet.h"
 #include "event_spool.h"
 #include "pose.h"
 #include "gstnvdsmeta.h"
@@ -124,6 +125,7 @@ typedef struct {
      * the first frame seen; the EventManager clock is stream_start_ns + pts. */
     gint64 stream_start_ns;
     gboolean have_stream_start;
+    gboolean fall_net_on;   /* the skeleton network scores this camera's people (fall_net != 0 and the model is loaded); probe thread only */
     guint64 event_count;   /* PERSON_DETECTED events emitted */
     guint64 event_errors;  /* frames dropped from event processing because memory ran out */
     /* Stream (--stream-url). Two parts that never touch each other's state: the encoding branch inside the
@@ -149,6 +151,8 @@ typedef struct AppCtx {
     GstElement *pipeline;
     SourceCtx *sources;
     guint num_sources;
+    FallNet *fallnet;                /* NULL without --fall-model (or when it could not be loaded) */
+    float *fallnet_window;           /* scratch for one window, used by the probe only */
     gint exit_code;
     gboolean eos_requested;  /* --output: SIGINT/SIGTERM sent EOS so that qtmux can finalize the MP4 */
     guint eos_timer_id;      /* gives up waiting for that EOS */

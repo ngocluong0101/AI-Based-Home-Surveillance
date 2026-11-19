@@ -314,6 +314,9 @@ fail:
     return NULL;
 }
 
+/* Windows waiting for the worker; a full queue drops its oldest (fallnet.c). 8 cameras x 5 people x 30 fps is 1200 windows/s. */
+#define FALLNET_QUEUE_MAX 256
+
 int main(int argc, char *argv[])
 {
     AppCtx app = { 0 };
@@ -324,6 +327,20 @@ int main(int argc, char *argv[])
     if (!config_load(&argc, &argv, specs)) {
         g_ptr_array_free(specs, TRUE);
         return EXIT_BAD_ARGS;
+    }
+
+    /* The skeleton network (V2-5), loaded before the cameras are set up because each camera decides from it whether it uses fall_net. A model that
+     * cannot be loaded is not an error: the cameras use the rules (fall_model_ready stays FALSE and config.c forces fall_net = 0). */
+    if (opt_fall_model != NULL) {
+        char err[256];
+        app.fallnet = fallnet_new(opt_fall_model, opt_fall_model_window, opt_fall_model_batch, FALLNET_QUEUE_MAX, err, sizeof err);
+        if (app.fallnet != NULL) {
+            app.fallnet_window = g_new(float, (gsize)3 * (gsize)opt_fall_model_window * 17);
+            fall_model_ready = TRUE;
+            g_print("fall model: %s, window %d frames, batch up to %d\n", opt_fall_model, opt_fall_model_window, opt_fall_model_batch);
+        } else {
+            g_printerr("WARNING: the fall model is not used (%s); cameras fall back to the rules\n", err);
+        }
     }
 
     gboolean sources_ok = init_sources(&app, specs);

@@ -20,7 +20,7 @@ dữ liệu hành lang/phòng sinh hoạt của miền đích. Nhãn MOT cho c�
 
 | Bộ dữ liệu | Nội dung liên quan | Điều khoản đã đọc (2026-11-19) | Hệ quả |
 |---|---|---|---|
-| **UR Fall Detection** | 30 chuỗi ngã + 40 sinh hoạt thường (Kinect RGB+depth) | CC BY-NC-SA 4.0, "non-commercial academic use"; tải trực tiếp; yêu cầu trích dẫn Kwolek & Kępski 2014 | Dùng được cho đánh giá cá nhân; không đưa dữ liệu lên GitHub |
+| **UR Fall Detection** (V2-5: cam0 RGB, all 30 fall + 40 ADL sequences, downloaded and used for training/CV; `datasets/urfall/_zips/` ≈ 4 GB can be deleted after `eval/train/prepare_urfall.py`) | 30 chuỗi ngã + 40 sinh hoạt thường (Kinect RGB+depth) | CC BY-NC-SA 4.0, "non-commercial academic use"; tải trực tiếp; yêu cầu trích dẫn Kwolek & Kępski 2014 | Dùng được cho đánh giá cá nhân; không đưa dữ liệu lên GitHub |
 | **RWF-2000** | 2000 clip 5 s, bạo lực / không (camera giám sát) | "not allowed to be modified and redistributed" và "not allowed for commercial purpose" nếu không có phép của SMIIP Lab; **trang ghi video hiện không tải được** ("video files are currently not available") | Có thể phải xin phép tác giả hoặc bỏ |
 | **NTU RGB+D / 120** | Có lớp ngã (A43), đấm (A50), đá (A51), đẩy (A52) | Chỉ cho nghiên cứu học thuật, **dự án cá nhân/độc lập không được chấp nhận**, phải dùng email tổ chức, duyệt tay; RGB 136 GB | **Loại**: không đủ điều kiện xin |
 | **UBI-Fights** | Đánh nhau (video giám sát) | Chưa đọc được (máy chủ từ chối kết nối) | Chưa xác minh |

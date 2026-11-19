@@ -68,6 +68,7 @@ static void apply_config(BehaviorConfig *c, const JsonValue *obj)
         { "fall_lying_aspect", NULL, &c->fall_lying_aspect },
         { "fall_stand_back_s", NULL, &c->fall_stand_back_s }, { "fall_lost_s", NULL, &c->fall_lost_s },
         { "fall_cooldown_s", NULL, &c->fall_cooldown_s }, { "fall_min_torso_px", NULL, &c->fall_min_torso_px },
+        { "fall_net", NULL, &c->fall_net }, { "fall_net_thr", NULL, &c->fall_net_thr }, { "fall_net_k", NULL, &c->fall_net_k },
         { "fight_speed", NULL, &c->fight_speed }, { "fight_decay_s", NULL, &c->fight_decay_s },
         { "fight_threshold_s", NULL, &c->fight_threshold_s }, { "fight_rearm", NULL, &c->fight_rearm },
         { "fight_cooldown_s", NULL, &c->fight_cooldown_s }, { "fight_max_dt_s", NULL, &c->fight_max_dt_s },
@@ -157,7 +158,15 @@ static int run_vector(const char *path, const char *name)
             }
         }
         int64_t now = json_get(step, "now_ns")->integer;
-        int n = behavior_process(b, ppl, np, now, got, 16);
+        const JsonValue *sj = json_get(step, "scores");
+        BehaviorScore sc[16];
+        size_t nsc = 0;
+        for (size_t k = 0; sj != NULL && k < sj->count && k < 16; k++, nsc++) {
+            sc[k].track_id = (uint64_t)sj->items[k].items[0].integer;
+            sc[k].prob = sj->items[k].items[1].number;
+            sc[k].end_ns = sj->items[k].items[2].integer;
+        }
+        int n = behavior_process_scored(b, ppl, np, sc, nsc, now, got, 16);
         const JsonValue *want = json_get(step, "expected_events");
         VCHECK(n == (int)want->count, name, s);
         for (int e = 0; e < n && (size_t)e < want->count; e++) {

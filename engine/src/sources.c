@@ -58,6 +58,7 @@ static gboolean slot_fill(AppCtx *app, SourceCtx *src, const gchar *spec, gboole
         return FALSE;
     }
     src->beh_pending = bs;
+    src->fall_net_on = bs.cfg.fall && bs.cfg.fall_net != 0.0 && src->app->fallnet != NULL;
     memcpy(src->draw_zones, bs.zones, sizeof(src->draw_zones));
     src->num_draw_zones = bs.num_zones;
     src->alert_labels = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_free);
@@ -102,6 +103,9 @@ static void slot_clear(SourceCtx *src)
         src->track_frames = NULL;
     }
     g_clear_pointer(&src->pose_hist, g_hash_table_destroy);
+    if (src->app != NULL && src->app->fallnet != NULL)
+        fallnet_forget_source(src->app->fallnet, (int)src->source_id);
+    src->fall_net_on = FALSE;
     g_clear_pointer(&src->behavior, behavior_free);
     g_clear_pointer(&src->beh_people, g_free);
     g_clear_pointer(&src->alert_labels, g_hash_table_destroy);
@@ -138,6 +142,9 @@ gboolean init_sources(AppCtx *app, const GPtrArray *specs)
 
 void free_sources(AppCtx *app)
 {
+    fallnet_free(app->fallnet);
+    app->fallnet = NULL;
+    g_clear_pointer(&app->fallnet_window, g_free);
     for (guint i = 0; i < app->num_sources; i++) {
         g_free(app->sources[i].uri);
         event_manager_destroy(&app->sources[i].events);

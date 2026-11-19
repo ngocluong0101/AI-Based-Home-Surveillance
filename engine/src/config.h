@@ -29,6 +29,12 @@ extern gint opt_heartbeat_interval;
 extern gint opt_rtsp_timeout;
 extern gint opt_max_cameras;
 extern gdouble opt_absence_timeout;
+extern gchar *opt_fall_model;       /* --fall-model: the skeleton network (V2-5); NULL = rules only */
+extern gint opt_fall_model_window;
+extern gint opt_fall_model_batch;
+/* Set by main() once the model is loaded. While FALSE every camera runs with fall_net = 0 (the rules), whatever its settings say: a camera
+ * must never depend on a model that is not there. */
+extern gboolean fall_model_ready;
 
 /* camera id -> CameraSettings (private to config.c), for the cameras that came from the cameras file */
 extern GHashTable *file_settings;

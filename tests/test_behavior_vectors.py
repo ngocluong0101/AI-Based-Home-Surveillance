@@ -28,7 +28,7 @@ def test_vector(path):
     for index, step in enumerate(v["steps"]):
         people = [Person(d["track_id"], tuple(d["box"]), None if d["keypoints"] is None else [tuple(p) for p in d["keypoints"]])
                   for d in step["people"]]
-        got = engine.process(people, step["now_ns"])
+        got = engine.process(people, step["now_ns"], [tuple(x) for x in step.get("scores", [])])
         want = step["expected_events"]
         assert len(got) == len(want), f"step {index}: {len(got)} events, expected {len(want)}"
         for e, x in zip(got, want):

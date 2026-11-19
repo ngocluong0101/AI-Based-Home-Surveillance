@@ -156,3 +156,131 @@ int pose_history_window(const PoseHistory *h, unsigned n, float vis_min, unsigne
     }
     return usable;
 }
+
+/* ---- skeleton classifier window (see pose.h) ---- */
+
+static int centre_d(const Pose *p, int a, int b, float vis_min, double *x, double *y)
+{
+    double sx = 0, sy = 0;
+    int n = 0;
+    const int idx[2] = { a, b };
+    for (int i = 0; i < 2; i++) {
+        if (p->kp[idx[i]].v >= vis_min) {
+            sx += p->kp[idx[i]].x;
+            sy += p->kp[idx[i]].y;
+            n++;
+        }
+    }
+    if (n == 0)
+        return 0;
+    *x = sx / n;
+    *y = sy / n;
+    return 1;
+}
+
+static int cmp_double(const void *a, const void *b)
+{
+    const double x = *(const double *)a, y = *(const double *)b;
+    return (x > y) - (x < y);
+}
+
+static double median_of(double *v, int n)
+{
+    qsort(v, (size_t)n, sizeof(double), cmp_double);
+    return n % 2 ? v[n / 2] : 0.5 * (v[n / 2 - 1] + v[n / 2]);
+}
+
+int pose_history_skeleton_window(const PoseHistory *h, int64_t end_frame, unsigned n, float vis_min, float *out)
+{
+    if (n < 2 || n > POSE_HISTORY_FRAMES || h->newest < 0)
+        return -1;
+    const int64_t first = end_frame - (int64_t)n + 1;
+    const Pose *pose[POSE_HISTORY_FRAMES];
+    double size[POSE_HISTORY_FRAMES];
+    for (unsigned t = 0; t < n; t++) {
+        const int64_t f = first + (int64_t)t;
+        pose[t] = NULL;
+        size[t] = 0;
+        if (f >= 0) {
+            const int slot = (int)(f % POSE_HISTORY_FRAMES);
+            if (h->frame[slot] == f && f <= h->newest) {
+                pose[t] = &h->pose[slot];
+                size[t] = h->size_hint[slot];
+            }
+        }
+    }
+    if (pose[n - 1] == NULL)
+        return -1;
+    unsigned present = 0;
+    for (unsigned t = 0; t < n; t++)
+        present += pose[t] != NULL;
+    if (present < (n < SKEL_MIN_FRAMES ? n : SKEL_MIN_FRAMES))
+        return -1;
+
+    double ox = 0, oy = 0;
+    int have_origin = 0;
+    for (unsigned t = 0; t < n && !have_origin; t++) {
+        if (pose[t] == NULL)
+            continue;
+        have_origin = centre_d(pose[t], KP_LEFT_HIP, KP_RIGHT_HIP, vis_min, &ox, &oy) ||
+                      centre_d(pose[t], KP_LEFT_SHOULDER, KP_RIGHT_SHOULDER, vis_min, &ox, &oy);
+    }
+    if (!have_origin)
+        return -1;
+
+    double torso[POSE_HISTORY_FRAMES], sizes[POSE_HISTORY_FRAMES];
+    int nt = 0, ns = 0;
+    for (unsigned t = 0; t < n; t++) {
+        if (pose[t] == NULL)
+            continue;
+        sizes[ns++] = size[t];
+        double sx, sy, hx, hy;
+        if (centre_d(pose[t], KP_LEFT_SHOULDER, KP_RIGHT_SHOULDER, vis_min, &sx, &sy) &&
+            centre_d(pose[t], KP_LEFT_HIP, KP_RIGHT_HIP, vis_min, &hx, &hy))
+            torso[nt++] = sqrt((sx - hx) * (sx - hx) + (sy - hy) * (sy - hy));
+    }
+    const double scale = nt > 0 ? median_of(torso, nt) : 0.3 * median_of(sizes, ns);
+    if (!(scale > 1e-3))
+        return -1;
+
+    /* values in doubles, as the Python specification computes them; written as floats at the end */
+    double xs[POSE_HISTORY_FRAMES][POSE_KEYPOINTS], ys[POSE_HISTORY_FRAMES][POSE_KEYPOINTS];
+    unsigned char valid[POSE_HISTORY_FRAMES][POSE_KEYPOINTS];
+    for (unsigned t = 0; t < n; t++) {
+        for (int k = 0; k < POSE_KEYPOINTS; k++) {
+            const int seen = pose[t] != NULL && pose[t]->kp[k].v >= vis_min;
+            valid[t][k] = (unsigned char)seen;
+            xs[t][k] = seen ? ((double)pose[t]->kp[k].x - ox) / scale : 0.0;
+            ys[t][k] = seen ? ((double)pose[t]->kp[k].y - oy) / scale : 0.0;
+        }
+    }
+    for (int k = 0; k < POSE_KEYPOINTS; k++) {
+        unsigned t = 0;
+        while (t < n) {
+            if (valid[t][k]) {
+                t++;
+                continue;
+            }
+            unsigned u = t;
+            while (u < n && !valid[u][k])
+                u++;
+            if (t > 0 && u < n && (u - t) <= SKEL_MAX_GAP) {
+                for (unsigned j = t; j < u; j++) {
+                    const double a = (double)(j - t + 1) / (double)(u - t + 1);
+                    xs[j][k] = (1 - a) * xs[t - 1][k] + a * xs[u][k];
+                    ys[j][k] = (1 - a) * ys[t - 1][k] + a * ys[u][k];
+                    valid[j][k] = 1;
+                }
+            }
+            t = u;
+        }
+    }
+    for (unsigned t = 0; t < n; t++) {
+        for (int k = 0; k < POSE_KEYPOINTS; k++) {
+            out[(0 * n + t) * POSE_KEYPOINTS + k] = (float)xs[t][k];
+            out[(1 * n + t) * POSE_KEYPOINTS + k] = (float)ys[t][k];
+            out[(2 * n + t) * POSE_KEYPOINTS + k] = valid[t][k] ? 1.0f : 0.0f;
+        }
+    }
+    return 0;
+}

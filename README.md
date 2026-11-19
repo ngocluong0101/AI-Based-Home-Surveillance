@@ -218,6 +218,7 @@ Normally the manager starts it. By hand:
 | `--output FILE` | debug: tiled MP4 with boxes; stop with Ctrl-C so the file is finalized |
 | `--dump-detections FILE` | measuring tool: CSV of every detection (after `nvinfer`) and tracked object (after `nvtracker`) per frame, written by a separate thread; see `eval/` |
 | `--config configs/pgie_yolov8n_pose.txt` | the pose model (YOLOv8n-pose, 640x384 input): every tracked person also carries 17 keypoints, kept per track in the engine (`src/core/pose.c`) and drawn on the video of `--output` / `--stream-url`; export it with `engine/tools/export_yolov8_pose_onnx.py` |
+| `--fall-model FILE.onnx` (`--fall-model-window T`, `--fall-model-batch N`) | the skeleton network that scores falls (ST-GCN, ~0.1 M parameters; train/export: `eval/train/`). TensorRT builds an FP16 engine from it on first use and a worker thread (C++, TensorRT API) scores windows in batches, so the pad probe never waits. A camera opts in with `fall_net=1` (network decides) or `fall_net=2` (network or rules) in the cameras file, plus `fall_net_thr` / `fall_net_k`; without the model, or when it cannot be loaded, every camera runs the rules |
 | `--absence-timeout SEC`, `--rtsp-timeout SEC`, `--fps-interval SEC` | default re-alert delay (10), RTSP reconnect after SEC without frames (10), FPS print interval (5, 0 = off) |
 
 Exit codes: `0` all sources ended or stopped by SIGINT/SIGTERM, `1` pipeline error, `2` bad arguments, `3` pipeline not built.

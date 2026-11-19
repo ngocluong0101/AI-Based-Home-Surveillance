@@ -1,0 +1,975 @@
+{
+ "note": "UR Fall (cam0 RGB), 30 fall + 40 ADL sequences, skeletons from the deployed engine (YOLOv8n-pose + NvDCF). 5-fold cross-validation over WHOLE SEQUENCES, 3 seeds (folds differ per seed). UR Fall has no per-sequence person id, so a person can sit on both sides of a split: an upper bound. Operating points (thr, k=3 consecutive per-frame scores) were looked at on these same scores. Event = a report inside [f0, f1+150] frames of the annotated fall; anything else is a false alarm. 40 ADL sequences are only ~5 minutes of video: no per-hour rate can be read from them. 'rules' = the Python specification replayed on the same dumps (fall_still_s=1.0 was tuned on 5 of the 30 fall clips). round 1 = windows start after a full T frames of track; round 2 ('p_') = windows may start 16 frames into a track.",
+ "rules": [
+  {
+   "name": "rule, fall_still_s=2.0 (default)",
+   "falls": 30,
+   "tp": 6,
+   "adl": 40,
+   "fp_adl": 4,
+   "fp_fall_seq": 0,
+   "delay_median_s": 1.3666666666666667
+  },
+  {
+   "name": "rule, fall_still_s=1.0 (tuned on 5 of these)",
+   "falls": 30,
+   "tp": 20,
+   "adl": 40,
+   "fp_adl": 11,
+   "fp_fall_seq": 0,
+   "delay_median_s": 0.5
+  }
+ ],
+ "round1_full_windows_only": [
+  {
+   "model": "mlp_T48",
+   "thr": 0.8,
+   "k": 3,
+   "seeds": 3,
+   "window_auc": [
+    0.9585254047710728,
+    0.9610582854628181,
+    0.9599281221922731
+   ],
+   "falls": [
+    26,
+    26,
+    26
+   ],
+   "false_alarms_adl": [
+    9,
+    10,
+    8
+   ],
+   "false_alarms_in_fall_sequences": [
+    0,
+    0,
+    0
+   ],
+   "delay_median_s": [
+    -0.06666666666666667,
+    -0.15,
+    -0.06666666666666667
+   ]
+  },
+  {
+   "model": "mlp_T48",
+   "thr": 0.9,
+   "k": 3,
+   "seeds": 3,
+   "window_auc": [
+    0.9585254047710728,
+    0.9610582854628181,
+    0.9599281221922731
+   ],
+   "falls": [
+    26,
+    26,
+    25
+   ],
+   "false_alarms_adl": [
+    8,
+    8,
+    7
+   ],
+   "false_alarms_in_fall_sequences": [
+    0,
+    0,
+    0
+   ],
+   "delay_median_s": [
+    -0.06666666666666667,
+    -0.15,
+    -0.06666666666666667
+   ]
+  },
+  {
+   "model": "mlp_T48",
+   "thr": 0.95,
+   "k": 3,
+   "seeds": 3,
+   "window_auc": [
+    0.9585254047710728,
+    0.9610582854628181,
+    0.9599281221922731
+   ],
+   "falls": [
+    25,
+    25,
+    25
+   ],
+   "false_alarms_adl": [
+    7,
+    5,
+    6
+   ],
+   "false_alarms_in_fall_sequences": [
+    0,
+    0,
+    0
+   ],
+   "delay_median_s": [
+    -0.06666666666666667,
+    -0.16666666666666666,
+    -0.06666666666666667
+   ]
+  },
+  {
+   "model": "tcn_T48",
+   "thr": 0.8,
+   "k": 3,
+   "seeds": 3,
+   "window_auc": [
+    0.9608360248219426,
+    0.9388711202617358,
+    0.9598763879829945
+   ],
+   "falls": [
+    24,
+    26,
+    26
+   ],
+   "false_alarms_adl": [
+    3,
+    5,
+    7
+   ],
+   "false_alarms_in_fall_sequences": [
+    0,
+    0,
+    0
+   ],
+   "delay_median_s": [
+    -0.06666666666666667,
+    -0.11666666666666667,
+    -0.06666666666666667
+   ]
+  },
+  {
+   "model": "tcn_T48",
+   "thr": 0.9,
+   "k": 3,
+   "seeds": 3,
+   "window_auc": [
+    0.9608360248219426,
+    0.9388711202617358,
+    0.9598763879829945
+   ],
+   "falls": [
+    20,
+    24,
+    26
+   ],
+   "false_alarms_adl": [
+    3,
+    3,
+    7
+   ],
+   "false_alarms_in_fall_sequences": [
+    0,
+    0,
+    0
+   ],
+   "delay_median_s": [
+    0.06666666666666668,
+    -0.06666666666666667,
+    -0.06666666666666667
+   ]
+  },
+  {
+   "model": "tcn_T48",
+   "thr": 0.95,
+   "k": 3,
+   "seeds": 3,
+   "window_auc": [
+    0.9608360248219426,
+    0.9388711202617358,
+    0.9598763879829945
+   ],
+   "falls": [
+    20,
+    23,
+    22
+   ],
+   "false_alarms_adl": [
+    2,
+    3,
+    5
+   ],
+   "false_alarms_in_fall_sequences": [
+    0,
+    0,
+    0
+   ],
+   "delay_median_s": [
+    0.21666666666666667,
+    -0.06666666666666667,
+    0.2
+   ]
+  },
+  {
+   "model": "stgcn_T30",
+   "thr": 0.8,
+   "k": 3,
+   "seeds": 3,
+   "window_auc": [
+    0.9812709776453848,
+    0.9314787268145148,
+    0.9767738107757785
+   ],
+   "falls": [
+    28,
+    28,
+    27
+   ],
+   "false_alarms_adl": [
+    6,
+    5,
+    5
+   ],
+   "false_alarms_in_fall_sequences": [
+    3,
+    2,
+    3
+   ],
+   "delay_median_s": [
+    -0.4666666666666667,
+    -0.4666666666666667,
+    -0.43333333333333335
+   ]
+  },
+  {
+   "model": "stgcn_T30",
+   "thr": 0.9,
+   "k": 3,
+   "seeds": 3,
+   "window_auc": [
+    0.9812709776453848,
+    0.9314787268145148,
+    0.9767738107757785
+   ],
+   "falls": [
+    29,
+    28,
+    28
+   ],
+   "false_alarms_adl": [
+    3,
+    1,
+    4
+   ],
+   "false_alarms_in_fall_sequences": [
+    1,
+    2,
+    2
+   ],
+   "delay_median_s": [
+    -0.43333333333333335,
+    -0.45,
+    -0.45
+   ]
+  },
+  {
+   "model": "stgcn_T30",
+   "thr": 0.95,
+   "k": 3,
+   "seeds": 3,
+   "window_auc": [
+    0.9812709776453848,
+    0.9314787268145148,
+    0.9767738107757785
+   ],
+   "falls": [
+    30,
+    27,
+    30
+   ],
+   "false_alarms_adl": [
+    1,
+    1,
+    2
+   ],
+   "false_alarms_in_fall_sequences": [
+    0,
+    2,
+    0
+   ],
+   "delay_median_s": [
+    -0.4,
+    -0.4,
+    -0.4
+   ]
+  },
+  {
+   "model": "stgcn_T48",
+   "thr": 0.8,
+   "k": 3,
+   "seeds": 3,
+   "window_auc": [
+    0.993589149175265,
+    0.98846130674064,
+    0.9892167571687898
+   ],
+   "falls": [
+    26,
+    25,
+    26
+   ],
+   "false_alarms_adl": [
+    3,
+    4,
+    6
+   ],
+   "false_alarms_in_fall_sequences": [
+    1,
+    1,
+    1
+   ],
+   "delay_median_s": [
+    -0.15,
+    -0.23333333333333334,
+    -0.15
+   ]
+  },
+  {
+   "model": "stgcn_T48",
+   "thr": 0.9,
+   "k": 3,
+   "seeds": 3,
+   "window_auc": [
+    0.993589149175265,
+    0.98846130674064,
+    0.9892167571687898
+   ],
+   "falls": [
+    26,
+    26,
+    26
+   ],
+   "false_alarms_adl": [
+    2,
+    2,
+    3
+   ],
+   "false_alarms_in_fall_sequences": [
+    1,
+    0,
+    1
+   ],
+   "delay_median_s": [
+    -0.06666666666666667,
+    -0.23333333333333334,
+    -0.06666666666666667
+   ]
+  },
+  {
+   "model": "stgcn_T48",
+   "thr": 0.95,
+   "k": 3,
+   "seeds": 3,
+   "window_auc": [
+    0.993589149175265,
+    0.98846130674064,
+    0.9892167571687898
+   ],
+   "falls": [
+    25,
+    26,
+    24
+   ],
+   "false_alarms_adl": [
+    1,
+    1,
+    1
+   ],
+   "false_alarms_in_fall_sequences": [
+    0,
+    0,
+    1
+   ],
+   "delay_median_s": [
+    -0.23333333333333334,
+    -0.18333333333333335,
+    -0.06666666666666667
+   ]
+  },
+  {
+   "model": "stgcn_T64",
+   "thr": 0.8,
+   "k": 3,
+   "seeds": 3,
+   "window_auc": [
+    0.9874253585579552,
+    0.9862659746637648,
+    0.981885149840951
+   ],
+   "falls": [
+    18,
+    20,
+    18
+   ],
+   "false_alarms_adl": [
+    4,
+    4,
+    6
+   ],
+   "false_alarms_in_fall_sequences": [
+    1,
+    0,
+    1
+   ],
+   "delay_median_s": [
+    -0.15,
+    -0.08333333333333333,
+    -0.13333333333333333
+   ]
+  },
+  {
+   "model": "stgcn_T64",
+   "thr": 0.9,
+   "k": 3,
+   "seeds": 3,
+   "window_auc": [
+    0.9874253585579552,
+    0.9862659746637648,
+    0.981885149840951
+   ],
+   "falls": [
+    18,
+    19,
+    18
+   ],
+   "false_alarms_adl": [
+    2,
+    2,
+    4
+   ],
+   "false_alarms_in_fall_sequences": [
+    1,
+    0,
+    1
+   ],
+   "delay_median_s": [
+    -0.13333333333333333,
+    -0.03333333333333333,
+    -0.08333333333333333
+   ]
+  },
+  {
+   "model": "stgcn_T64",
+   "thr": 0.95,
+   "k": 3,
+   "seeds": 3,
+   "window_auc": [
+    0.9874253585579552,
+    0.9862659746637648,
+    0.981885149840951
+   ],
+   "falls": [
+    17,
+    19,
+    18
+   ],
+   "false_alarms_adl": [
+    2,
+    1,
+    1
+   ],
+   "false_alarms_in_fall_sequences": [
+    1,
+    0,
+    1
+   ],
+   "delay_median_s": [
+    -0.13333333333333333,
+    -0.03333333333333333,
+    -0.08333333333333333
+   ]
+  },
+  {
+   "model": "stgcn_T48_novel",
+   "thr": 0.8,
+   "k": 3,
+   "seeds": 3,
+   "window_auc": [
+    0.980021951021456,
+    0.9819637520006077,
+    0.986553034768008
+   ],
+   "falls": [
+    24,
+    23,
+    25
+   ],
+   "false_alarms_adl": [
+    10,
+    4,
+    9
+   ],
+   "false_alarms_in_fall_sequences": [
+    1,
+    2,
+    1
+   ],
+   "delay_median_s": [
+    -0.15,
+    -0.23333333333333334,
+    -0.2
+   ]
+  },
+  {
+   "model": "stgcn_T48_novel",
+   "thr": 0.9,
+   "k": 3,
+   "seeds": 3,
+   "window_auc": [
+    0.980021951021456,
+    0.9819637520006077,
+    0.986553034768008
+   ],
+   "falls": [
+    24,
+    23,
+    24
+   ],
+   "false_alarms_adl": [
+    5,
+    3,
+    4
+   ],
+   "false_alarms_in_fall_sequences": [
+    1,
+    1,
+    0
+   ],
+   "delay_median_s": [
+    -0.13333333333333333,
+    -0.16666666666666666,
+    -0.16666666666666669
+   ]
+  },
+  {
+   "model": "stgcn_T48_novel",
+   "thr": 0.95,
+   "k": 3,
+   "seeds": 3,
+   "window_auc": [
+    0.980021951021456,
+    0.9819637520006077,
+    0.986553034768008
+   ],
+   "falls": [
+    23,
+    23,
+    24
+   ],
+   "false_alarms_adl": [
+    3,
+    1,
+    3
+   ],
+   "false_alarms_in_fall_sequences": [
+    1,
+    0,
+    0
+   ],
+   "delay_median_s": [
+    -0.06666666666666667,
+    -0.23333333333333334,
+    -0.06666666666666667
+   ]
+  }
+ ],
+ "round2_partial_windows": [
+  {
+   "name": "rule, fall_still_s=2.0 (default)",
+   "falls": 30,
+   "tp": 6,
+   "adl": 40,
+   "fp_adl": 4,
+   "fp_fall_seq": 0,
+   "delay_median_s": 1.3666666666666667
+  },
+  {
+   "name": "rule, fall_still_s=1.0 (tuned on 5 of these)",
+   "falls": 30,
+   "tp": 20,
+   "adl": 40,
+   "fp_adl": 11,
+   "fp_fall_seq": 0,
+   "delay_median_s": 0.5
+  },
+  {
+   "model": "p_tcn_T48",
+   "thr": 0.8,
+   "k": 3,
+   "seeds": 3,
+   "window_auc": [
+    0.952885047942454,
+    0.9422947155725335,
+    0.9635492912821917
+   ],
+   "falls": [
+    28,
+    30,
+    29
+   ],
+   "false_alarms_adl": [
+    3,
+    5,
+    5
+   ],
+   "false_alarms_in_fall_sequences": [
+    1,
+    0,
+    1
+   ],
+   "delay_median_s": [
+    -0.6166666666666667,
+    -0.6333333333333333,
+    -0.5333333333333333
+   ]
+  },
+  {
+   "model": "p_tcn_T48",
+   "thr": 0.9,
+   "k": 3,
+   "seeds": 3,
+   "window_auc": [
+    0.952885047942454,
+    0.9422947155725335,
+    0.9635492912821917
+   ],
+   "falls": [
+    26,
+    30,
+    28
+   ],
+   "false_alarms_adl": [
+    3,
+    4,
+    4
+   ],
+   "false_alarms_in_fall_sequences": [
+    0,
+    0,
+    0
+   ],
+   "delay_median_s": [
+    -0.5333333333333333,
+    -0.5666666666666667,
+    -0.5
+   ]
+  },
+  {
+   "model": "p_tcn_T48",
+   "thr": 0.95,
+   "k": 3,
+   "seeds": 3,
+   "window_auc": [
+    0.952885047942454,
+    0.9422947155725335,
+    0.9635492912821917
+   ],
+   "falls": [
+    25,
+    27,
+    28
+   ],
+   "false_alarms_adl": [
+    2,
+    4,
+    3
+   ],
+   "false_alarms_in_fall_sequences": [
+    0,
+    0,
+    0
+   ],
+   "delay_median_s": [
+    -0.5,
+    -0.5,
+    -0.43333333333333335
+   ]
+  },
+  {
+   "model": "p_stgcn_T30",
+   "thr": 0.8,
+   "k": 3,
+   "seeds": 3,
+   "window_auc": [
+    0.9712040630539984,
+    0.9188435160688362,
+    0.9791101508101999
+   ],
+   "falls": [
+    28,
+    26,
+    28
+   ],
+   "false_alarms_adl": [
+    4,
+    4,
+    7
+   ],
+   "false_alarms_in_fall_sequences": [
+    2,
+    4,
+    2
+   ],
+   "delay_median_s": [
+    -0.5833333333333333,
+    -0.6,
+    -0.6
+   ]
+  },
+  {
+   "model": "p_stgcn_T30",
+   "thr": 0.9,
+   "k": 3,
+   "seeds": 3,
+   "window_auc": [
+    0.9712040630539984,
+    0.9188435160688362,
+    0.9791101508101999
+   ],
+   "falls": [
+    29,
+    28,
+    29
+   ],
+   "false_alarms_adl": [
+    2,
+    2,
+    4
+   ],
+   "false_alarms_in_fall_sequences": [
+    0,
+    2,
+    1
+   ],
+   "delay_median_s": [
+    -0.5333333333333333,
+    -0.5666666666666667,
+    -0.5333333333333333
+   ]
+  },
+  {
+   "model": "p_stgcn_T30",
+   "thr": 0.95,
+   "k": 3,
+   "seeds": 3,
+   "window_auc": [
+    0.9712040630539984,
+    0.9188435160688362,
+    0.9791101508101999
+   ],
+   "falls": [
+    29,
+    28,
+    29
+   ],
+   "false_alarms_adl": [
+    2,
+    2,
+    3
+   ],
+   "false_alarms_in_fall_sequences": [
+    0,
+    1,
+    1
+   ],
+   "delay_median_s": [
+    -0.43333333333333335,
+    -0.5166666666666666,
+    -0.5
+   ]
+  },
+  {
+   "model": "p_stgcn_T48",
+   "thr": 0.8,
+   "k": 3,
+   "seeds": 3,
+   "window_auc": [
+    0.98293797546883,
+    0.9654847681966425,
+    0.9790398143787742
+   ],
+   "falls": [
+    29,
+    27,
+    29
+   ],
+   "false_alarms_adl": [
+    7,
+    3,
+    5
+   ],
+   "false_alarms_in_fall_sequences": [
+    1,
+    3,
+    1
+   ],
+   "delay_median_s": [
+    -0.6,
+    -0.6333333333333333,
+    -0.6
+   ]
+  },
+  {
+   "model": "p_stgcn_T48",
+   "thr": 0.9,
+   "k": 3,
+   "seeds": 3,
+   "window_auc": [
+    0.98293797546883,
+    0.9654847681966425,
+    0.9790398143787742
+   ],
+   "falls": [
+    29,
+    28,
+    30
+   ],
+   "false_alarms_adl": [
+    2,
+    1,
+    2
+   ],
+   "false_alarms_in_fall_sequences": [
+    1,
+    2,
+    0
+   ],
+   "delay_median_s": [
+    -0.5333333333333333,
+    -0.5666666666666667,
+    -0.5833333333333333
+   ]
+  },
+  {
+   "model": "p_stgcn_T48",
+   "thr": 0.95,
+   "k": 3,
+   "seeds": 3,
+   "window_auc": [
+    0.98293797546883,
+    0.9654847681966425,
+    0.9790398143787742
+   ],
+   "falls": [
+    30,
+    28,
+    30
+   ],
+   "false_alarms_adl": [
+    1,
+    1,
+    0
+   ],
+   "false_alarms_in_fall_sequences": [
+    0,
+    2,
+    0
+   ],
+   "delay_median_s": [
+    -0.5,
+    -0.48333333333333334,
+    -0.5166666666666666
+   ]
+  },
+  {
+   "model": "p_stgcn_T64",
+   "thr": 0.8,
+   "k": 3,
+   "seeds": 3,
+   "window_auc": [
+    0.9786417239889201,
+    0.9647736893267223,
+    0.9827269402131809
+   ],
+   "falls": [
+    29,
+    27,
+    29
+   ],
+   "false_alarms_adl": [
+    5,
+    1,
+    3
+   ],
+   "false_alarms_in_fall_sequences": [
+    2,
+    3,
+    2
+   ],
+   "delay_median_s": [
+    -0.5666666666666667,
+    -0.6666666666666666,
+    -0.6333333333333333
+   ]
+  },
+  {
+   "model": "p_stgcn_T64",
+   "thr": 0.9,
+   "k": 3,
+   "seeds": 3,
+   "window_auc": [
+    0.9786417239889201,
+    0.9647736893267223,
+    0.9827269402131809
+   ],
+   "falls": [
+    29,
+    29,
+    30
+   ],
+   "false_alarms_adl": [
+    2,
+    1,
+    1
+   ],
+   "false_alarms_in_fall_sequences": [
+    1,
+    1,
+    1
+   ],
+   "delay_median_s": [
+    -0.5333333333333333,
+    -0.6333333333333333,
+    -0.5666666666666667
+   ]
+  },
+  {
+   "model": "p_stgcn_T64",
+   "thr": 0.95,
+   "k": 3,
+   "seeds": 3,
+   "window_auc": [
+    0.9786417239889201,
+    0.9647736893267223,
+    0.9827269402131809
+   ],
+   "falls": [
+    27,
+    28,
+    30
+   ],
+   "false_alarms_adl": [
+    1,
+    0,
+    0
+   ],
+   "false_alarms_in_fall_sequences": [
+    1,
+    1,
+    1
+   ],
+   "delay_median_s": [
+    -0.5333333333333333,
+    -0.5666666666666667,
+    -0.5
+   ]
+  }
+ ]
+}

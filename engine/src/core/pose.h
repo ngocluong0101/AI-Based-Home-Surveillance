@@ -78,4 +78,18 @@ int64_t pose_history_last_frame(const PoseHistory *h);
 int pose_history_window(const PoseHistory *h, unsigned n, float vis_min, unsigned max_gap, NormPose *out,
                         unsigned char *present);
 
+/*
+ * The input of the skeleton classifier (V2-5; eval/train/skeleton.py is the specification and explains every choice): the last n frames
+ * ending at frame `end_frame` (the frame being processed: a track that has no skeleton in it gets no window), as (3, n, 17) floats - channel 0/1 = x, y of each keypoint relative to the window's origin (the hip centre of the first frame that has
+ * one, else the shoulder centre) divided by the window's scale (median torso length, else 0.3 x median larger box side), channel 2 = 1 when
+ * the keypoint is usable (visibility >= vis_min, or filled by a straight line across a hole of at most 5 frames), else 0 with x, y = 0.
+ * Unlike pose_history_window() the origin is fixed for the whole window, so a person falling shows as hips moving down.
+ * `out` has room for 3 * n * 17 floats. Returns 0, or -1 when the frame end_frame has no skeleton or the window cannot be scaled
+ * (nothing is written), or when fewer than min(n, SKEL_MIN_FRAMES) of its frames have a skeleton, or on bad arguments (n < 2, n > POSE_HISTORY_FRAMES, empty history).
+ * A window may reach back at most POSE_HISTORY_FRAMES frames from the newest pushed frame; older frames count as missing.
+ */
+#define SKEL_MAX_GAP 5
+#define SKEL_MIN_FRAMES 16   /* fewer frames with a skeleton in the window: no window */
+int pose_history_skeleton_window(const PoseHistory *h, int64_t end_frame, unsigned n, float vis_min, float *out);
+
 #endif /* POSE_H */

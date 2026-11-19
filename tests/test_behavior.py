@@ -101,3 +101,60 @@ def test_tracks_are_forgotten():
     assert engine.track_count() == 1
     engine.process([], 6 * S)
     assert engine.track_count() == 0
+
+
+# ---- the skeleton network (V2-5): written from the meaning of the settings, not from the vectors ----
+def _stand(tid=1):
+    kp = [(900.0, 300.0 + 10 * i, 0.9) for i in range(17)]
+    kp[5], kp[6], kp[11], kp[12] = (880, 400, 0.9), (920, 400, 0.9), (880, 600, 0.9), (920, 600, 0.9)
+    return Person(tid, (850.0, 200.0, 100.0, 600.0), kp)
+
+
+def _net(cfg, probs, tid=1, start=10 * 10**9, dt=33_333_333, people=None):
+    """feed one score per frame to a person who just stands there; returns the events with the frame index they came at"""
+    e = BehaviorEngine(BehaviorConfig(fall=True, **cfg), [], 1920, 1080)
+    got = []
+    for i, p in enumerate(probs):
+        now = start + i * dt
+        for ev in e.process(people or [_stand(tid)], now, [(tid, p, now)]):
+            got.append((i, ev))
+    return got
+
+
+def test_net_reports_on_the_kth_score_in_a_row_with_the_first_windows_end_as_its_time():
+    got = _net(dict(fall_net=1, fall_net_k=3), [0.1, 0.95, 0.95, 0.95, 0.95])
+    assert [i for i, _ in got] == [3]
+    ev = got[0][1]
+    assert ev.type == "FALL" and ev.occurred_ns == 10 * 10**9 + 1 * 33_333_333 and ev.now_ns == 10 * 10**9 + 3 * 33_333_333
+    assert ev.score == pytest.approx(0.95)
+
+
+@pytest.mark.parametrize("cfg,probs", [
+    (dict(fall_net=1, fall_net_k=3), [0.95, 0.95, 0.89, 0.95, 0.95]),                  # below the threshold in the middle
+    (dict(fall_net=1, fall_net_k=3, fall_net_thr=0.96), [0.95] * 10),                 # never reaches the threshold
+    (dict(fall_net=0, fall_net_k=1), [0.99] * 10),                                     # network off
+])
+def test_net_needs_an_unbroken_run_above_the_threshold(cfg, probs):
+    assert _net(cfg, probs) == []
+
+
+def test_net_cooldown_is_shared_and_its_first_event_wins():
+    probs = [0.95] * 3 + [0.0] + [0.95] * 3            # a second burst 4 frames later: inside the 10 s cooldown
+    assert len(_net(dict(fall_net=2), probs)) == 1
+
+
+def test_net_only_listens_to_the_track_it_was_scored_for():
+    e = BehaviorEngine(BehaviorConfig(fall=True, fall_net=1), [], 1920, 1080)
+    got = []
+    for i in range(10):
+        got += e.process([_stand(1)], 10**10 + i * 33_333_333, [(2, 0.99, 10**10)])
+    assert got == []
+
+
+def test_net_does_not_report_a_person_on_a_sofa():
+    zone = Zone("lie_ok", [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)], 0)
+    e = BehaviorEngine(BehaviorConfig(fall=True, fall_net=1), [zone], 1920, 1080)
+    got = []
+    for i in range(10):
+        got += e.process([_stand(1)], 10**10 + i * 33_333_333, [(1, 0.99, 10**10 + i)])
+    assert got == []

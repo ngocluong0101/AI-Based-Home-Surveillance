@@ -4,6 +4,8 @@
 #   make test-core            -> build and run build/test_core under ASan/UBSan
 # Fake RTSP camera for testing reconnect (inside the container):
 #   make rtsp-test-server     -> build/rtsp_test_server
+# Check/time the TensorRT skeleton model against reference probabilities (V2-5):
+#   make stgcn-check          -> build/stgcn_check
 
 CUDA_VER ?= 12.6
 DS_DIR   ?= /opt/nvidia/deepstream/deepstream
@@ -17,14 +19,14 @@ PKGS      := gstreamer-1.0 gstreamer-app-1.0 libcurl json-glib-1.0
 
 CORE_SRCS := $(wildcard src/core/*.c)
 # The engine modules (ds_engine.c, config.c, sources.c, probes.c, delivery.c, stream_out.c, report.c)
-DS_SRCS   := $(wildcard src/*.c)
+DS_SRCS   := $(wildcard src/*.c) $(wildcard src/behavior/*.c)
 TEST_SRCS := $(wildcard tests/*.c)
 
 WARN      := -Wall -Wextra
 
 # ---- engine (needs GStreamer + DeepStream) ----
 # Recursive `=` (not `:=`) so pkg-config only runs when building the engine, not for `make test-core`.
-APP_CFLAGS = -std=gnu11 -g -O2 $(WARN) -Iinclude -Isrc/core \
+APP_CFLAGS = -std=gnu11 -g -O2 $(WARN) -Iinclude -Isrc/core -Isrc/behavior \
              -I$(DS_DIR)/sources/includes \
              -I/usr/local/cuda-$(CUDA_VER)/include \
              $(shell pkg-config --cflags $(PKGS))
@@ -43,7 +45,7 @@ TEST_CFLAGS := -std=gnu11 -g -O1 $(WARN) -fsanitize=address,undefined \
                -DVECTOR_DIR='"$(VECTOR_DIR)"'
 
 .DEFAULT_GOAL := all
-.PHONY: all test-core rtsp-test-server clean
+.PHONY: all test-core rtsp-test-server stgcn-check clean
 
 # Test tool, not part of the engine: a fake RTSP camera (see tools/rtsp_test_server.c).
 rtsp-test-server: $(BUILD)/rtsp_test_server
@@ -52,10 +54,26 @@ $(BUILD)/rtsp_test_server: tools/rtsp_test_server.c Makefile
 	@mkdir -p $(BUILD)
 	$(CC) -std=gnu11 -O2 $(WARN) -o $@ $< $(shell pkg-config --cflags --libs gstreamer-rtsp-server-1.0 gstreamer-1.0)
 
+# V2-5: the ST-GCN runner is C++ (TensorRT C++ API). Linked into ds_engine with g++ so that libstdc++ comes along.
+CXX      ?= g++
+TRT_LIBS  = -lnvinfer -lnvonnxparser -L/usr/local/cuda-$(CUDA_VER)/lib64 -lcudart
+CXX_SRCS := $(wildcard src/behavior/*.cpp)
+CXX_OBJS := $(patsubst src/%.cpp,$(BUILD)/%.o,$(CXX_SRCS))
+
+$(BUILD)/behavior/%.o: src/behavior/%.cpp src/behavior/stgcn.h Makefile
+	@mkdir -p $(dir $@)
+	$(CXX) -c -o $@ -std=c++17 -O2 $(WARN) -I/usr/local/cuda-$(CUDA_VER)/include $<
+
+stgcn-check: $(BUILD)/stgcn_check
+
+$(BUILD)/stgcn_check: tools/stgcn_check.c $(CXX_OBJS) Makefile
+	$(CC) -std=gnu11 -O2 $(WARN) -c -o $(BUILD)/stgcn_check.o $<
+	$(CXX) -o $@ $(BUILD)/stgcn_check.o $(CXX_OBJS) $(TRT_LIBS) -lm
+
 all: $(APP)
 
-$(APP): $(APP_OBJS)
-	$(CC) -o $@ $^ $(APP_LIBS)
+$(APP): $(APP_OBJS) $(CXX_OBJS)
+	$(CXX) -o $@ $^ $(APP_LIBS) $(TRT_LIBS)
 
 $(BUILD)/%.o: src/%.c Makefile
 	@mkdir -p $(dir $@)

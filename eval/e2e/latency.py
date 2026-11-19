@@ -153,7 +153,7 @@ def received_at(event_id: str) -> int:
     return to_ns(row[0])
 
 
-def trial(clip_name: str, repeat: int, overrides: dict, ws: WsListener) -> dict:
+def trial(clip_name: str, repeat: int, overrides: dict, ws: WsListener, fall_model: str = "") -> dict:
     label = next(c for c in labels.load_dir() if Path(c.clip).stem == clip_name)
     fall = next(e for e in label.events if e.type == "fall" and e.label == "positive")
     clip = REPO / "eval/work/urfall" / label.clip
@@ -172,7 +172,7 @@ def trial(clip_name: str, repeat: int, overrides: dict, ws: WsListener) -> dict:
     w = f"/work/{tdir.relative_to(REPO)}"
     sh("docker", "run", "-d", "--name", name, "--gpus", "all", "-u", "1000:1000", "--network", "host", "-v", f"{REPO}:/work", "-w", "/work/engine",
        "--entrypoint", "./build/ds_engine", IMAGE, "--config", PGIE, "--tracker-config", "/work/engine/configs/tracker_nvdcf.yml",
-       "--cameras-file", f"{w}/cameras.ini", "--backend-url", f"http://127.0.0.1:{API_PORT}/internal/events", "--spool-file", f"{w}/spool.jsonl",
+       "--cameras-file", f"{w}/cameras.ini", *(["--fall-model", fall_model] if fall_model else []), "--backend-url", f"http://127.0.0.1:{API_PORT}/internal/events", "--spool-file", f"{w}/spool.jsonl",
        "--snapshot-dir", f"/work/{(WORK / 'snaps').relative_to(REPO)}", "--dump-detections", f"{w}/dump.csv", "--fps-interval", "0")
     try:
         end = time.monotonic() + label.duration_s + 60
@@ -200,7 +200,20 @@ def trial(clip_name: str, repeat: int, overrides: dict, ws: WsListener) -> dict:
     preds = [p for p in replay.replay(tdir / "dump.csv", label, overrides) if p.type == "fall"]
     import pandas as pd
     pts0 = pd.read_csv(tdir / "dump.csv", usecols=["stage", "pts_ns"]).query("stage == 'fdet'").pts_ns.min() / 1e9
-    sys_clip = preds[0].t_pred - pts0 if preds else None
+    sys_clip_replay = preds[0].t_pred - pts0 if preds else None
+    # The same from the events themselves, which also works when the network (not the rules) reported: the first PERSON_DETECTED of a track is
+    # stamped stream_start + PTS of the first frame the track is in (the dump has that PTS), which gives the engine's stream_start, and
+    # `occurred_at` minus it is the engine's impact on the clip's timeline.
+    sys_clip = None
+    first = next((m["data"] for _, m in ws.messages if m.get("type") == "event.created" and m["data"]["camera_id"] == cid
+                  and m["data"]["type"] == "PERSON_DETECTED"), None)
+    if first is not None:
+        df = pd.read_csv(tdir / "dump.csv", usecols=["stage", "object_id", "pts_ns"])
+        pts_first = df[(df.stage == "trk") & (df.object_id == first["track_id"])].pts_ns.min() / 1e9
+        stream_start = to_ns(datetime.datetime.fromisoformat(first["timestamp"])) - int(pts_first * 1e9)
+        sys_clip = (occurred - stream_start) / 1e9 - pts0
+    if sys_clip is None:
+        sys_clip = sys_clip_replay
     t0 = P + int(fall.impact_s * 1e9)
     total = (t_ws - t0) / 1e9
     rule = (reported - occurred) / 1e9
@@ -212,6 +225,7 @@ def trial(clip_name: str, repeat: int, overrides: dict, ws: WsListener) -> dict:
     engine_clock = {"occurred_minus_P_minus_rule_impact": None if sys_clip is None else (occurred - (P + int(sys_clip * 1e9))) / 1e9}
     out.update(total_s=total, stages_s=stages, engine_clock_s=engine_clock, packets_fitted=len(srv.pkts), snapshot=bool(ev.get("snapshot_url")), severity=ev["severity"],
                other_events=sorted({m["data"]["type"] for _, m in ws.messages if m.get("type") == "event.created" and m["data"]["camera_id"] == cid}))
+    out["impact_replay_vs_events_s"] = None if sys_clip_replay is None or sys_clip is None else sys_clip_replay - sys_clip
     if sys_clip is not None:
         out["check_sum_s"] = sum(stages.values()) - total          # should be ~0 (the pieces add up to the total)
     return out
@@ -228,9 +242,13 @@ def main() -> None:
     ap.add_argument("--clips", default="fall-01,fall-02,fall-03,fall-04,fall-05")
     ap.add_argument("--repeats", type=int, default=3)
     ap.add_argument("--set", action="append", default=[], metavar="NAME=VALUE", help="behaviour threshold, written to the camera's group (e.g. fall_still_s=1.0)")
+    ap.add_argument("--fall-model", default="", help="path INSIDE the container (repo is /work) of the skeleton network's ONNX: runs with fall_net=2 "
+                    "(network or rules; put fall_net_thr/fall_net_k in --set)")
     ap.add_argument("--tag", default="m4_urfall")
     a = ap.parse_args()
     overrides = dict(s.split("=", 1) for s in a.set)
+    if a.fall_model:
+        overrides.setdefault("fall_net", "2")
     WORK.mkdir(parents=True, exist_ok=True)
     backend = start_backend()
     ws = WsListener()
@@ -240,12 +258,13 @@ def main() -> None:
     try:
         for clip in a.clips.split(","):
             for r in range(a.repeats):
-                t = trial(clip, r, overrides, ws)
+                t = trial(clip, r, overrides, ws, a.fall_model)
                 trials.append(t)
                 print(f"{clip}#{r}: " + ("MISSED" if t.get("missed") else f"M4 {t['total_s']:.2f}s  " +
                       " ".join(f"{k}={v:+.2f}" for k, v in t["stages_s"].items() if v is not None)), flush=True)
     finally:
         ws.stop.set()
+        ws.join(3)
         backend.terminate()
         sh("docker", "rm", "-f", PG, check=False)
     ok = [t for t in trials if not t.get("missed")]
