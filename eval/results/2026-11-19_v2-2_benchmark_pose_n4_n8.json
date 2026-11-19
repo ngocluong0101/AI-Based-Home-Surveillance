@@ -1,0 +1,52 @@
+[
+ {
+  "layout": "single",
+  "source": "rtsp",
+  "cameras": 4,
+  "processes": 1,
+  "stream": false,
+  "ok": true,
+  "fps_cam_worst": 30.0,
+  "fps_cam_best": 30.0,
+  "fps_dip_min": 30.0,
+  "fps_total": 120.0,
+  "reconnecting_lines": 0,
+  "gpu_mean": 9.9,
+  "gpu_max": 11,
+  "enc_mean": 0,
+  "dec_mean": 20.9,
+  "vram_mib": 504,
+  "vram_total_mib": 997,
+  "cpu_pct_one_core": 52.3,
+  "rss_mib": 1061,
+  "exit_codes": [
+   0
+  ],
+  "window_s": 20.0
+ },
+ {
+  "layout": "single",
+  "source": "rtsp",
+  "cameras": 8,
+  "processes": 1,
+  "stream": false,
+  "ok": true,
+  "fps_cam_worst": 30.0,
+  "fps_cam_best": 30.0,
+  "fps_dip_min": 29.5,
+  "fps_total": 240.0,
+  "reconnecting_lines": 0,
+  "gpu_mean": 21.6,
+  "gpu_max": 28,
+  "enc_mean": 0,
+  "dec_mean": 47,
+  "vram_mib": 909,
+  "vram_total_mib": 1362,
+  "cpu_pct_one_core": 80.7,
+  "rss_mib": 1308,
+  "exit_codes": [
+   0
+  ],
+  "window_s": 20.0
+ }
+]

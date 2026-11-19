@@ -1,4 +1,4 @@
-"""Make a copy of engine/configs/pgie_yolov8n.txt for an evaluation run inside the container.
+"""Make a copy of an nvinfer config of engine/configs (pgie_yolov8n.txt, or --base pgie_yolov8n_pose.txt) for an evaluation run inside the container.
 
 The copy has absolute container paths (/work/...) so it can live anywhere, the engine file of the right batch
 size (N), and the detection settings you ask for. The original is never changed.
@@ -15,11 +15,13 @@ import re
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[2]
-SRC = REPO / "engine" / "configs" / "pgie_yolov8n.txt"
+CONFIGS = REPO / "engine" / "configs"
 
 
 def main() -> None:
     ap = argparse.ArgumentParser()
+    ap.add_argument("--base", default="pgie_yolov8n.txt", help="config in engine/configs to copy (default pgie_yolov8n.txt; "
+                    "pgie_yolov8n_pose.txt for the pose model)")
     ap.add_argument("--batch", type=int, required=True, help="batch size = number of cameras of the run")
     ap.add_argument("--threshold", type=float, default=None)
     ap.add_argument("--nms-iou", type=float, default=None)
@@ -29,22 +31,25 @@ def main() -> None:
     ap.add_argument("--out", type=Path, required=True)
     args = ap.parse_args()
 
+    src = CONFIGS / args.base
+    onnx = next(re.match(r"onnx-file=(.*)", l).group(1) for l in src.read_text().splitlines() if l.startswith("onnx-file="))
+    onnx_name = Path(onnx).name
     replace = {
-        "onnx-file": "/work/engine/models/yolov8n.onnx",
-        "model-engine-file": f"/work/engine/models/yolov8n.onnx_b{args.batch}_gpu0_fp16.engine",
+        "onnx-file": f"/work/engine/models/{onnx_name}",
+        "model-engine-file": f"/work/engine/models/{onnx_name}_b{args.batch}_gpu0_fp16.engine",
         "labelfile-path": "/work/engine/configs/labels.txt",
         "custom-lib-path": "/work/engine/build/libnvds_yolov8_parser.so",
     }
     if args.threshold is not None:
         replace["pre-cluster-threshold"] = repr(args.threshold)
     if args.nms_iou is not None:
-        replace["nms-iou-threshold"] = repr(args.nms_iou)
+        replace["nms-iou-threshold"] = repr(args.nms_iou)   # detection model only: the pose parser does its own NMS
     if args.topk is not None:
         replace["topk"] = str(args.topk)
 
     seen = set()
     out = []
-    for line in SRC.read_text().splitlines():
+    for line in src.read_text().splitlines():
         m = re.match(r"^([A-Za-z0-9_-]+)=", line)
         if m and m.group(1) in replace:
             out.append(f"{m.group(1)}={replace[m.group(1)]}")
@@ -62,7 +67,7 @@ def main() -> None:
         seen.add(key)
     missing = set(replace) - seen
     if missing:
-        raise SystemExit(f"keys not found in {SRC.name}: {sorted(missing)}")
+        raise SystemExit(f"keys not found in {src.name}: {sorted(missing)}")
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text("\n".join(out) + "\n")
     print(f"wrote {args.out}")

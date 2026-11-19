@@ -1,6 +1,7 @@
 """Read the CSV written by `ds_engine --dump-detections` (engine/src/dump.c)."""
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 
@@ -17,3 +18,12 @@ def boxes_of(df: pd.DataFrame, frame: int):
     """(boxes Nx4 xywh, confidences N) of one frame of a det/trk table."""
     rows = df[df.frame_num == frame]
     return rows[["left", "top", "width", "height"]].to_numpy(dtype=float), rows.confidence.to_numpy(dtype=float)
+
+
+def keypoints_of(df: pd.DataFrame, frame: int):
+    """(boxes xywh (n,4), confidences (n,), keypoints (n,17,3)) of one frame of a det/trk table written by the pose model.
+    Keypoints are x, y (pixels of the nvstreammux frame), visibility."""
+    rows = df[(df.frame_num == frame) & df.kpts.notna()]
+    boxes = rows[["left", "top", "width", "height"]].to_numpy(dtype=float)
+    kp = np.array([[float(v) for v in k.split()] for k in rows.kpts], dtype=float).reshape(-1, 17, 3)
+    return boxes, rows.confidence.to_numpy(dtype=float), kp

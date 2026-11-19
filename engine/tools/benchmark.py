@@ -44,18 +44,27 @@ import time
 from pathlib import Path
 
 ENGINE_DIR = Path(__file__).resolve().parents[1]
+PGIE_NAME = "pgie_yolov8n.txt"   # the nvinfer config of engine/configs to benchmark (--pgie)
 FPS_LINE = re.compile(r"^fps source_id=(\d+) camera_id=(\d+) ([\d.]+) (\w+)")
 FINAL_LINE = re.compile(r"^source_id=\d+ camera_id=(\d+) frames=\d+ .* fps=([\d.]+)$")
 CLK_TCK = os.sysconf("SC_CLK_TCK")
 READY_TIMEOUT_S = 600   # a missing TensorRT engine is built at startup
 
 
+def engine_file(batch: int) -> Path:
+    """The TensorRT engine nvinfer builds and reuses for this batch size: <onnx file name>_b<N>_gpu0_fp16.engine."""
+    for line in (ENGINE_DIR / "configs" / PGIE_NAME).read_text().splitlines():
+        if line.startswith("onnx-file="):
+            return ENGINE_DIR / "models" / f"{Path(line.split('=', 1)[1]).name}_b{batch}_gpu0_fp16.engine"
+    sys.exit(f"{PGIE_NAME} has no onnx-file line")
+
+
 def make_config(batch: int, workdir: Path) -> Path:
-    """pgie_yolov8n.txt with absolute paths and the engine file of this batch size."""
+    """The nvinfer config (PGIE_NAME) with absolute paths and the engine file of this batch size."""
     out = []
     base = ENGINE_DIR / "configs"
-    engine = ENGINE_DIR / "models" / f"yolov8n.onnx_b{batch}_gpu0_fp16.engine"
-    for line in (base / "pgie_yolov8n.txt").read_text().splitlines():
+    engine = engine_file(batch)
+    for line in (base / PGIE_NAME).read_text().splitlines():
         key, sep, value = line.partition("=")
         if sep and key in ("onnx-file", "labelfile-path", "custom-lib-path"):
             line = f"{key}={(base / value).resolve()}"
@@ -251,7 +260,7 @@ def run_case(args, layout: str, n: int, workdir: Path, tracker: Path, sampler: S
 
 def ensure_engine(batch: int, args, workdir: Path, tracker: Path) -> None:
     """Build the TensorRT engine of this batch size once (it is built at start-up of any run)."""
-    engine = ENGINE_DIR / "models" / f"yolov8n.onnx_b{batch}_gpu0_fp16.engine"
+    engine = engine_file(batch)
     if engine.exists():
         return
     print(f"building TensorRT engine for batch {batch} (~150 s) ...", flush=True)
@@ -266,6 +275,7 @@ def ensure_engine(batch: int, args, workdir: Path, tracker: Path) -> None:
 
 
 def main() -> int:
+    global PGIE_NAME
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--video", required=True, help="absolute path of the 1080p test video")
     ap.add_argument("--source", choices=["rtsp", "files"], default="rtsp")
@@ -277,6 +287,8 @@ def main() -> int:
     ap.add_argument("--stop-on-fail", action="store_true",
                     help="stop raising N for a layout after a failed case")
     ap.add_argument("--port", type=int, default=8554)
+    ap.add_argument("--pgie", default="pgie_yolov8n.txt",
+                    help="nvinfer config in engine/configs to benchmark (pgie_yolov8n_pose.txt = the pose model)")
     ap.add_argument("--max-cameras", type=int, default=0, metavar="M",
                     help="run the engine with room for M cameras (batch size M) although only --cameras N run: "
                          "what it costs to be able to add cameras without a restart")
@@ -286,6 +298,7 @@ def main() -> int:
                          "per camera. Needs a RTMP server there (MediaMTX) and, in a container, --network host")
     ap.add_argument("--out", help="write the rows as JSON to this file")
     args = ap.parse_args()
+    PGIE_NAME = args.pgie
     args.video = str(Path(args.video).resolve())
 
     workdir = Path(tempfile.mkdtemp(prefix="bench_"))

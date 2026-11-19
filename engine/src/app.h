@@ -18,6 +18,7 @@
 #include "event_manager.h"
 #include "event_record.h"
 #include "event_spool.h"
+#include "pose.h"
 #include "gstnvdsmeta.h"
 #include "nvbufsurface.h"
 #include "nvds_obj_encode.h"   /* needs the two DeepStream headers above first */
@@ -91,6 +92,11 @@ typedef struct {
     /* track_id -> number of frames it was seen in. Statistics only (ROADMAP 1.3); it is replaced
      * by the EventManager state in Phase 2. */
     GHashTable *track_frames;
+    /* Pose model only (ROADMAP_V2 V2-2): track_id -> PoseHistory* (the last POSE_HISTORY_FRAMES skeletons of the track),
+     * and how many skeletons were stored. Probe thread only; read after the pipeline stopped. */
+    GHashTable *pose_hist;
+    guint64 pose_count;
+    guint64 skeleton_overflow;   /* skeletons not drawn because the frame's display-meta pool was empty */
     /* Event de-duplication of this source (ROADMAP 2.1). Touched only by the probe, which runs on
      * one streaming thread, and read after the pipeline stopped, so it needs no lock. */
     EventManager events;

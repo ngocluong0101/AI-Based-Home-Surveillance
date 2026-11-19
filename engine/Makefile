@@ -31,7 +31,7 @@ APP_CFLAGS = -std=gnu11 -g -O2 $(WARN) -Iinclude -Isrc/core \
 APP_LIBS   = $(shell pkg-config --libs $(PKGS)) \
              -L/usr/local/cuda-$(CUDA_VER)/lib64 -lcudart -lcuda \
              -L$(DS_DIR)/lib -lnvdsgst_meta -lnvds_meta -lnvbufsurface -lnvds_batch_jpegenc \
-             -Wl,-rpath,$(DS_DIR)/lib
+             -Wl,-rpath,$(DS_DIR)/lib -lm
 
 APP_OBJS := $(patsubst src/%.c,$(BUILD)/%.o,$(DS_SRCS) $(CORE_SRCS))
 
@@ -70,7 +70,7 @@ test-core: $(TEST_BIN)
 
 $(TEST_BIN): $(CORE_SRCS) $(TEST_SRCS) Makefile
 	@mkdir -p $(BUILD)
-	$(CC) $(TEST_CFLAGS) -o $@ $(CORE_SRCS) $(TEST_SRCS)
+	$(CC) $(TEST_CFLAGS) -o $@ $(CORE_SRCS) $(TEST_SRCS) -lm
 
 clean:
 	rm -rf $(BUILD)

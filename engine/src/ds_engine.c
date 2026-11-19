@@ -294,7 +294,9 @@ static GstElement *build_pipeline(AppCtx *app)
         g_printerr("Could not get the src pad of nvinfer\n");
         goto fail;
     }
-    /* First, so that it sees what the detector made before settings_probe removes anything. */
+    /* pose_probe first (keypoints to frame pixels), then the dump, so that both see what the detector made before
+     * settings_probe removes anything. */
+    gst_pad_add_probe(pgie_src, GST_PAD_PROBE_TYPE_BUFFER, pose_probe, app, NULL);
     if (opt_dump_detections != NULL)
         gst_pad_add_probe(pgie_src, GST_PAD_PROBE_TYPE_BUFFER, dump_det_probe, app, NULL);
     gst_pad_add_probe(pgie_src, GST_PAD_PROBE_TYPE_BUFFER, settings_probe, app, NULL);

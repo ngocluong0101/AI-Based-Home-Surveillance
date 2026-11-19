@@ -106,6 +106,20 @@ def test_the_real_config_of_the_repo(tmp_path):
     assert not any(l.startswith(("onnx-file=..", "labelfile-path=labels", "custom-lib-path=..")) for l in got)
 
 
+@pytest.mark.parametrize("name,onnx", [("pgie_yolov8n_pose.txt", "yolov8n-pose.onnx"),
+                                       ("pgie_yolov8n_h384.txt", "yolov8n_h384.onnx")])
+def test_the_other_configs_of_the_repo_get_an_engine_named_after_their_own_onnx(tmp_path, name, onnx):
+    """nvinfer names the engine it builds after the ONNX file, so the pose and rectangular-input configs must not
+    share the name of pgie_yolov8n.txt's engine (a second input size built under the same name overwrites the first)."""
+    path, engine = write_engine_config(REPO / "engine" / "configs" / name, tmp_path, 3)
+    models = REPO / "engine" / "models"
+    assert engine == models / f"{onnx}_b3_gpu0_fp16.engine"
+    got = lines(path)
+    assert f"onnx-file={models / onnx}" in got
+    assert f"model-engine-file={engine}" in got
+    assert "infer-dims=3;384;640" in got
+
+
 # ---- through the manager ----
 
 def wait_for(pred, timeout=8.0):

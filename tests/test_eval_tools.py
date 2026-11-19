@@ -77,3 +77,46 @@ def test_mot_metrics_known_answer():
     assert r.num_switches == 1
     assert r.mota == pytest.approx(0.95)            # 1 - 1/20
     assert r.idf1 == pytest.approx(0.75)            # 15 correctly identified boxes of 20 + 20
+
+
+def _pose_tensor(anchors, person):
+    """A (56, anchors) tensor holding one person: cx, cy, w, h, score and 17 keypoints given as (x, y, v)."""
+    out = np.zeros((56, anchors), np.float32)
+    cx, cy, w, h, score, kpts = person
+    out[0:5, 0] = [cx, cy, w, h, score]
+    for k, (x, y, v) in enumerate(kpts):
+        out[5 + 3 * k:8 + 3 * k, 0] = [x, y, v]
+    return out
+
+
+def test_decode_pose_gives_original_pixels_and_matches_the_cpp_parser_logic():
+    # the same numbers as engine/parser/tests/test_pose_decode.cpp, plus a letterbox of scale 0.5 and a 12 px bar
+    kpts = [(320, 92, 0.95)] + [(320, 192, 0.9)] * 15 + [(370, 292, 0.5)]
+    out = _pose_tensor(8, (320, 192, 100, 200, 0.9, kpts))
+    out[0:5, 1] = [322, 192, 100, 200, 0.8]            # a duplicate of the same person: removed by NMS
+    boxes, scores, kp = replica.decode_pose(out, scale=0.5, pad_x=0, pad_y=12, net_w=640, net_h=384, threshold=0.25, nms_iou=0.45)
+    assert len(boxes) == 1 and scores[0] == pytest.approx(0.9)
+    assert boxes[0] == pytest.approx([540, 160, 200, 400])            # (270, 92-12)/0.5 ... width 100/0.5
+    assert kp.shape == (1, 17, 3)
+    assert kp[0, 0] == pytest.approx([640, 160, 0.95])                # the nose: ((320-0)/0.5, (92-12)/0.5)
+    assert kp[0, 16, 2] == pytest.approx(0.5)
+
+
+def test_decode_pose_empty_and_threshold():
+    out = np.zeros((56, 4), np.float32)
+    boxes, scores, kp = replica.decode_pose(out, 1.0, 0, 0, 640, 384, 0.25, 0.45)
+    assert boxes.shape == (0, 4) and scores.shape == (0,) and kp.shape == (0, 17, 3)
+
+
+def test_keypoints_of_reads_the_dump_column(tmp_path):
+    from eval.common import ds_dump
+
+    kp = " ".join(f"{v}" for k in range(17) for v in (100 + k, 200 + k, 0.9))
+    csv = tmp_path / "d.csv"
+    csv.write_text("stage,source_id,frame_num,pts_ns,object_id,class_id,left,top,width,height,confidence,tracker_confidence,kpts\n"
+                   "fdet,0,0,0,,,,,,,,,\n"
+                   f"det,0,0,0,,0,10,20,30,40,0.9,0,{kp}\n"
+                   "det,0,0,0,,0,50,60,30,40,0.8,0,\n")                 # an object without keypoints is skipped
+    boxes, conf, kpts = ds_dump.keypoints_of(ds_dump.load_dump(csv)["det"], 0)
+    assert boxes.shape == (1, 4) and conf[0] == pytest.approx(0.9) and kpts.shape == (1, 17, 3)
+    assert kpts[0, 3] == pytest.approx([103, 203, 0.9])

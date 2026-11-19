@@ -51,6 +51,25 @@ eval/.venv/bin/python eval/tracking/sweep_nvdcf.py maxShadowTrackingAge=60     #
 Muốn có hai kích thước input cho cùng N, phải có hai file ONNX tên khác nhau (`engine/models/yolov8n_h384.onnx` là bản sao của `yolov8n.onnx`),
 nếu không lần build sau **đè** engine kia.
 
+## V2-2 — pose
+
+```bash
+eval/.venv/bin/python engine/tools/export_yolov8_pose_onnx.py          # yolov8n-pose.pt (tự tải) -> engine/models/yolov8n-pose.onnx, input 640x384
+eval/tools/in_container.sh /bin/bash -c 'cd engine && make CUDA_VER=12.6 && make -C parser CUDA_VER=12.6'
+make -C engine/parser test                                                 # test parser pose bằng g++ (host, không cần DeepStream)
+# độ chính xác keypoint (COCO, OKS): engine TensorRT so với PyTorch/ONNX Runtime, cùng điểm ảnh
+eval/.venv/bin/python eval/tools/make_pgie_config.py --base pgie_yolov8n_pose.txt --batch 1 --threshold 0.001 --out eval/work/pgie_pose_b1_t0001.txt
+eval/tools/in_container.sh engine/build/ds_engine --config /work/eval/work/pgie_pose_b1_t0001.txt --tracker-config /work/engine/configs/tracker_nvdcf.yml \
+  --camera 1=file:///work/eval/work/coco/coco1000.mp4 --dump-detections /work/eval/work/coco/pose_dump.csv --fps-interval 0
+nice -n 19 eval/.venv/bin/python eval/pose/coco_kpt_ap.py                  # --only-engine: chỉ tính lại phần engine
+# pose làm detector duy nhất so với detection model: chạy engine pose trên MOT17 (tag "pose") rồi
+eval/.venv/bin/python eval/detection/compare_pipelines.py --only engine_pose
+# FPS / GPU với N camera (trong container; cần `make rtsp-test-server`)
+docker run --rm --gpus all -u 1000:1000 -v $PWD:/repo -e HOME=/tmp --entrypoint /usr/bin/python3 nvcr.io/nvidia/deepstream:7.1-triton-multiarch \
+  /repo/engine/tools/benchmark.py --video /repo/eval/work/mot17/MOT17-04.mp4 --source rtsp --cameras 1 4 8 --duration 20 --pgie pgie_yolov8n_pose.txt
+```
+Xem video có khung xương: thêm `--output /work/eval/work/mot17/pose_09.mp4` khi chạy engine (một nguồn).
+
 ## Kiểm tra công cụ
 
-`eval/.venv/bin/python -m pytest tests/test_eval_tools.py` (10 test: IoU, ghép khung, letterbox, decode, và MOTA/IDF1 trên ca có đáp án tay).
+`eval/.venv/bin/python -m pytest tests/test_eval_tools.py` (13 test: IoU, ghép khung, letterbox, decode detection và pose, đọc cột keypoint của dump, và MOTA/IDF1 trên ca có đáp án tay).

@@ -1,0 +1,41 @@
+# nvinfer config for YOLOv8n-pose (person + 17 keypoints), ROADMAP_V2 phase V2-2.
+# Run it with: ds_engine --config configs/pgie_yolov8n_pose.txt ...
+# Needs engine/models/yolov8n-pose.onnx (python engine/tools/export_yolov8_pose_onnx.py) and
+# engine/build/libnvds_yolov8_parser.so (make -C engine/parser CUDA_VER=12.6).
+# Relative paths are resolved from the directory of this file. batch-size is overridden by ds_engine with the
+# number of sources. nvinfer builds the FP16 TensorRT engine on the first run and saves it as
+# engine/models/yolov8n-pose.onnx_b<N>_gpu0_fp16.engine (it always uses that name, whatever model-engine-file says);
+# the line below names the N = 2 one, so that is the one that is reused.
+#
+# How the keypoints get out of nvinfer: the parser (NvDsInferParseYoloV8Pose) returns them in the "instance mask"
+# of each object, the only per-object float array the metadata has. network-type=3 and output-instance-mask=1 turn
+# that on; instance masks accept only cluster-mode=4 (no clustering), so the parser does the NMS itself
+# (IoU 0.45, environment variable DS_POSE_NMS_IOU changes it). A person's mask is 17 x (x_rel, y_rel, visibility),
+# relative to its box (engine/parser/yolov8_pose_decode.h).
+[property]
+gpu-id=0
+# RGB, pixels scaled to 0..1, letterboxed like Ultralytics does (but with black bars, see ROADMAP_V2_NHAT_KY.md 2.4)
+net-scale-factor=0.00392156862745098
+model-color-format=0
+maintain-aspect-ratio=1
+symmetric-padding=1
+onnx-file=../models/yolov8n-pose.onnx
+model-engine-file=../models/yolov8n-pose.onnx_b2_gpu0_fp16.engine
+labelfile-path=labels.txt
+# a rectangular input for 16:9 cameras: V2-1 measured +3.4% detections against 640x640 with black bars
+infer-dims=3;384;640
+# 2 = FP16
+network-mode=2
+process-mode=1
+network-type=3
+output-instance-mask=1
+interval=0
+gie-unique-id=1
+num-detected-classes=1
+cluster-mode=4
+parse-bbox-instance-mask-func-name=NvDsInferParseYoloV8Pose
+custom-lib-path=../build/libnvds_yolov8_parser.so
+
+[class-attrs-all]
+pre-cluster-threshold=0.25
+topk=300

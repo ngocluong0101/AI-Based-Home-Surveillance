@@ -329,6 +329,39 @@
       },
       "recall": 0.37028952045114255,
       "precision": 0.8761961524452833
+    },
+    "engine_pose": {
+      "detections": 14886,
+      "tp": 13653,
+      "fp": 1233,
+      "fn": 57810,
+      "vs_engine": {
+        "common": 14284,
+        "only_pipeline": 602,
+        "only_engine": 14930,
+        "only_pipeline_near_threshold": 310,
+        "only_engine_near_threshold": 4018
+      },
+      "recall_by_height_px": {
+        "0-50": [
+          0,
+          1276
+        ],
+        "50-100": [
+          0,
+          7857
+        ],
+        "100-200": [
+          810,
+          42523
+        ],
+        "200-inf": [
+          12843,
+          19807
+        ]
+      },
+      "recall": 0.19104991394148021,
+      "precision": 0.9171704957678356
     }
   },
   "per_sequence": {
@@ -655,6 +688,39 @@
           "only_pipeline_near_threshold": 37,
           "only_engine_near_threshold": 7
         }
+      },
+      "engine_pose": {
+        "detections": 3249,
+        "tp": 2880,
+        "fp": 369,
+        "fn": 15701,
+        "recall": 0.15499703998708358,
+        "precision": 0.8864265927977839,
+        "recall_by_height_px": {
+          "0-50": [
+            0,
+            1276
+          ],
+          "50-100": [
+            0,
+            7489
+          ],
+          "100-200": [
+            6,
+            6014
+          ],
+          "200-inf": [
+            2874,
+            3802
+          ]
+        },
+        "vs_engine": {
+          "common": 3061,
+          "only_pipeline": 188,
+          "only_engine": 2123,
+          "only_pipeline_near_threshold": 101,
+          "only_engine_near_threshold": 789
+        }
       }
     },
     "04": {
@@ -980,6 +1046,39 @@
           "only_pipeline_near_threshold": 933,
           "only_engine_near_threshold": 51
         }
+      },
+      "engine_pose": {
+        "detections": 7952,
+        "tp": 7687,
+        "fp": 265,
+        "fn": 39870,
+        "recall": 0.16163761381079547,
+        "precision": 0.9666750503018109,
+        "recall_by_height_px": {
+          "0-50": [
+            0,
+            0
+          ],
+          "50-100": [
+            0,
+            368
+          ],
+          "100-200": [
+            700,
+            35676
+          ],
+          "200-inf": [
+            6987,
+            11513
+          ]
+        },
+        "vs_engine": {
+          "common": 7690,
+          "only_pipeline": 262,
+          "only_engine": 11756,
+          "only_pipeline_near_threshold": 121,
+          "only_engine_near_threshold": 2880
+        }
       }
     },
     "09": {
@@ -1304,6 +1403,39 @@
           "only_engine": 7,
           "only_pipeline_near_threshold": 21,
           "only_engine_near_threshold": 6
+        }
+      },
+      "engine_pose": {
+        "detections": 3685,
+        "tp": 3086,
+        "fp": 599,
+        "fn": 2239,
+        "recall": 0.5795305164319249,
+        "precision": 0.837449118046133,
+        "recall_by_height_px": {
+          "0-50": [
+            0,
+            0
+          ],
+          "50-100": [
+            0,
+            0
+          ],
+          "100-200": [
+            104,
+            833
+          ],
+          "200-inf": [
+            2982,
+            4492
+          ]
+        },
+        "vs_engine": {
+          "common": 3533,
+          "only_pipeline": 152,
+          "only_engine": 1051,
+          "only_pipeline_near_threshold": 88,
+          "only_engine_near_threshold": 349
         }
       }
     }

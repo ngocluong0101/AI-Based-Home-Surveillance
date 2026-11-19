@@ -45,6 +45,9 @@ static gboolean slot_fill(AppCtx *app, SourceCtx *src, const gchar *spec, gboole
     src->em_timeout = absence;
     event_manager_init(&src->events, absence);
     src->track_frames = g_hash_table_new(g_direct_hash, g_direct_equal);
+    src->pose_hist = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, (GDestroyNotify)pose_history_free);
+    src->pose_count = 0;
+    src->skeleton_overflow = 0;
 
     gchar *scheme = g_uri_parse_scheme(src->uri);
     src->is_rtsp = (scheme != NULL && g_ascii_strcasecmp(scheme, "rtsp") == 0);
@@ -82,6 +85,7 @@ static void slot_clear(SourceCtx *src)
         g_hash_table_destroy(src->track_frames);
         src->track_frames = NULL;
     }
+    g_clear_pointer(&src->pose_hist, g_hash_table_destroy);
 }
 
 /*
@@ -118,6 +122,7 @@ void free_sources(AppCtx *app)
         event_manager_destroy(&app->sources[i].events);
         if (app->sources[i].track_frames != NULL)
             g_hash_table_destroy(app->sources[i].track_frames);
+        g_clear_pointer(&app->sources[i].pose_hist, g_hash_table_destroy);
         if (app->sources[i].mux_sinkpad != NULL)
             gst_object_unref(app->sources[i].mux_sinkpad);
         if (app->sources[i].demux_pad != NULL)

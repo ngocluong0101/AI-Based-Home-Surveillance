@@ -1,0 +1,27 @@
+[
+ {
+  "layout": "single",
+  "source": "rtsp",
+  "cameras": 1,
+  "processes": 1,
+  "stream": false,
+  "ok": true,
+  "fps_cam_worst": 30.0,
+  "fps_cam_best": 30.0,
+  "fps_dip_min": 30.0,
+  "fps_total": 30.0,
+  "reconnecting_lines": 0,
+  "gpu_mean": 8.2,
+  "gpu_max": 9,
+  "enc_mean": 0,
+  "dec_mean": 5,
+  "vram_mib": 266,
+  "vram_total_mib": 742,
+  "cpu_pct_one_core": 18.4,
+  "rss_mib": 833,
+  "exit_codes": [
+   0
+  ],
+  "window_s": 20.0
+ }
+]

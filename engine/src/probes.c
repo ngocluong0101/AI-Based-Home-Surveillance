@@ -70,6 +70,89 @@ static size_t extract_person_detections(const NvDsFrameMeta *frame_meta, Detecti
     return n;
 }
 
+/* The 16 bones that are drawn (the 19 of the COCO skeleton minus the three that join the ears to the shoulders:
+ * 16 is what one display meta holds). Pairs of keypoint indices. */
+static const guint8 BONES[16][2] = {
+    { KP_RIGHT_ANKLE, KP_RIGHT_KNEE }, { KP_RIGHT_KNEE, KP_RIGHT_HIP }, { KP_LEFT_ANKLE, KP_LEFT_KNEE },
+    { KP_LEFT_KNEE, KP_LEFT_HIP }, { KP_LEFT_HIP, KP_RIGHT_HIP }, { KP_LEFT_SHOULDER, KP_LEFT_HIP },
+    { KP_RIGHT_SHOULDER, KP_RIGHT_HIP }, { KP_LEFT_SHOULDER, KP_RIGHT_SHOULDER },
+    { KP_LEFT_SHOULDER, KP_LEFT_ELBOW }, { KP_RIGHT_SHOULDER, KP_RIGHT_ELBOW }, { KP_LEFT_ELBOW, KP_LEFT_WRIST },
+    { KP_RIGHT_ELBOW, KP_RIGHT_WRIST }, { KP_NOSE, KP_LEFT_EYE }, { KP_NOSE, KP_RIGHT_EYE },
+    { KP_LEFT_EYE, KP_LEFT_EAR }, { KP_RIGHT_EYE, KP_RIGHT_EAR },
+};
+
+/* Draw one skeleton on the frame with a display meta (the OSD draws it with the boxes). One colour per track. Costs
+ * a display meta from the batch's pool; when the pool is empty the skeleton is skipped and counted. */
+static void draw_skeleton(NvDsBatchMeta *batch_meta, NvDsFrameMeta *frame_meta, SourceCtx *src, const Pose *pose,
+                          guint64 track_id)
+{
+    static const gdouble PALETTE[6][3] = { { 0.1, 0.9, 0.3 }, { 1.0, 0.6, 0.1 }, { 0.2, 0.7, 1.0 },
+                                           { 1.0, 0.3, 0.6 }, { 0.9, 0.9, 0.2 }, { 0.7, 0.4, 1.0 } };
+    NvDsDisplayMeta *dm = nvds_acquire_display_meta_from_pool(batch_meta);
+    if (dm == NULL) {
+        src->skeleton_overflow++;
+        return;
+    }
+    const gdouble *c = PALETTE[track_id % G_N_ELEMENTS(PALETTE)];
+    for (guint b = 0; b < G_N_ELEMENTS(BONES); b++) {
+        const Keypoint *a = &pose->kp[BONES[b][0]], *e = &pose->kp[BONES[b][1]];
+        if (a->v < POSE_VISIBILITY_MIN || e->v < POSE_VISIBILITY_MIN || dm->num_lines >= MAX_ELEMENTS_IN_DISPLAY_META)
+            continue;
+        NvOSD_LineParams *line = &dm->line_params[dm->num_lines++];
+        line->x1 = (guint)CLAMP(a->x, 0.0f, MUXER_WIDTH - 1.0f);
+        line->y1 = (guint)CLAMP(a->y, 0.0f, MUXER_HEIGHT - 1.0f);
+        line->x2 = (guint)CLAMP(e->x, 0.0f, MUXER_WIDTH - 1.0f);
+        line->y2 = (guint)CLAMP(e->y, 0.0f, MUXER_HEIGHT - 1.0f);
+        line->line_width = 3;
+        line->line_color = (NvOSD_ColorParams){ c[0], c[1], c[2], 1.0 };
+    }
+    nvds_add_display_meta_to_frame(frame_meta, dm);
+}
+
+/* Pose model: put the skeleton of every tracked person into its track's history (and draw it when there is a picture
+ * to draw on). The keypoints are in the object's mask, already in frame pixels (pose_probe). Returns how many were
+ * stored. Skeletons of tracks gone for CLEANUP_AFTER_FRAMES are dropped from the table now and then. */
+#define POSE_CLEANUP_EVERY_FRAMES 256
+#define POSE_CLEANUP_AFTER_FRAMES 300
+static guint collect_poses(NvDsBatchMeta *batch_meta, NvDsFrameMeta *frame_meta, SourceCtx *src, gboolean draw)
+{
+    guint stored = 0;
+    for (NvDsMetaList *l_obj = frame_meta->obj_meta_list; l_obj != NULL; l_obj = l_obj->next) {
+        const NvDsObjectMeta *obj = (const NvDsObjectMeta *)l_obj->data;
+        if (obj->object_id == UNTRACKED_OBJECT_ID || obj->class_id != PERSON_CLASS_ID ||
+            obj->mask_params.data == NULL || obj->mask_params.size != POSE_VALUES * sizeof(float))
+            continue;
+        Pose pose;
+        if (pose_from_values(obj->mask_params.data, &pose) != 0)
+            continue;
+        gpointer key = GSIZE_TO_POINTER((gsize)obj->object_id);
+        PoseHistory *hist = g_hash_table_lookup(src->pose_hist, key);
+        if (hist == NULL) {
+            hist = pose_history_new();
+            if (hist == NULL)
+                continue;
+            g_hash_table_insert(src->pose_hist, key, hist);
+        }
+        const float size_hint = MAX(obj->rect_params.width, obj->rect_params.height);
+        if (pose_history_push(hist, frame_meta->frame_num, &pose, size_hint) == 0) {
+            stored++;
+            src->pose_count++;
+        }
+        if (draw)
+            draw_skeleton(batch_meta, frame_meta, src, &pose, obj->object_id);
+    }
+    if (frame_meta->frame_num % POSE_CLEANUP_EVERY_FRAMES == 0) {
+        GHashTableIter it;
+        gpointer key, value;
+        g_hash_table_iter_init(&it, src->pose_hist);
+        while (g_hash_table_iter_next(&it, &key, &value)) {
+            if (frame_meta->frame_num - pose_history_last_frame(value) > POSE_CLEANUP_AFTER_FRAMES)
+                g_hash_table_iter_remove(&it);
+        }
+    }
+    return stored;
+}
+
 /* Probe side: a queue item holding the EventRecord of an event of source `src`. */
 static QueueItem *new_event_item(const AppCtx *app, const SourceCtx *src, const PersonDetectedEvent *ev)
 {
@@ -185,6 +268,31 @@ static void enqueue_group(AppCtx *app, QueueItem **items, const FrameGroup *grou
         g_async_queue_push(app->event_queue, items[i]);
 }
 
+GstPadProbeReturn pose_probe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
+{
+    (void)pad;
+    (void)user_data;
+    GstBuffer *buf = GST_PAD_PROBE_INFO_BUFFER(info);
+    NvDsBatchMeta *batch_meta = (buf != NULL) ? gst_buffer_get_nvds_batch_meta(buf) : NULL;
+    if (batch_meta == NULL)
+        return GST_PAD_PROBE_OK;
+
+    for (NvDsMetaList *l_frame = batch_meta->frame_meta_list; l_frame != NULL; l_frame = l_frame->next) {
+        const NvDsFrameMeta *frame_meta = (const NvDsFrameMeta *)l_frame->data;
+        for (NvDsMetaList *l_obj = frame_meta->obj_meta_list; l_obj != NULL; l_obj = l_obj->next) {
+            NvDsObjectMeta *obj = (NvDsObjectMeta *)l_obj->data;
+            float *v = obj->mask_params.data;
+            if (v == NULL || obj->mask_params.size != POSE_VALUES * sizeof(float))
+                continue;   /* the detection-only model has no mask */
+            for (int k = 0; k < POSE_KEYPOINTS; k++) {
+                v[3 * k] = obj->rect_params.left + v[3 * k] * obj->rect_params.width;
+                v[3 * k + 1] = obj->rect_params.top + v[3 * k + 1] * obj->rect_params.height;
+            }
+        }
+    }
+    return GST_PAD_PROBE_OK;
+}
+
 /*
  * Pad probe on the src pad of nvinfer, i.e. before the tracker: applies the settings of each camera
  * to what the detector found. A camera with AI off loses every object; one with a confidence
@@ -270,6 +378,8 @@ GstPadProbeReturn detection_probe(GstPad *pad, GstPadProbeInfo *info, gpointer u
         atomic_store_explicit(&src->last_frame_us, g_get_monotonic_time(), memory_order_relaxed);
         src->object_count += total;
         src->untracked_count += untracked;
+        if (n > 0)
+            collect_poses(batch_meta, frame_meta, src, opt_output != NULL || opt_stream_url != NULL);
 
         for (size_t i = 0; i < n; i++) {
             gpointer key = GSIZE_TO_POINTER((gsize)dets[i].track_id);

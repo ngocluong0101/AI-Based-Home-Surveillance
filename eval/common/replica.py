@@ -84,3 +84,55 @@ def decode(output0: np.ndarray, scale: float, pad_x: int, pad_y: int, threshold:
     boxes = (boxes - np.array([pad_x, pad_y, pad_x, pad_y])) / scale
     xywh = np.stack([boxes[:, 0], boxes[:, 1], boxes[:, 2] - boxes[:, 0], boxes[:, 3] - boxes[:, 1]], axis=1)
     return xywh, sc
+
+
+def letterbox_net(img_bgr: np.ndarray, net_w: int, net_h: int, interpolation: int, pad_value: int = PAD_VALUE):
+    """nvinfer's preprocessing for any network size (maintain-aspect-ratio=1, symmetric-padding=1).
+    -> (input 3 x net_h x net_w float32 RGB 0..1, scale, pad_x, pad_y)."""
+    h, w = img_bgr.shape[:2]
+    scale = min(net_w / w, net_h / h)
+    nw, nh = round(w * scale), round(h * scale)
+    resized = cv2.resize(img_bgr, (nw, nh), interpolation=interpolation)
+    pad_x, pad_y = (net_w - nw) // 2, (net_h - nh) // 2
+    canvas = np.full((net_h, net_w, 3), pad_value, np.uint8)
+    canvas[pad_y:pad_y + nh, pad_x:pad_x + nw] = resized
+    rgb = canvas[:, :, ::-1]
+    return np.ascontiguousarray(rgb.transpose(2, 0, 1), dtype=np.float32) / 255.0, scale, pad_x, pad_y
+
+
+def decode_pose(output0: np.ndarray, scale: float, pad_x: int, pad_y: int, net_w: int, net_h: int, threshold: float,
+                nms_iou: float, max_people: int = 300):
+    """output0: (56, anchors) of the YOLOv8-pose ONNX. Same logic as engine/parser/yolov8_pose_decode.h, but returns
+    everything in pixels of the ORIGINAL image: (boxes xywh (n,4), scores (n,), keypoints (n,17,3) = x, y, visibility)."""
+    scores = output0[4]
+    idx = np.nonzero(scores >= threshold)[0]
+    idx = idx[np.argsort(-scores[idx], kind="stable")]
+    boxes, kept = [], []
+    for i in idx:
+        if len(kept) >= max_people:
+            break
+        cx, cy, w, h = (float(output0[k, i]) for k in range(4))
+        x1, y1 = max(0.0, cx - w / 2), max(0.0, cy - h / 2)
+        x2, y2 = min(float(net_w), cx + w / 2), min(float(net_h), cy + h / 2)
+        if x2 <= x1 or y2 <= y1:
+            continue
+        b = np.array([x1, y1, x2, y2])
+        if boxes:
+            bb = np.array(boxes)
+            lt, rb = np.maximum(bb[:, :2], b[:2]), np.minimum(bb[:, 2:], b[2:])
+            inter = np.clip(rb - lt, 0, None).prod(axis=1)
+            union = (bb[:, 2] - bb[:, 0]) * (bb[:, 3] - bb[:, 1]) + (b[2] - b[0]) * (b[3] - b[1]) - inter
+            if (inter / np.maximum(union, 1e-12) > nms_iou).any():
+                continue
+        boxes.append(b)
+        kept.append(i)
+    if not kept:
+        return np.zeros((0, 4)), np.zeros(0), np.zeros((0, 17, 3))
+    kept = np.array(kept)
+    b = np.array(boxes)
+    kp = output0[5:, kept].reshape(17, 3, -1).transpose(2, 0, 1).copy()      # (n, 17, 3)
+    kp[:, :, 0] = (kp[:, :, 0] - pad_x) / scale
+    kp[:, :, 1] = (kp[:, :, 1] - pad_y) / scale
+    b = (b - np.array([pad_x, pad_y, pad_x, pad_y])) / scale
+    xywh = np.stack([b[:, 0], b[:, 1], b[:, 2] - b[:, 0], b[:, 3] - b[:, 1]], axis=1)
+    return xywh, scores[kept], kp

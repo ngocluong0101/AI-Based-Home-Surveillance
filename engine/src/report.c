@@ -75,6 +75,10 @@ void print_stats(const AppCtx *app)
                 src->source_id, src->camera_id, (guint64)src->frame_count, src->object_count,
                 src->untracked_count, tracks, short_tracks, src->event_count,
                 seconds > 0.0 ? (double)src->frame_count / seconds : 0.0);
+        if (src->pose_count > 0)
+            g_print("source_id=%u camera_id=%d poses=%" G_GUINT64_FORMAT " tracks_with_pose=%u skeleton_overflow=%"
+                    G_GUINT64_FORMAT "\n", src->source_id, src->camera_id, src->pose_count,
+                    g_hash_table_size(src->pose_hist), src->skeleton_overflow);
         if (src->is_rtsp)
             g_print("source_id=%u camera_id=%d state=%s reconnects=%" G_GUINT64_FORMAT "\n",
                     src->source_id, src->camera_id, source_state_name(src->state), src->reconnects);

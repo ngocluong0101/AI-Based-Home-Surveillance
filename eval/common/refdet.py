@@ -63,3 +63,41 @@ def ort_detect_rect(session, frames, conf: float, iou: float):
         raw = session.run(None, {"images": x[None]})[0][0]
         out.append(replica.decode(raw, s, px, py, conf, iou, net_w=nw, net_h=nh))
     return out
+
+
+def ultralytics_pose(model, source, conf: float, iou: float, imgsz: int = 640, batch: int = 16):
+    """Ultralytics PyTorch pose, FP32. source = list of image files, or an iterator of frames.
+    -> per image (boxes xywh (n,4), scores (n,), keypoints (n,17,3) = x, y, confidence), in input-image pixels."""
+    def chunks():
+        if isinstance(source, list):
+            for i in range(0, len(source), batch):
+                yield source[i:i + batch]
+            return
+        buf = []
+        for f in source:
+            buf.append(f)
+            if len(buf) == batch:
+                yield buf
+                buf = []
+        if buf:
+            yield buf
+
+    out = []
+    for chunk in chunks():
+        for res in model.predict(chunk, imgsz=imgsz, conf=conf, iou=iou, max_det=300, verbose=False):
+            b = res.boxes
+            xywh = _xyxy_to_xywh(b.xyxy.cpu().numpy())
+            kp = np.concatenate([res.keypoints.xy.cpu().numpy(), res.keypoints.conf.cpu().numpy()[..., None]], axis=2) \
+                if len(b) else np.zeros((0, 17, 3))
+            out.append((xywh, b.conf.cpu().numpy().astype(float), kp.astype(float)))
+    return out
+
+
+def ort_pose(session, frames, net_w: int, net_h: int, interpolation: int, conf: float, iou: float):
+    """The Python replica of the engine around the pose network (nvinfer preprocessing, parser logic), ONNX Runtime FP32."""
+    out = []
+    for f in frames:
+        x, s, px, py = replica.letterbox_net(f, net_w, net_h, interpolation)
+        raw = session.run(None, {"images": x[None]})[0][0]
+        out.append(replica.decode_pose(raw, s, px, py, net_w, net_h, conf, iou))
+    return out

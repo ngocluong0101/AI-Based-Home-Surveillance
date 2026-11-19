@@ -57,6 +57,13 @@ void test_heartbeat_escapes_the_run_id(void);
 void test_heartbeat_capacity_formula_suffices(void);
 void test_heartbeat_small_buffer_fails_cleanly(void);
 
+/* tests/test_pose.c */
+void test_pose_from_values_rejects_non_finite_numbers(void);
+void test_pose_normalize_centres_on_the_hips_and_scales_by_the_torso(void);
+void test_pose_normalize_handles_missing_points(void);
+void test_pose_history_window_repairs_short_holes_only(void);
+void test_pose_history_ring_wraps_and_ignores_old_frames(void);
+
 static const TestCase TESTS[] = {
     { "bbox_normalize_inside_frame", test_bbox_normalize_inside_frame },
     { "bbox_normalize_clips_to_frame", test_bbox_normalize_clips_to_frame },
@@ -87,6 +94,11 @@ static const TestCase TESTS[] = {
     { "heartbeat_escapes_the_run_id", test_heartbeat_escapes_the_run_id },
     { "heartbeat_capacity_formula_suffices", test_heartbeat_capacity_formula_suffices },
     { "heartbeat_small_buffer_fails_cleanly", test_heartbeat_small_buffer_fails_cleanly },
+    { "pose_from_values_rejects_non_finite_numbers", test_pose_from_values_rejects_non_finite_numbers },
+    { "pose_normalize_centres_on_the_hips_and_scales_by_the_torso", test_pose_normalize_centres_on_the_hips_and_scales_by_the_torso },
+    { "pose_normalize_handles_missing_points", test_pose_normalize_handles_missing_points },
+    { "pose_history_window_repairs_short_holes_only", test_pose_history_window_repairs_short_holes_only },
+    { "pose_history_ring_wraps_and_ignores_old_frames", test_pose_history_ring_wraps_and_ignores_old_frames },
     { NULL, NULL }, /* table terminator */
 };
 
