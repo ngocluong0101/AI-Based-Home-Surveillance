@@ -1,0 +1,1311 @@
+{
+  "sequences": [
+    "02",
+    "04",
+    "09"
+  ],
+  "conf": 0.25,
+  "total": {
+    "engine": {
+      "detections": 29214,
+      "tp": 25678,
+      "fp": 3536,
+      "fn": 45785,
+      "vs_engine": {},
+      "recall_by_height_px": {
+        "0-50": [
+          0,
+          1276
+        ],
+        "50-100": [
+          429,
+          7857
+        ],
+        "100-200": [
+          10858,
+          42523
+        ],
+        "200-inf": [
+          14391,
+          19807
+        ]
+      },
+      "recall": 0.35931880833438284,
+      "precision": 0.8789621414390361
+    },
+    "ultra_default": {
+      "detections": 32487,
+      "tp": 27061,
+      "fp": 5426,
+      "fn": 44402,
+      "vs_engine": {
+        "common": 28414,
+        "only_pipeline": 4073,
+        "only_engine": 800,
+        "only_pipeline_near_threshold": 2857,
+        "only_engine_near_threshold": 720
+      },
+      "recall_by_height_px": {
+        "0-50": [
+          0,
+          1276
+        ],
+        "50-100": [
+          439,
+          7857
+        ],
+        "100-200": [
+          11833,
+          42523
+        ],
+        "200-inf": [
+          14789,
+          19807
+        ]
+      },
+      "recall": 0.378671480346473,
+      "precision": 0.8329793455843876
+    },
+    "ultra_iou045": {
+      "detections": 31312,
+      "tp": 26885,
+      "fp": 4427,
+      "fn": 44578,
+      "vs_engine": {
+        "common": 28374,
+        "only_pipeline": 2938,
+        "only_engine": 840,
+        "only_pipeline_near_threshold": 2121,
+        "only_engine_near_threshold": 741
+      },
+      "recall_by_height_px": {
+        "0-50": [
+          0,
+          1276
+        ],
+        "50-100": [
+          437,
+          7857
+        ],
+        "100-200": [
+          11773,
+          42523
+        ],
+        "200-inf": [
+          14675,
+          19807
+        ]
+      },
+      "recall": 0.37620866742230247,
+      "precision": 0.8586165048543689
+    },
+    "ort_nearest": {
+      "detections": 29657,
+      "tp": 25931,
+      "fp": 3726,
+      "fn": 45532,
+      "vs_engine": {
+        "common": 28683,
+        "only_pipeline": 974,
+        "only_engine": 531,
+        "only_pipeline_near_threshold": 639,
+        "only_engine_near_threshold": 520
+      },
+      "recall_by_height_px": {
+        "0-50": [
+          0,
+          1276
+        ],
+        "50-100": [
+          435,
+          7857
+        ],
+        "100-200": [
+          10872,
+          42523
+        ],
+        "200-inf": [
+          14624,
+          19807
+        ]
+      },
+      "recall": 0.362859101912878,
+      "precision": 0.8743635566645311
+    },
+    "ort_linear": {
+      "detections": 29921,
+      "tp": 25815,
+      "fp": 4106,
+      "fn": 45648,
+      "vs_engine": {
+        "common": 27954,
+        "only_pipeline": 1967,
+        "only_engine": 1260,
+        "only_pipeline_near_threshold": 1419,
+        "only_engine_near_threshold": 1120
+      },
+      "recall_by_height_px": {
+        "0-50": [
+          0,
+          1276
+        ],
+        "50-100": [
+          423,
+          7857
+        ],
+        "100-200": [
+          10778,
+          42523
+        ],
+        "200-inf": [
+          14614,
+          19807
+        ]
+      },
+      "recall": 0.3612358843037656,
+      "precision": 0.862771966177601
+    },
+    "ultra_1280": {
+      "detections": 44933,
+      "tp": 37322,
+      "fp": 7611,
+      "fn": 34141,
+      "vs_engine": {
+        "common": 27942,
+        "only_pipeline": 16991,
+        "only_engine": 1272,
+        "only_pipeline_near_threshold": 5339,
+        "only_engine_near_threshold": 904
+      },
+      "recall_by_height_px": {
+        "0-50": [
+          14,
+          1276
+        ],
+        "50-100": [
+          1569,
+          7857
+        ],
+        "100-200": [
+          20780,
+          42523
+        ],
+        "200-inf": [
+          14959,
+          19807
+        ]
+      },
+      "recall": 0.5222562724766663,
+      "precision": 0.8306144704337569
+    },
+    "ort_rect114_iou045": {
+      "detections": 31316,
+      "tp": 26928,
+      "fp": 4388,
+      "fn": 44535,
+      "vs_engine": {
+        "common": 28373,
+        "only_pipeline": 2943,
+        "only_engine": 841,
+        "only_pipeline_near_threshold": 2127,
+        "only_engine_near_threshold": 741
+      },
+      "recall_by_height_px": {
+        "0-50": [
+          0,
+          1276
+        ],
+        "50-100": [
+          437,
+          7857
+        ],
+        "100-200": [
+          11773,
+          42523
+        ],
+        "200-inf": [
+          14718,
+          19807
+        ]
+      },
+      "recall": 0.37681037739809414,
+      "precision": 0.8598799335802785
+    },
+    "ort_rect114_iou07": {
+      "detections": 32495,
+      "tp": 27104,
+      "fp": 5391,
+      "fn": 44359,
+      "vs_engine": {
+        "common": 28412,
+        "only_pipeline": 4083,
+        "only_engine": 802,
+        "only_pipeline_near_threshold": 2868,
+        "only_engine_near_threshold": 721
+      },
+      "recall_by_height_px": {
+        "0-50": [
+          0,
+          1276
+        ],
+        "50-100": [
+          439,
+          7857
+        ],
+        "100-200": [
+          11833,
+          42523
+        ],
+        "200-inf": [
+          14832,
+          19807
+        ]
+      },
+      "recall": 0.37927319032226464,
+      "precision": 0.8340975534697646
+    },
+    "engine_nvdcf_bilinear": {
+      "detections": 28929,
+      "tp": 25653,
+      "fp": 3276,
+      "fn": 45810,
+      "vs_engine": {
+        "common": 28137,
+        "only_pipeline": 792,
+        "only_engine": 1077,
+        "only_pipeline_near_threshold": 702,
+        "only_engine_near_threshold": 959
+      },
+      "recall_by_height_px": {
+        "0-50": [
+          0,
+          1276
+        ],
+        "50-100": [
+          429,
+          7857
+        ],
+        "100-200": [
+          10869,
+          42523
+        ],
+        "200-inf": [
+          14355,
+          19807
+        ]
+      },
+      "recall": 0.3589689769531086,
+      "precision": 0.8867572332261744
+    },
+    "engine_rect384": {
+      "detections": 30201,
+      "tp": 26462,
+      "fp": 3739,
+      "fn": 45001,
+      "vs_engine": {
+        "common": 29067,
+        "only_pipeline": 1134,
+        "only_engine": 147,
+        "only_pipeline_near_threshold": 991,
+        "only_engine_near_threshold": 64
+      },
+      "recall_by_height_px": {
+        "0-50": [
+          0,
+          1276
+        ],
+        "50-100": [
+          435,
+          7857
+        ],
+        "100-200": [
+          11549,
+          42523
+        ],
+        "200-inf": [
+          14478,
+          19807
+        ]
+      },
+      "recall": 0.37028952045114255,
+      "precision": 0.8761961524452833
+    }
+  },
+  "per_sequence": {
+    "02": {
+      "engine": {
+        "detections": 5184,
+        "tp": 4128,
+        "fp": 1056,
+        "fn": 14453,
+        "recall": 0.22216242398148647,
+        "precision": 0.7962962962962963,
+        "recall_by_height_px": {
+          "0-50": [
+            0,
+            1276
+          ],
+          "50-100": [
+            429,
+            7489
+          ],
+          "100-200": [
+            818,
+            6014
+          ],
+          "200-inf": [
+            2881,
+            3802
+          ]
+        }
+      },
+      "ultra_default": {
+        "detections": 5746,
+        "tp": 4209,
+        "fp": 1537,
+        "fn": 14372,
+        "recall": 0.2265217157311232,
+        "precision": 0.7325095718760877,
+        "recall_by_height_px": {
+          "0-50": [
+            0,
+            1276
+          ],
+          "50-100": [
+            439,
+            7489
+          ],
+          "100-200": [
+            853,
+            6014
+          ],
+          "200-inf": [
+            2917,
+            3802
+          ]
+        },
+        "vs_engine": {
+          "common": 4870,
+          "only_pipeline": 876,
+          "only_engine": 314,
+          "only_pipeline_near_threshold": 717,
+          "only_engine_near_threshold": 277
+        }
+      },
+      "ultra_iou045": {
+        "detections": 5486,
+        "tp": 4163,
+        "fp": 1323,
+        "fn": 14418,
+        "recall": 0.22404606856466283,
+        "precision": 0.7588406853809697,
+        "recall_by_height_px": {
+          "0-50": [
+            0,
+            1276
+          ],
+          "50-100": [
+            437,
+            7489
+          ],
+          "100-200": [
+            845,
+            6014
+          ],
+          "200-inf": [
+            2881,
+            3802
+          ]
+        },
+        "vs_engine": {
+          "common": 4860,
+          "only_pipeline": 626,
+          "only_engine": 324,
+          "only_pipeline_near_threshold": 521,
+          "only_engine_near_threshold": 282
+        }
+      },
+      "ort_nearest": {
+        "detections": 5303,
+        "tp": 4162,
+        "fp": 1141,
+        "fn": 14419,
+        "recall": 0.22399225014800064,
+        "precision": 0.78483877050726,
+        "recall_by_height_px": {
+          "0-50": [
+            0,
+            1276
+          ],
+          "50-100": [
+            435,
+            7489
+          ],
+          "100-200": [
+            839,
+            6014
+          ],
+          "200-inf": [
+            2888,
+            3802
+          ]
+        },
+        "vs_engine": {
+          "common": 5036,
+          "only_pipeline": 267,
+          "only_engine": 148,
+          "only_pipeline_near_threshold": 262,
+          "only_engine_near_threshold": 144
+        }
+      },
+      "ort_linear": {
+        "detections": 5426,
+        "tp": 4139,
+        "fp": 1287,
+        "fn": 14442,
+        "recall": 0.22275442656477046,
+        "precision": 0.7628086988573535,
+        "recall_by_height_px": {
+          "0-50": [
+            0,
+            1276
+          ],
+          "50-100": [
+            423,
+            7489
+          ],
+          "100-200": [
+            833,
+            6014
+          ],
+          "200-inf": [
+            2883,
+            3802
+          ]
+        },
+        "vs_engine": {
+          "common": 4838,
+          "only_pipeline": 588,
+          "only_engine": 346,
+          "only_pipeline_near_threshold": 491,
+          "only_engine_near_threshold": 298
+        }
+      },
+      "ultra_1280": {
+        "detections": 8367,
+        "tp": 6566,
+        "fp": 1801,
+        "fn": 12015,
+        "recall": 0.3533717238038857,
+        "precision": 0.7847496115692602,
+        "recall_by_height_px": {
+          "0-50": [
+            14,
+            1276
+          ],
+          "50-100": [
+            1344,
+            7489
+          ],
+          "100-200": [
+            2281,
+            6014
+          ],
+          "200-inf": [
+            2927,
+            3802
+          ]
+        },
+        "vs_engine": {
+          "common": 4689,
+          "only_pipeline": 3678,
+          "only_engine": 495,
+          "only_pipeline_near_threshold": 1358,
+          "only_engine_near_threshold": 355
+        }
+      },
+      "ort_rect114_iou045": {
+        "detections": 5485,
+        "tp": 4162,
+        "fp": 1323,
+        "fn": 14419,
+        "recall": 0.22399225014800064,
+        "precision": 0.7587967183226982,
+        "recall_by_height_px": {
+          "0-50": [
+            0,
+            1276
+          ],
+          "50-100": [
+            437,
+            7489
+          ],
+          "100-200": [
+            844,
+            6014
+          ],
+          "200-inf": [
+            2881,
+            3802
+          ]
+        },
+        "vs_engine": {
+          "common": 4860,
+          "only_pipeline": 625,
+          "only_engine": 324,
+          "only_pipeline_near_threshold": 520,
+          "only_engine_near_threshold": 282
+        }
+      },
+      "ort_rect114_iou07": {
+        "detections": 5746,
+        "tp": 4208,
+        "fp": 1538,
+        "fn": 14373,
+        "recall": 0.22646789731446101,
+        "precision": 0.7323355377654021,
+        "recall_by_height_px": {
+          "0-50": [
+            0,
+            1276
+          ],
+          "50-100": [
+            439,
+            7489
+          ],
+          "100-200": [
+            852,
+            6014
+          ],
+          "200-inf": [
+            2917,
+            3802
+          ]
+        },
+        "vs_engine": {
+          "common": 4870,
+          "only_pipeline": 876,
+          "only_engine": 314,
+          "only_pipeline_near_threshold": 717,
+          "only_engine_near_threshold": 277
+        }
+      },
+      "engine_nvdcf_bilinear": {
+        "detections": 5129,
+        "tp": 4153,
+        "fp": 976,
+        "fn": 14428,
+        "recall": 0.223507884398041,
+        "precision": 0.8097094950282706,
+        "recall_by_height_px": {
+          "0-50": [
+            0,
+            1276
+          ],
+          "50-100": [
+            429,
+            7489
+          ],
+          "100-200": [
+            831,
+            6014
+          ],
+          "200-inf": [
+            2893,
+            3802
+          ]
+        },
+        "vs_engine": {
+          "common": 4889,
+          "only_pipeline": 240,
+          "only_engine": 295,
+          "only_pipeline_near_threshold": 228,
+          "only_engine_near_threshold": 269
+        }
+      },
+      "engine_rect384": {
+        "detections": 5216,
+        "tp": 4147,
+        "fp": 1069,
+        "fn": 14434,
+        "recall": 0.2231849738980679,
+        "precision": 0.7950536809815951,
+        "recall_by_height_px": {
+          "0-50": [
+            0,
+            1276
+          ],
+          "50-100": [
+            435,
+            7489
+          ],
+          "100-200": [
+            828,
+            6014
+          ],
+          "200-inf": [
+            2884,
+            3802
+          ]
+        },
+        "vs_engine": {
+          "common": 5177,
+          "only_pipeline": 39,
+          "only_engine": 7,
+          "only_pipeline_near_threshold": 37,
+          "only_engine_near_threshold": 7
+        }
+      }
+    },
+    "04": {
+      "engine": {
+        "detections": 19446,
+        "tp": 17931,
+        "fp": 1515,
+        "fn": 29626,
+        "recall": 0.3770422860987867,
+        "precision": 0.9220919469299599,
+        "recall_by_height_px": {
+          "0-50": [
+            0,
+            0
+          ],
+          "50-100": [
+            0,
+            368
+          ],
+          "100-200": [
+            9610,
+            35676
+          ],
+          "200-inf": [
+            8321,
+            11513
+          ]
+        }
+      },
+      "ultra_default": {
+        "detections": 21764,
+        "tp": 19175,
+        "fp": 2589,
+        "fn": 28382,
+        "recall": 0.40320037008221715,
+        "precision": 0.8810420878514978,
+        "recall_by_height_px": {
+          "0-50": [
+            0,
+            0
+          ],
+          "50-100": [
+            0,
+            368
+          ],
+          "100-200": [
+            10546,
+            35676
+          ],
+          "200-inf": [
+            8629,
+            11513
+          ]
+        },
+        "vs_engine": {
+          "common": 19096,
+          "only_pipeline": 2668,
+          "only_engine": 350,
+          "only_pipeline_near_threshold": 1757,
+          "only_engine_near_threshold": 325
+        }
+      },
+      "ultra_iou045": {
+        "detections": 21143,
+        "tp": 19104,
+        "fp": 2039,
+        "fn": 28453,
+        "recall": 0.4017074247744811,
+        "precision": 0.9035614624225512,
+        "recall_by_height_px": {
+          "0-50": [
+            0,
+            0
+          ],
+          "50-100": [
+            0,
+            368
+          ],
+          "100-200": [
+            10500,
+            35676
+          ],
+          "200-inf": [
+            8604,
+            11513
+          ]
+        },
+        "vs_engine": {
+          "common": 19086,
+          "only_pipeline": 2057,
+          "only_engine": 360,
+          "only_pipeline_near_threshold": 1383,
+          "only_engine_near_threshold": 332
+        }
+      },
+      "ort_nearest": {
+        "detections": 19692,
+        "tp": 18138,
+        "fp": 1554,
+        "fn": 29419,
+        "recall": 0.38139495762979164,
+        "precision": 0.921084704448507,
+        "recall_by_height_px": {
+          "0-50": [
+            0,
+            0
+          ],
+          "50-100": [
+            0,
+            368
+          ],
+          "100-200": [
+            9604,
+            35676
+          ],
+          "200-inf": [
+            8534,
+            11513
+          ]
+        },
+        "vs_engine": {
+          "common": 19104,
+          "only_pipeline": 588,
+          "only_engine": 342,
+          "only_pipeline_near_threshold": 265,
+          "only_engine_near_threshold": 341
+        }
+      },
+      "ort_linear": {
+        "detections": 19828,
+        "tp": 18060,
+        "fp": 1768,
+        "fn": 29497,
+        "recall": 0.3797548205311521,
+        "precision": 0.9108331652208997,
+        "recall_by_height_px": {
+          "0-50": [
+            0,
+            0
+          ],
+          "50-100": [
+            0,
+            368
+          ],
+          "100-200": [
+            9518,
+            35676
+          ],
+          "200-inf": [
+            8542,
+            11513
+          ]
+        },
+        "vs_engine": {
+          "common": 18693,
+          "only_pipeline": 1135,
+          "only_engine": 753,
+          "only_pipeline_near_threshold": 717,
+          "only_engine_near_threshold": 691
+        }
+      },
+      "ultra_1280": {
+        "detections": 31230,
+        "tp": 26922,
+        "fp": 4308,
+        "fn": 20635,
+        "recall": 0.566099627815043,
+        "precision": 0.8620557156580211,
+        "recall_by_height_px": {
+          "0-50": [
+            0,
+            0
+          ],
+          "50-100": [
+            225,
+            368
+          ],
+          "100-200": [
+            18004,
+            35676
+          ],
+          "200-inf": [
+            8693,
+            11513
+          ]
+        },
+        "vs_engine": {
+          "common": 18912,
+          "only_pipeline": 12318,
+          "only_engine": 534,
+          "only_pipeline_near_threshold": 3697,
+          "only_engine_near_threshold": 400
+        }
+      },
+      "ort_rect114_iou045": {
+        "detections": 21146,
+        "tp": 19148,
+        "fp": 1998,
+        "fn": 28409,
+        "recall": 0.40263263031730345,
+        "precision": 0.9055140452094959,
+        "recall_by_height_px": {
+          "0-50": [
+            0,
+            0
+          ],
+          "50-100": [
+            0,
+            368
+          ],
+          "100-200": [
+            10501,
+            35676
+          ],
+          "200-inf": [
+            8647,
+            11513
+          ]
+        },
+        "vs_engine": {
+          "common": 19084,
+          "only_pipeline": 2062,
+          "only_engine": 362,
+          "only_pipeline_near_threshold": 1389,
+          "only_engine_near_threshold": 333
+        }
+      },
+      "ort_rect114_iou07": {
+        "detections": 21771,
+        "tp": 19219,
+        "fp": 2552,
+        "fn": 28338,
+        "recall": 0.4041255756250394,
+        "precision": 0.8827798447476001,
+        "recall_by_height_px": {
+          "0-50": [
+            0,
+            0
+          ],
+          "50-100": [
+            0,
+            368
+          ],
+          "100-200": [
+            10547,
+            35676
+          ],
+          "200-inf": [
+            8672,
+            11513
+          ]
+        },
+        "vs_engine": {
+          "common": 19094,
+          "only_pipeline": 2677,
+          "only_engine": 352,
+          "only_pipeline_near_threshold": 1766,
+          "only_engine_near_threshold": 326
+        }
+      },
+      "engine_nvdcf_bilinear": {
+        "detections": 19288,
+        "tp": 17900,
+        "fp": 1388,
+        "fn": 29657,
+        "recall": 0.376390436739071,
+        "precision": 0.9280381584404811,
+        "recall_by_height_px": {
+          "0-50": [
+            0,
+            0
+          ],
+          "50-100": [
+            0,
+            368
+          ],
+          "100-200": [
+            9614,
+            35676
+          ],
+          "200-inf": [
+            8286,
+            11513
+          ]
+        },
+        "vs_engine": {
+          "common": 18813,
+          "only_pipeline": 475,
+          "only_engine": 633,
+          "only_pipeline_near_threshold": 401,
+          "only_engine_near_threshold": 552
+        }
+      },
+      "engine_rect384": {
+        "detections": 20387,
+        "tp": 18694,
+        "fp": 1693,
+        "fn": 28863,
+        "recall": 0.3930861913072734,
+        "precision": 0.9169568842890077,
+        "recall_by_height_px": {
+          "0-50": [
+            0,
+            0
+          ],
+          "50-100": [
+            0,
+            368
+          ],
+          "100-200": [
+            10292,
+            35676
+          ],
+          "200-inf": [
+            8402,
+            11513
+          ]
+        },
+        "vs_engine": {
+          "common": 19313,
+          "only_pipeline": 1074,
+          "only_engine": 133,
+          "only_pipeline_near_threshold": 933,
+          "only_engine_near_threshold": 51
+        }
+      }
+    },
+    "09": {
+      "engine": {
+        "detections": 4584,
+        "tp": 3619,
+        "fp": 965,
+        "fn": 1706,
+        "recall": 0.6796244131455399,
+        "precision": 0.7894851657940664,
+        "recall_by_height_px": {
+          "0-50": [
+            0,
+            0
+          ],
+          "50-100": [
+            0,
+            0
+          ],
+          "100-200": [
+            430,
+            833
+          ],
+          "200-inf": [
+            3189,
+            4492
+          ]
+        }
+      },
+      "ultra_default": {
+        "detections": 4977,
+        "tp": 3677,
+        "fp": 1300,
+        "fn": 1648,
+        "recall": 0.6905164319248827,
+        "precision": 0.7387984729756881,
+        "recall_by_height_px": {
+          "0-50": [
+            0,
+            0
+          ],
+          "50-100": [
+            0,
+            0
+          ],
+          "100-200": [
+            434,
+            833
+          ],
+          "200-inf": [
+            3243,
+            4492
+          ]
+        },
+        "vs_engine": {
+          "common": 4448,
+          "only_pipeline": 529,
+          "only_engine": 136,
+          "only_pipeline_near_threshold": 383,
+          "only_engine_near_threshold": 118
+        }
+      },
+      "ultra_iou045": {
+        "detections": 4683,
+        "tp": 3618,
+        "fp": 1065,
+        "fn": 1707,
+        "recall": 0.6794366197183098,
+        "precision": 0.7725816784112748,
+        "recall_by_height_px": {
+          "0-50": [
+            0,
+            0
+          ],
+          "50-100": [
+            0,
+            0
+          ],
+          "100-200": [
+            428,
+            833
+          ],
+          "200-inf": [
+            3190,
+            4492
+          ]
+        },
+        "vs_engine": {
+          "common": 4428,
+          "only_pipeline": 255,
+          "only_engine": 156,
+          "only_pipeline_near_threshold": 217,
+          "only_engine_near_threshold": 127
+        }
+      },
+      "ort_nearest": {
+        "detections": 4662,
+        "tp": 3631,
+        "fp": 1031,
+        "fn": 1694,
+        "recall": 0.6818779342723005,
+        "precision": 0.7788502788502788,
+        "recall_by_height_px": {
+          "0-50": [
+            0,
+            0
+          ],
+          "50-100": [
+            0,
+            0
+          ],
+          "100-200": [
+            429,
+            833
+          ],
+          "200-inf": [
+            3202,
+            4492
+          ]
+        },
+        "vs_engine": {
+          "common": 4543,
+          "only_pipeline": 119,
+          "only_engine": 41,
+          "only_pipeline_near_threshold": 112,
+          "only_engine_near_threshold": 35
+        }
+      },
+      "ort_linear": {
+        "detections": 4667,
+        "tp": 3616,
+        "fp": 1051,
+        "fn": 1709,
+        "recall": 0.6790610328638498,
+        "precision": 0.7748017998714377,
+        "recall_by_height_px": {
+          "0-50": [
+            0,
+            0
+          ],
+          "50-100": [
+            0,
+            0
+          ],
+          "100-200": [
+            427,
+            833
+          ],
+          "200-inf": [
+            3189,
+            4492
+          ]
+        },
+        "vs_engine": {
+          "common": 4423,
+          "only_pipeline": 244,
+          "only_engine": 161,
+          "only_pipeline_near_threshold": 211,
+          "only_engine_near_threshold": 131
+        }
+      },
+      "ultra_1280": {
+        "detections": 5336,
+        "tp": 3834,
+        "fp": 1502,
+        "fn": 1491,
+        "recall": 0.72,
+        "precision": 0.7185157421289355,
+        "recall_by_height_px": {
+          "0-50": [
+            0,
+            0
+          ],
+          "50-100": [
+            0,
+            0
+          ],
+          "100-200": [
+            495,
+            833
+          ],
+          "200-inf": [
+            3339,
+            4492
+          ]
+        },
+        "vs_engine": {
+          "common": 4341,
+          "only_pipeline": 995,
+          "only_engine": 243,
+          "only_pipeline_near_threshold": 284,
+          "only_engine_near_threshold": 149
+        }
+      },
+      "ort_rect114_iou045": {
+        "detections": 4685,
+        "tp": 3618,
+        "fp": 1067,
+        "fn": 1707,
+        "recall": 0.6794366197183098,
+        "precision": 0.7722518676627534,
+        "recall_by_height_px": {
+          "0-50": [
+            0,
+            0
+          ],
+          "50-100": [
+            0,
+            0
+          ],
+          "100-200": [
+            428,
+            833
+          ],
+          "200-inf": [
+            3190,
+            4492
+          ]
+        },
+        "vs_engine": {
+          "common": 4429,
+          "only_pipeline": 256,
+          "only_engine": 155,
+          "only_pipeline_near_threshold": 218,
+          "only_engine_near_threshold": 126
+        }
+      },
+      "ort_rect114_iou07": {
+        "detections": 4978,
+        "tp": 3677,
+        "fp": 1301,
+        "fn": 1648,
+        "recall": 0.6905164319248827,
+        "precision": 0.7386500602651668,
+        "recall_by_height_px": {
+          "0-50": [
+            0,
+            0
+          ],
+          "50-100": [
+            0,
+            0
+          ],
+          "100-200": [
+            434,
+            833
+          ],
+          "200-inf": [
+            3243,
+            4492
+          ]
+        },
+        "vs_engine": {
+          "common": 4448,
+          "only_pipeline": 530,
+          "only_engine": 136,
+          "only_pipeline_near_threshold": 385,
+          "only_engine_near_threshold": 118
+        }
+      },
+      "engine_nvdcf_bilinear": {
+        "detections": 4512,
+        "tp": 3600,
+        "fp": 912,
+        "fn": 1725,
+        "recall": 0.676056338028169,
+        "precision": 0.7978723404255319,
+        "recall_by_height_px": {
+          "0-50": [
+            0,
+            0
+          ],
+          "50-100": [
+            0,
+            0
+          ],
+          "100-200": [
+            424,
+            833
+          ],
+          "200-inf": [
+            3176,
+            4492
+          ]
+        },
+        "vs_engine": {
+          "common": 4435,
+          "only_pipeline": 77,
+          "only_engine": 149,
+          "only_pipeline_near_threshold": 73,
+          "only_engine_near_threshold": 138
+        }
+      },
+      "engine_rect384": {
+        "detections": 4598,
+        "tp": 3621,
+        "fp": 977,
+        "fn": 1704,
+        "recall": 0.68,
+        "precision": 0.7875163114397564,
+        "recall_by_height_px": {
+          "0-50": [
+            0,
+            0
+          ],
+          "50-100": [
+            0,
+            0
+          ],
+          "100-200": [
+            429,
+            833
+          ],
+          "200-inf": [
+            3192,
+            4492
+          ]
+        },
+        "vs_engine": {
+          "common": 4577,
+          "only_pipeline": 21,
+          "only_engine": 7,
+          "only_pipeline_near_threshold": 21,
+          "only_engine_near_threshold": 6
+        }
+      }
+    }
+  }
+}

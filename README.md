@@ -216,6 +216,7 @@ Normally the manager starts it. By hand:
 | `--snapshot-dir DIR`, `--snapshot-quality Q` | one JPEG of the frame per event (default quality 85) |
 | `--stream-url BASE` (`--stream-bitrate KBPS`) | publish each camera with boxes over RTMP to `BASE/cam<ID>` (default 4000 kbit/s); not with `--output` |
 | `--output FILE` | debug: tiled MP4 with boxes; stop with Ctrl-C so the file is finalized |
+| `--dump-detections FILE` | measuring tool: CSV of every detection (after `nvinfer`) and tracked object (after `nvtracker`) per frame, written by a separate thread; see `eval/` |
 | `--absence-timeout SEC`, `--rtsp-timeout SEC`, `--fps-interval SEC` | default re-alert delay (10), RTSP reconnect after SEC without frames (10), FPS print interval (5, 0 = off) |
 
 Exit codes: `0` all sources ended or stopped by SIGINT/SIGTERM, `1` pipeline error, `2` bad arguments, `3` pipeline not built.

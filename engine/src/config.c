@@ -35,6 +35,7 @@ gint opt_stream_bitrate = STREAM_BITRATE_DEFAULT_KBPS;
 gint opt_heartbeat_interval = HEARTBEAT_INTERVAL_DEFAULT_S;
 gint opt_rtsp_timeout = RTSP_TIMEOUT_DEFAULT_S;
 gint opt_max_cameras = 0;
+gchar *opt_dump_detections = NULL;
 gdouble opt_absence_timeout = 10.0;  /* same default as ABSENCE_TIMEOUT in src/config */
 
 static GOptionEntry option_entries[] = {
@@ -70,6 +71,9 @@ static GOptionEntry option_entries[] = {
     { "absence-timeout", 0, 0, G_OPTION_ARG_DOUBLE, &opt_absence_timeout,
       "Seconds a person must be out of sight before the same track ID raises a new "
       "PERSON_DETECTED event (default 10)", "SEC" },
+    { "dump-detections", 0, 0, G_OPTION_ARG_FILENAME, &opt_dump_detections,
+      "Measuring tool: write every detection of nvinfer and every tracked object of nvtracker, frame by frame, "
+      "to this CSV file (see dump.c for the columns)", "FILE" },
     { "output", 0, 0, G_OPTION_ARG_FILENAME, &opt_output,
       "Debug: write an MP4 of all sources tiled in one video, with boxes and track IDs drawn on it "
       "(without it nothing is rendered)", "FILE" },
@@ -340,6 +344,7 @@ void config_free(void)
     g_free(opt_config);
     g_free(opt_tracker_config);
     g_free(opt_output);
+    g_free(opt_dump_detections);
     g_free(opt_snapshot_dir);
     g_free(opt_backend_url);
     g_free(opt_spool_file);

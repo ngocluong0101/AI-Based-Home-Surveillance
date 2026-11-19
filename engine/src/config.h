@@ -14,6 +14,7 @@ extern gchar *opt_cameras_file;
 extern gchar *opt_config;
 extern gchar *opt_tracker_config;
 extern gchar *opt_output;
+extern gchar *opt_dump_detections;
 extern gint opt_fps_interval;
 extern gchar *opt_snapshot_dir;
 extern gint opt_snapshot_quality;

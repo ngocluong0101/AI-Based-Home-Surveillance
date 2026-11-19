@@ -68,7 +68,7 @@ interview/
 CLAUDE.md
 
 # Personal dev roadmap/planning notes (keep local, never push)
-ROADMAP.md
+ROADMAP*.md
 # Personal study guide to this project (keep local, never push)
 HOC_DU_AN.md
 # ONNX models and TensorRT engines (regenerate: engine/tools/export_yolov8_onnx.py, nvinfer)
@@ -76,3 +76,9 @@ HOC_DU_AN.md
 *.engine
 # ...but not the engine's Dockerfile, whose name ends the same way
 !deploy/Dockerfile.engine
+
+# V2 (SafeGuard): datasets are never committed (their licenses forbid redistribution); keep only the README.
+# eval/work holds intermediate files (frames, dumps, converted videos); eval/results (small JSON) is kept.
+datasets/*
+!datasets/README.md
+eval/work/

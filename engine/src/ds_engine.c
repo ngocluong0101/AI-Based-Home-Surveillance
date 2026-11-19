@@ -9,6 +9,7 @@
  *   config.c      command line, cameras file, per-camera settings
  *   sources.c     camera slots, add / remove while running (SIGHUP), RTSP loss detection
  *   probes.c      the pad probes: detections, events, snapshots, per-camera filters
+ *   dump.c        --dump-detections: detections and tracks to a CSV file, for measuring
  *   delivery.c    the publisher thread: snapshot files, HTTP to the backend, the spool file
  *   stream_out.c  live video of each camera to a media server (RTMP)
  *   report.c      statistics, frame rate, heartbeat
@@ -27,6 +28,7 @@
 #include "app.h"
 #include "config.h"
 #include "delivery.h"
+#include "dump.h"
 #include "nvds_obj_encode.h"
 #include "probes.h"
 #include "report.h"
@@ -280,6 +282,8 @@ static GstElement *build_pipeline(AppCtx *app)
         g_printerr("Could not get the src pad of nvtracker\n");
         goto fail;
     }
+    if (opt_dump_detections != NULL)
+        gst_pad_add_probe(tracker_src, GST_PAD_PROBE_TYPE_BUFFER, dump_trk_probe, app, NULL);
     gst_pad_add_probe(tracker_src, GST_PAD_PROBE_TYPE_BUFFER, detection_probe, app, NULL);
     gst_object_unref(tracker_src);
 
@@ -290,6 +294,9 @@ static GstElement *build_pipeline(AppCtx *app)
         g_printerr("Could not get the src pad of nvinfer\n");
         goto fail;
     }
+    /* First, so that it sees what the detector made before settings_probe removes anything. */
+    if (opt_dump_detections != NULL)
+        gst_pad_add_probe(pgie_src, GST_PAD_PROBE_TYPE_BUFFER, dump_det_probe, app, NULL);
     gst_pad_add_probe(pgie_src, GST_PAD_PROBE_TYPE_BUFFER, settings_probe, app, NULL);
     gst_object_unref(pgie_src);
 
@@ -346,11 +353,18 @@ int main(int argc, char *argv[])
         }
     }
 
+    if (opt_dump_detections != NULL && !dump_start(opt_dump_detections)) {
+        publisher_stop(&app);
+        free_sources(&app);
+        return EXIT_BUILD_FAILED;
+    }
+
     app.loop = g_main_loop_new(NULL, FALSE);
     app.pipeline = build_pipeline(&app);
     if (app.pipeline == NULL) {
         app.exit_code = EXIT_BUILD_FAILED;
         publisher_stop(&app);
+        dump_stop();
     } else {
         GstBus *bus = gst_pipeline_get_bus(GST_PIPELINE(app.pipeline));
         guint bus_watch_id = gst_bus_add_watch(bus, bus_call, &app);
@@ -409,6 +423,7 @@ int main(int argc, char *argv[])
         gst_object_unref(app.pipeline);
         g_source_remove(bus_watch_id);
         publisher_stop(&app);   /* the pipeline is down, so no more events come */
+        dump_stop();
         print_stats(&app);
     }
 
