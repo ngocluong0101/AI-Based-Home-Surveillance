@@ -43,6 +43,9 @@ const event = (over: Partial<PersonEvent> = {}): PersonEvent => ({
   snapshot_url: null,
   status: "new",
   notify_status: "pending",
+  verification: "not_required",
+  verification_score: null,
+  verification_reason: null,
   ...over,
 });
 

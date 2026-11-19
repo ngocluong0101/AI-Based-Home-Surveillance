@@ -1,6 +1,6 @@
 import { Ban, Siren, Swords, TriangleAlert, UserRound, type LucideIcon } from "lucide-react";
 import type { BadgeTone } from "../components/ui/Badge";
-import type { EventType, PersonEvent, Severity } from "../types";
+import type { EventType, PersonEvent, Severity, Verification } from "../types";
 
 export interface EventKind {
   /** The title of the event ("Fall detected"). */
@@ -52,3 +52,33 @@ export function describeEvent(e: Pick<PersonEvent, "type" | "track_ids" | "track
 
 /** Icon for the "alerts" in a header or toast. */
 export const AlertIcon = Siren;
+
+/** What the page says about the VLM's check of an event; null when there is nothing to say (no VLM, or not a fall / fight). */
+export function verificationNote(e: Pick<PersonEvent, "verification" | "verification_reason" | "notify_status">):
+  { label: string; tone: BadgeTone; detail: string } | null {
+  switch (e.verification) {
+    case "pending":
+      return { label: "Checking…", tone: "idle", detail: "A vision model is looking at the pictures. The alert goes out in a few seconds either way." };
+    case "confirmed":
+      return { label: "Confirmed", tone: "ok", detail: e.verification_reason ?? "" };
+    case "rejected":
+      return {
+        label: "Not confirmed",
+        tone: "idle",
+        detail:
+          (e.notify_status === "sent" ? "The alert had already been sent when the model answered. " : "No message was sent. ") + (e.verification_reason ?? ""),
+      };
+    case "unverified":
+      return { label: "Unchecked", tone: "warn", detail: e.verification_reason ?? "The vision model could not decide; the alert was sent as usual." };
+    default:
+      return null;
+  }
+}
+
+/** The choices of the "VLM check" filter of the Events page. */
+export const VERIFICATION_FILTERS: { id: string; label: string; states: Verification[] | undefined }[] = [
+  { id: "all", label: "All", states: undefined },
+  { id: "confirmed", label: "Confirmed", states: ["confirmed"] },
+  { id: "rejected", label: "Not confirmed by the VLM", states: ["rejected"] },
+  { id: "unchecked", label: "Unchecked or checking", states: ["unverified", "pending"] },
+];

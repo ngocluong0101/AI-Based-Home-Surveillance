@@ -319,6 +319,12 @@ typedef struct {
     QueueItem *snapshot;     /* its JPEG, once finish() is done; NULL = no snapshot */
 } FrameGroup;
 
+/* A frame of the ring (--frame-ring-dir) waiting for the encoder; its JPEG becomes an ITEM_RING. */
+typedef struct {
+    NvDsFrameMeta *frame_meta;
+    char name[64];
+} RingJob;
+
 /*
  * Ask the object encoder for a JPEG of the whole frame of group->frame_meta; the events of the
  * group share it and carry the name derived from the first one. nvds_obj_enc_process() only
@@ -359,6 +365,22 @@ static void submit_snapshot(AppCtx *app, GstBuffer *buf, GstMapInfo *map, gboole
 
 failed:
     atomic_fetch_add_explicit(&app->snapshots_failed, 1, memory_order_relaxed);
+}
+
+/* Ask the encoder for a JPEG of one frame for the ring. Same rules as submit_snapshot(): the caller finishes the encoder before the buffer leaves. */
+static gboolean submit_ring_frame(AppCtx *app, GstBuffer *buf, GstMapInfo *map, gboolean *mapped, NvDsFrameMeta *frame_meta)
+{
+    if (!*mapped) {
+        if (!gst_buffer_map(buf, map, GST_MAP_READ))
+            return FALSE;
+        *mapped = TRUE;
+    }
+    NvDsObjEncUsrArgs args = { 0 };
+    args.isFrame = TRUE;
+    args.saveImg = FALSE;
+    args.attachUsrMeta = TRUE;
+    args.quality = 70;   /* the VLM shrinks them to 640 px anyway */
+    return nvds_obj_enc_process(app->snap_ctx, &args, (NvBufSurface *)map->data, NULL, frame_meta) ? TRUE : FALSE;
 }
 
 /* After nvds_obj_enc_finish(): copy the JPEG the encoder attached to the frame into a snapshot
@@ -500,6 +522,7 @@ GstPadProbeReturn detection_probe(GstPad *pad, GstPadProbeInfo *info, gpointer u
     GstMapInfo map = GST_MAP_INFO_INIT;
     gboolean mapped = FALSE;
     gboolean encode_queued = FALSE;
+    GArray *ring_jobs = NULL;
 
     for (NvDsMetaList *l_frame = batch_meta->frame_meta_list; l_frame != NULL;
          l_frame = l_frame->next) {
@@ -511,6 +534,7 @@ GstPadProbeReturn detection_probe(GstPad *pad, GstPadProbeInfo *info, gpointer u
             continue;   /* a frame of a camera that was just taken out */
 
         guint total = 0, untracked = 0;
+        gboolean event_frame = FALSE;   /* this frame's events are being encoded as a snapshot */
         size_t n = extract_person_detections(frame_meta, dets, G_N_ELEMENTS(dets), &total,
                                              &untracked);
         atomic_fetch_add_explicit(&src->frame_count, 1, memory_order_relaxed);
@@ -562,6 +586,7 @@ GstPadProbeReturn detection_probe(GstPad *pad, GstPadProbeInfo *info, gpointer u
             g_mutex_unlock(&src->beh_lock);
             behavior_set_config(src->behavior, &fresh.cfg);
             src->fall_net_on = fresh.cfg.fall && fresh.cfg.fall_net != 0.0 && app->fallnet != NULL;
+            src->ring_on = opt_frame_ring_dir != NULL && (fresh.cfg.fall || fresh.cfg.fight);
             behavior_set_zones(src->behavior, fresh.zones, fresh.num_zones);
             memcpy(src->draw_zones, fresh.zones, sizeof(src->draw_zones));
             src->num_draw_zones = fresh.num_zones;
@@ -613,24 +638,59 @@ GstPadProbeReturn detection_probe(GstPad *pad, GstPadProbeInfo *info, gpointer u
                 g_ptr_array_add(pending, new_event_item(app, src, &events[i]));
             for (int i = 0; i < nbev; i++)
                 g_ptr_array_add(pending, new_behavior_item(app, src, &bev[i], src->beh_people, nppl));
-            if (app->snap_ctx != NULL) {
+            if (app->snap_ctx != NULL && opt_snapshot_dir != NULL) {
                 submit_snapshot(app, buf, &map, &mapped, &group,
                                 (QueueItem **)pending->pdata + group.first);
                 encode_queued |= group.encoding;
             }
             g_array_append_val(groups, group);
+            event_frame = group.encoding;
+        }
+
+        /* The ring of recent frames for the VLM (V2-6): a few per second per camera with a fall or fight rule, never the frame that already
+         * carries an event snapshot (a frame has one encoded image attached). */
+        if (src->ring_on && app->snap_ctx != NULL && !event_frame) {
+            const gint64 at = src->stream_start_ns + (gint64)frame_meta->buf_pts;
+            if (at - src->ring_last_ns >= G_GINT64_CONSTANT(1000000000) / opt_frame_ring_fps &&
+                (guint64)atomic_load_explicit(&app->snapshot_bytes_queued, memory_order_relaxed) < SNAPSHOT_QUEUE_MAX_BYTES &&
+                submit_ring_frame(app, buf, &map, &mapped, frame_meta)) {
+                if (ring_jobs == NULL)
+                    ring_jobs = g_array_new(FALSE, TRUE, sizeof(RingJob));
+                RingJob job = { .frame_meta = frame_meta };
+                g_snprintf(job.name, sizeof(job.name), "ring_cam%d_%" G_GINT64_FORMAT ".jpg", src->camera_id, at / 1000000);
+                g_array_append_val(ring_jobs, job);
+                atomic_fetch_add_explicit(&app->ring_submitted, 1, memory_order_relaxed);
+                src->ring_last_ns = at;
+            }
         }
     }
 
-    if (pending != NULL) {
-        if (encode_queued) {
-            gint64 t0 = g_get_monotonic_time();
-            nvds_obj_enc_finish(app->snap_ctx);
-            guint64 waited = (guint64)(g_get_monotonic_time() - t0);
-            app->snapshot_block_us += waited;
-            if (waited > app->snapshot_block_max_us)
-                app->snapshot_block_max_us = waited;
+    if (encode_queued || (ring_jobs != NULL && ring_jobs->len > 0)) {
+        gint64 t0 = g_get_monotonic_time();
+        nvds_obj_enc_finish(app->snap_ctx);
+        guint64 waited = (guint64)(g_get_monotonic_time() - t0);
+        app->snapshot_block_us += waited;
+        if (waited > app->snapshot_block_max_us)
+            app->snapshot_block_max_us = waited;
+    }
+    if (ring_jobs != NULL) {
+        for (guint i = 0; i < ring_jobs->len; i++) {
+            const RingJob *job = &g_array_index(ring_jobs, RingJob, i);
+            QueueItem *item = take_jpeg(job->frame_meta, job->name);
+            if (item == NULL)
+                continue;
+            if (g_async_queue_length(app->event_queue) >= (gint)EVENT_QUEUE_MAX) {   /* (signed: it is negative while the publisher waits) the publisher is behind: a ring frame is the first thing to give up */
+                queue_item_free(item);
+                continue;
+            }
+            item->kind = ITEM_RING;
+            atomic_fetch_add_explicit(&app->snapshot_bytes_queued, item->jpeg_len, memory_order_relaxed);
+            atomic_fetch_add_explicit(&app->ring_queued, 1, memory_order_relaxed);
+            g_async_queue_push(app->event_queue, item);
         }
+        g_array_free(ring_jobs, TRUE);
+    }
+    if (pending != NULL) {
         for (guint g = 0; g < groups->len; g++) {
             FrameGroup *group = &g_array_index(groups, FrameGroup, g);
             QueueItem **items = (QueueItem **)pending->pdata + group->first;

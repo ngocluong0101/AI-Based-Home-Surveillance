@@ -128,6 +128,9 @@ function makeEvent(w: World, camera: Camera, t: number, status: EventStatus, typ
     snapshot_url: person ? snapshotUrl(camera.id, camera.name, [person], t) : null,
     status,
     notify_status: "sent",
+    verification: "not_required",
+    verification_score: null,
+    verification_reason: null,
   };
 }
 
@@ -277,6 +280,9 @@ export function newLiveEvent(now = Date.now()): PersonEvent | null {
   const type: EventType = rule === "fall" ? "FALL" : rule === "fight" ? "FIGHT" : rule === "zones" ? "RESTRICTED_AREA" : "PERSON_DETECTED";
   const event = makeEvent(w, camera, now, "new", type);
   event.notify_status = alertStatusAt(now);
+  if (type === "FALL" || type === "FIGHT") {
+    event.verification = "pending";    // the demo's VLM answers a few seconds later (realtime.ts calls settleVerification)
+  }
   w.events.unshift(event);
   return event;
 }
@@ -399,6 +405,10 @@ function eventPage(q: URLSearchParams): EventPage {
   const offset = Number(q.get("offset") ?? 0);
   const camera = q.get("camera_id");
   const status = q.get("status");
+  const verification = q.get("verification") === null ? null : q.get("verification")!.split(",").map((v) => v.trim()).filter(Boolean);
+  if (verification !== null && (verification.length === 0 || verification.some((v) => !["not_required", "pending", "confirmed", "rejected", "unverified"].includes(v)))) {
+    throw new ApiError(422, "verification must be one or more of not_required, pending, confirmed, rejected, unverified");
+  }
   // like the real API: one or several types, comma separated; a type nobody sends is a mistake
   const types = q.get("type") === null ? null : q.get("type")!.split(",").map((t) => t.trim()).filter(Boolean);
   if (types !== null && (types.length === 0 || types.some((t) => !(t in SEVERITY_OF)))) {
@@ -410,6 +420,7 @@ function eventPage(q: URLSearchParams): EventPage {
     (e) =>
       (camera === null || e.camera_id === Number(camera)) &&
       (status === null || e.status === status) &&
+      (verification === null || verification.includes(e.verification)) &&
       (types === null || types.includes(e.type)) &&
       (from === null || e.timestamp >= from) &&
       (to === null || e.timestamp < to),
@@ -548,4 +559,23 @@ export async function handle<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(404, "Not found");
   };
   return answer() as T;
+}
+
+/** Demo only: the made-up VLM settles a pending event: mostly confirms, now and then does not. */
+export function settleVerification(event: PersonEvent, rng: () => number): PersonEvent {
+  const r = rng();
+  if (r < 0.7) {
+    event.verification = "confirmed";
+    event.verification_score = 0.93;
+    event.verification_reason = "the person is lying on the floor next to a chair [ring, 6 frames, 1.9 s]";
+  } else if (r < 0.9) {
+    event.verification = "rejected";
+    event.verification_score = 0.04;
+    event.verification_reason = "the person is sitting on the sofa [ring, 6 frames, 1.8 s]";
+    event.notify_status = "skipped";
+  } else {
+    event.verification = "unverified";
+    event.verification_reason = "VLM unsure. hard to tell from these frames";
+  }
+  return event;
 }

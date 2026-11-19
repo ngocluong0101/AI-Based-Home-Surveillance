@@ -16,6 +16,7 @@ from backend import __version__
 from backend.app_settings import AppSettings, AppSettingsStore
 from backend.db import make_engine, make_session_factory
 from backend.engine_client import EngineClient
+from backend.frames import FrameSource
 from backend.heartbeats import HeartbeatStore
 from backend.janitor import SnapshotJanitor
 from backend.models import Event
@@ -25,6 +26,8 @@ from backend.reconciler import Reconciler
 from backend.routers import cameras, engine, events, health, internal, settings as settings_router, ws
 from backend.routers.events import publish_event
 from backend.settings import Settings
+from backend.verifier import Verifier
+from backend.vlm_client import VlmClient
 
 
 async def _watch_heartbeats(app: FastAPI, interval: float) -> None:
@@ -35,7 +38,7 @@ async def _watch_heartbeats(app: FastAPI, interval: float) -> None:
 
 
 def create_app(settings: Settings | None = None, engine_client: EngineClient | None = None,
-               telegram=None) -> FastAPI:
+               telegram=None, vlm_client=None) -> FastAPI:
     """`telegram`: anything with `enabled`, `send_person_detected(event)` and
     `send_person_detected_photo(event, path)`; default is the TelegramNotifier configured by .env."""
     settings = settings or Settings.from_env()
@@ -49,6 +52,8 @@ def create_app(settings: Settings | None = None, engine_client: EngineClient | N
         if app.state.reconciler is not None:
             app.state.reconciler.start()
         app.state.notifier.start()
+        if app.state.verifier is not None:
+            app.state.verifier.start()
         app.state.janitor.start()
         app.state.hub.attach(asyncio.get_running_loop())
         watcher = asyncio.create_task(_watch_heartbeats(app, settings.status_check_interval))
@@ -57,6 +62,9 @@ def create_app(settings: Settings | None = None, engine_client: EngineClient | N
         with suppress(asyncio.CancelledError):
             await watcher
         app.state.hub.detach()
+        if app.state.verifier is not None:
+            app.state.verifier.stop()
+            app.state.vlm_client.close()
         app.state.notifier.stop()
         app.state.janitor.stop()
         if app.state.reconciler is not None:
@@ -91,7 +99,16 @@ def create_app(settings: Settings | None = None, engine_client: EngineClient | N
     )
     app.state.notifier = Notifier(app.state.session_factory, telegram, settings.snapshot_dir,
                                   settings.notify_interval, settings.notify_max_age, announce_update,
-                                  store=app.state.app_settings)
+                                  store=app.state.app_settings,
+                                  verify_timeout=settings.verify_timeout if settings.vlm_url or vlm_client else 0.0)
+    # The VLM check of falls and fights (V2-6): only when a VLM service is configured (or a stand-in is given)
+    app.state.vlm_client = vlm_client or (VlmClient(settings.vlm_url, settings.verify_timeout) if settings.vlm_url else None)
+    app.state.verifier = None
+    if app.state.vlm_client is not None:
+        app.state.verifier = Verifier(app.state.session_factory, app.state.vlm_client,
+                                      FrameSource(settings.snapshot_dir, settings.frame_ring_dir), settings.verify_timeout,
+                                      settings.verify_interval, announce_update, app.state.notifier.trigger,
+                                      settle=(FrameSource.after_default + 0.5) if settings.frame_ring_dir else 0.0)
     app.state.janitor = SnapshotJanitor(app.state.session_factory, settings.snapshot_dir,
                                         settings.snapshot_retention_days, settings.snapshot_cleanup_every,
                                         settings.cleanup_check_interval,

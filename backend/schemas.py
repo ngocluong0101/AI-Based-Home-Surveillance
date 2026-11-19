@@ -341,6 +341,9 @@ class HeartbeatIn(BaseModel):
     cameras: list[HeartbeatCameraIn] = Field(max_length=1024)
 
 
+VERIFICATION_STATES = ("not_required", "pending", "confirmed", "rejected", "unverified")
+
+
 class EventOut(BaseModel):
     event_id: uuid.UUID
     camera_id: int
@@ -357,6 +360,10 @@ class EventOut(BaseModel):
     snapshot_url: str | None   # /api/events/{id}/snapshot, or None when there is no image
     status: str
     notify_status: str
+    # VLM check (V2-6): not_required | pending | confirmed | rejected | unverified; the score is the VLM's probability of yes
+    verification: str = "not_required"
+    verification_score: float | None = None
+    verification_reason: str | None = None
 
 
 class EventPatch(BaseModel):

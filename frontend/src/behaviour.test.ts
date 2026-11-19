@@ -18,7 +18,7 @@ describe("event types", () => {
   const ev = (over: Partial<PersonEvent>): PersonEvent => ({
     event_id: "e", camera_id: 1, pipeline_run_id: "r", type: "PERSON_DETECTED", track_id: 12, track_ids: [12], zone_id: null,
     confidence: 0.9, timestamp: "2026-01-01T00:00:00Z", occurred_at: null, severity: "info", bbox: [0, 0, 1, 1], snapshot_url: null,
-    status: "new", notify_status: "pending", ...over,
+    status: "new", notify_status: "pending", verification: "not_required", verification_score: null, verification_reason: null, ...over,
   });
 
   it("names every type and falls back to a person event for one it does not know", () => {

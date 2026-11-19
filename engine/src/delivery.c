@@ -59,6 +59,61 @@ static gboolean write_snapshot(const QueueItem *item)
     return ok;
 }
 
+/* The ring of recent frames (--frame-ring-dir, V2-6): written here, in the publisher thread, and the files older than --frame-ring-seconds are removed
+ * as new ones arrive. The names (ring_cam<ID>_<epoch ms>.jpg) are remembered in order of writing, so nothing scans the directory. Files left by an earlier
+ * run are removed once, at the first write. Only this thread touches the list. */
+typedef struct {
+    gchar *path;
+    gint64 written_us;
+} RingFile;
+static GQueue ring_files = G_QUEUE_INIT;
+static gboolean ring_swept;
+static guint64 ring_write_failures;
+
+static void ring_sweep_old_run(void)
+{
+    GDir *dir = g_dir_open(opt_frame_ring_dir, 0, NULL);
+    if (dir == NULL)
+        return;
+    const gchar *name;
+    while ((name = g_dir_read_name(dir)) != NULL) {
+        if (g_str_has_prefix(name, "ring_cam")) {
+            gchar *path = g_build_filename(opt_frame_ring_dir, name, NULL);
+            g_unlink(path);
+            g_free(path);
+        }
+    }
+    g_dir_close(dir);
+}
+
+static void ring_write(AppCtx *app, const QueueItem *item)
+{
+    if (!ring_swept) {
+        ring_sweep_old_run();
+        ring_swept = TRUE;
+    }
+    gchar *path = g_build_filename(opt_frame_ring_dir, item->snapshot_name, NULL);
+    gboolean okk = g_file_set_contents(path, (const gchar *)item->jpeg, (gssize)item->jpeg_len, NULL);
+    if (okk) {
+        RingFile *rf = g_new(RingFile, 1);
+        rf->path = path;
+        rf->written_us = g_get_monotonic_time();
+        g_queue_push_tail(&ring_files, rf);
+        atomic_fetch_add_explicit(&app->ring_written, 1, memory_order_relaxed);
+    } else {
+        if (ring_write_failures++ == 0)
+            g_printerr("Could not write to --frame-ring-dir; the VLM check will have fewer pictures\n");
+        g_free(path);
+    }
+    const gint64 oldest_kept = g_get_monotonic_time() - (gint64)opt_frame_ring_seconds * G_GINT64_CONSTANT(1000000);
+    RingFile *head;
+    while ((head = g_queue_peek_head(&ring_files)) != NULL && head->written_us < oldest_kept) {
+        g_unlink(head->path);
+        g_free(head->path);
+        g_free(g_queue_pop_head(&ring_files));
+    }
+}
+
 typedef enum { SEND_OK, SEND_RETRY, SEND_REJECTED } SendResult;
 
 /* libcurl would write the response body to stdout by default; we do not need it. */
@@ -240,6 +295,9 @@ static gpointer publisher_thread(gpointer data)
         if (item->kind == ITEM_HEARTBEAT) {
             send_heartbeat(app, item->heartbeat_json);
             atomic_store_explicit(&app->heartbeat_pending, FALSE, memory_order_release);
+        } else if (item->kind == ITEM_RING) {
+            atomic_fetch_sub_explicit(&app->snapshot_bytes_queued, item->jpeg_len, memory_order_relaxed);
+            ring_write(app, item);
         } else if (item->kind == ITEM_SNAPSHOT) {
             atomic_fetch_sub_explicit(&app->snapshot_bytes_queued, item->jpeg_len,
                                       memory_order_relaxed);

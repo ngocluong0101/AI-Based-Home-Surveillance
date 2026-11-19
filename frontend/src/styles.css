@@ -323,6 +323,9 @@ a.btn { text-decoration: none; }
 button.shot:hover { background: var(--surface-2); border-color: var(--line); }
 .shot-img { position: relative; display: block; aspect-ratio: 16 / 9; border-radius: var(--radius-sm); overflow: hidden; border: 1px solid var(--line); }
 .shot-new { position: absolute; top: 0.4rem; left: 0.4rem; padding: 0.1rem 0.5rem; border-radius: 999px; background: var(--warn); color: #1a1200; font-size: 0.72rem; font-weight: 650; }
+.shot-check { position: absolute; bottom: 0.4rem; left: 0.4rem; padding: 0.1rem 0.5rem; border-radius: 999px; font-size: 0.72rem; font-weight: 600; background: rgba(0, 0, 0, 0.78); color: #fff; }
+.shot-check-ok { background: #166534; }
+.shot-check-warn { background: #92400e; }
 .shot-conf { position: absolute; top: 0.4rem; right: 0.4rem; padding: 0.1rem 0.5rem; border-radius: 999px; background: rgba(0, 0, 0, 0.72); color: #fff; font-size: 0.72rem; font-weight: 600; }
 .shot-cap { display: flex; flex-direction: column; gap: 0.1rem; padding: 0 0.15rem 0.15rem; min-width: 0; }
 .shot-cap b { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

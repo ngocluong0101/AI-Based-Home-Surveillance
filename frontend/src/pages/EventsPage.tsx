@@ -11,7 +11,7 @@ import { useCameraName, useCameras, useEvents } from "../hooks/queries";
 import { useOpenEvent } from "../hooks/useEventDrawer";
 import { useNow } from "../hooks/useNow";
 import type { EventStatus } from "../types";
-import { kindOf, SEVERITY_LABEL, SEVERITY_TONE, TYPE_FILTERS } from "../utils/eventType";
+import { kindOf, SEVERITY_LABEL, SEVERITY_TONE, TYPE_FILTERS, VERIFICATION_FILTERS } from "../utils/eventType";
 import { formatTime, groupByDay, localDayStart, relativeTime } from "../utils/format";
 import { useHighlighted } from "../websocket/recentEvents";
 
@@ -31,6 +31,7 @@ export function EventsPage() {
 
   const [cameraId, setCameraId] = useState<number | undefined>();
   const [status, setStatus] = useState<EventStatus | undefined>();
+  const [verifyFilter, setVerifyFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
@@ -45,6 +46,7 @@ export function EventsPage() {
     cameraId,
     types: TYPE_FILTERS.find((t) => t.id === typeFilter)?.types,
     status,
+    verification: VERIFICATION_FILTERS.find((v) => v.id === verifyFilter)?.states,
     from: localDayStart(from),
     to: localDayStart(to, 1), // the whole last day: the exclusive bound is the next midnight
     limit: PAGE,
@@ -58,7 +60,7 @@ export function EventsPage() {
       set(v);
       setOffset(0);
     };
-  const filtered = cameraId !== undefined || status !== undefined || typeFilter !== "all" || from !== "" || to !== "";
+  const filtered = cameraId !== undefined || status !== undefined || verifyFilter !== "all" || typeFilter !== "all" || from !== "" || to !== "";
   const clear = () => {
     setTypeFilter("all");
     setCameraId(undefined);
@@ -152,6 +154,14 @@ export function EventsPage() {
             <option value="">All cameras</option>
             {cameras.data?.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </label>
+        <label className="field">
+          VLM check
+          <select value={verifyFilter} onChange={(e) => filter(setVerifyFilter)(e.target.value)}>
+            {VERIFICATION_FILTERS.map((v) => (
+              <option key={v.id} value={v.id}>{v.label}</option>
             ))}
           </select>
         </label>

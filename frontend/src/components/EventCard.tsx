@@ -1,5 +1,5 @@
 import type { PersonEvent } from "../types";
-import { isAlert, kindOf } from "../utils/eventType";
+import { isAlert, kindOf, verificationNote } from "../utils/eventType";
 import { percent, relativeTime, timeOfDay } from "../utils/format";
 import { CoverImage } from "./CoverImage";
 
@@ -19,6 +19,7 @@ export function EventCard({
 }) {
   const kind = kindOf(event.type);
   const Icon = kind.icon;
+  const check = verificationNote(event);
   return (
     <button className={`shot ${highlighted ? "is-new" : ""} ${isAlert(event) ? "is-alert" : ""}`} onClick={() => onOpen(event.event_id)}>
       <span className="shot-img">
@@ -29,6 +30,7 @@ export function EventCard({
             <Icon size={13} aria-hidden /> {kind.short}
           </span>
         )}
+        {check && <span className={`shot-check shot-check-${check.tone}`}>{check.label}</span>}
         <span className="shot-conf">{percent(event.confidence)}</span>
       </span>
       <span className="shot-cap">

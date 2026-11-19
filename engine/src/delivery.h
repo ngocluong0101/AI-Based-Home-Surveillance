@@ -9,12 +9,12 @@
 #include "app.h"
 
 /* What travels through the queue to the publisher thread. */
-typedef enum { ITEM_EVENT, ITEM_SNAPSHOT, ITEM_HEARTBEAT, ITEM_STOP } ItemKind;
+typedef enum { ITEM_EVENT, ITEM_SNAPSHOT, ITEM_HEARTBEAT, ITEM_RING, ITEM_STOP } ItemKind;
 
 typedef struct {
     ItemKind kind;
     EventRecord rec;       /* ITEM_EVENT */
-    gchar *snapshot_name;  /* ITEM_SNAPSHOT: file name inside --snapshot-dir */
+    gchar *snapshot_name;  /* ITEM_SNAPSHOT: file name inside --snapshot-dir; ITEM_RING: inside --frame-ring-dir */
     guint8 *jpeg;          /* ITEM_SNAPSHOT: the encoded image */
     gsize jpeg_len;
     gchar *heartbeat_json; /* ITEM_HEARTBEAT: the body to POST */

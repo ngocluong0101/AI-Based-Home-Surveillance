@@ -91,6 +91,11 @@ ENGINE_MANAGER_URL: Optional[str] = os.getenv("ENGINE_MANAGER_URL") or None
 # Seconds an event may wait for its Telegram alert; after that it is marked failed instead of sent late
 NOTIFY_MAX_AGE: float = _parse_float(os.getenv("NOTIFY_MAX_AGE"), 600.0)
 HEARTBEAT_STALE_AFTER: float = _parse_float(os.getenv("HEARTBEAT_STALE_AFTER"), 15.0)
+# VLM check of falls and fights (V2-6): where the VLM service listens (unset = no check) and how long an alert may wait for it
+VLM_URL: Optional[str] = os.getenv("VLM_URL") or None
+VERIFY_TIMEOUT: float = _parse_float(os.getenv("VERIFY_TIMEOUT"), 8.0)
+# Directory where the engine keeps its ring of recent frames (--frame-ring-dir); unset = the VLM sees only the event's snapshot
+FRAME_RING_DIR: Optional[str] = os.getenv("FRAME_RING_DIR") or None
 ABSENCE_TIMEOUT: float = _parse_float(os.getenv("ABSENCE_TIMEOUT"), 10.0)
 
 ENABLE_TELEGRAM: bool = _parse_bool(os.getenv("ENABLE_TELEGRAM"), False)
@@ -123,6 +128,9 @@ __all__ = [
     "ENGINE_HEARTBEAT_URL",
     "HEARTBEAT_STALE_AFTER",
     "NOTIFY_MAX_AGE",
+    "VLM_URL",
+    "VERIFY_TIMEOUT",
+    "FRAME_RING_DIR",
     "ENGINE_EXTRA_ARGS",
     "ENGINE_MAX_CAMERAS",
     "ENGINE_STREAM_URL",

@@ -113,14 +113,15 @@ class NoTelegram:
 def make_client(database_url, db_engine, snapshot_dir):
     clients = []
 
-    def factory(engine_client=None, telegram=None, **overrides) -> TestClient:
+    def factory(engine_client=None, telegram=None, vlm_client=None, **overrides) -> TestClient:
+        overrides.setdefault("verify_interval", 0)   # no verifier thread: tests call app.state.verifier.run_once()
         overrides.setdefault("reconcile_interval", 0)   # no background thread unless a test asks for it
         overrides.setdefault("notify_interval", 0)
         overrides.setdefault("cleanup_check_interval", 0)
         telegram = telegram or NoTelegram()   # never the real one: .env of the developer may hold a token
         settings = Settings(database_url=database_url, snapshot_dir=str(snapshot_dir),
                             configure_logging=False, **overrides)
-        client = TestClient(create_app(settings, engine_client=engine_client, telegram=telegram))
+        client = TestClient(create_app(settings, engine_client=engine_client, telegram=telegram, vlm_client=vlm_client))
         client.__enter__()
         clients.append(client)
         return client

@@ -362,7 +362,7 @@ int main(int argc, char *argv[])
         return EXIT_BUILD_FAILED;
     }
 
-    if (opt_snapshot_dir != NULL) {
+    if (opt_snapshot_dir != NULL || opt_frame_ring_dir != NULL) {
         app.snap_ctx = nvds_obj_enc_create_context(GPU_ID);
         if (app.snap_ctx == NULL) {
             g_printerr("Could not create the JPEG encoder context\n");

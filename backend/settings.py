@@ -21,6 +21,10 @@ class Settings:
     stream_path_prefix: str = "live"        # MediaMTX path of camera N is <prefix>/cam<N>
     notify_interval: float = 5.0            # seconds between Telegram rounds; 0 = no notifier thread
     notify_max_age: float = 600.0           # an alert undeliverable for longer than this is marked failed
+    vlm_url: str | None = None              # None = falls and fights are not checked by a VLM
+    verify_timeout: float = 8.0             # an alert waits at most this long for the VLM (fail-open)
+    verify_interval: float = 0.5            # seconds between looks for events to check; 0 = no verifier thread
+    frame_ring_dir: str | None = None       # the engine's ring of recent frames; None = the snapshot is all the VLM gets
     snapshot_retention_days: int = 7
     snapshot_cleanup_every: int = 100       # run the cleaner after this many new snapshots (or hourly)
     cleanup_check_interval: float = 60.0    # seconds between looks at whether a cleanup is due; 0 = no janitor thread
@@ -41,6 +45,9 @@ class Settings:
             engine_manager_url=config.ENGINE_MANAGER_URL,
             heartbeat_stale_after=config.HEARTBEAT_STALE_AFTER,
             notify_max_age=config.NOTIFY_MAX_AGE,
+            vlm_url=config.VLM_URL,
+            verify_timeout=config.VERIFY_TIMEOUT,
+            frame_ring_dir=config.FRAME_RING_DIR,
             mediamtx_webrtc_url=config.MEDIAMTX_WEBRTC_URL,
             stream_path_prefix=config.MEDIAMTX_PATH_PREFIX,
             snapshot_retention_days=config.SNAPSHOT_RETENTION_DAYS,

@@ -24,6 +24,7 @@ export function eventsQuery(f: EventFilters): string {
   if (f.cameraId !== undefined) q.set("camera_id", String(f.cameraId));
   if (f.types && f.types.length > 0) q.set("type", f.types.join(","));
   if (f.status) q.set("status", f.status);
+  if (f.verification && f.verification.length > 0) q.set("verification", f.verification.join(","));
   if (f.from) q.set("from", f.from);
   if (f.to) q.set("to", f.to);
   return q.toString();

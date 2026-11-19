@@ -1,3 +1,4 @@
+import { verificationNote } from "../utils/eventType";
 import { Check, ImageOff, RotateCcw, Video } from "lucide-react";
 import { useState } from "react";
 import { useCameraName, useEvent, useSetEventStatus } from "../hooks/queries";
@@ -86,6 +87,15 @@ function Body({ eventId, onOpenCamera }: { eventId: string; onOpenCamera: (camer
           <dd>
             <Badge tone={acknowledged ? "idle" : "warn"}>{acknowledged ? "Acknowledged" : "New"}</Badge>
           </dd>
+          {verificationNote(e) && (
+            <>
+              <dt>VLM check</dt>
+              <dd>
+                <Badge tone={verificationNote(e)!.tone}>{verificationNote(e)!.label}</Badge>
+                {verificationNote(e)!.detail && <div className="muted" style={{ marginTop: 4 }}>{verificationNote(e)!.detail}</div>}
+              </dd>
+            </>
+          )}
           <dt>Telegram</dt>
           <dd>{e.notify_status}</dd>
           <dt>Event ID</dt>

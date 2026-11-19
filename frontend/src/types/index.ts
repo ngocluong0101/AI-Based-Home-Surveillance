@@ -107,7 +107,14 @@ export interface PersonEvent {
   snapshot_url: string | null;
   status: EventStatus;
   notify_status: string;
+  /** The VLM's check of a fall or fight (V2-6). */
+  verification: Verification;
+  /** The VLM's probability of "yes", when it answered. */
+  verification_score: number | null;
+  verification_reason: string | null;
 }
+
+export type Verification = "not_required" | "pending" | "confirmed" | "rejected" | "unverified";
 
 export interface EventPage {
   items: PersonEvent[];
@@ -121,6 +128,8 @@ export interface EventFilters {
   /** One or several types; none = all of them. */
   types?: EventType[];
   status?: EventStatus;
+  /** One or several VLM states; none = all of them. */
+  verification?: Verification[];
   from?: string; // ISO 8601
   to?: string; // ISO 8601, exclusive
   limit: number;

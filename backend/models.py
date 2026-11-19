@@ -96,6 +96,11 @@ class Event(Base):
     status: Mapped[str] = mapped_column(String(16), server_default=text("'new'"))
     notify_status: Mapped[str] = mapped_column(String(16), server_default=text("'pending'"))
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # VLM check of a FALL / FIGHT (migration 0005): not_required | pending | confirmed | rejected | unverified
+    verification: Mapped[str] = mapped_column(String(16), server_default=text("'not_required'"))
+    verification_score: Mapped[float | None] = mapped_column(Float)
+    verification_reason: Mapped[str | None] = mapped_column(Text)
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     __table_args__ = (
         CheckConstraint("confidence >= 0 AND confidence <= 1", name="ck_events_confidence"),
@@ -104,6 +109,10 @@ class Event(Base):
         CheckConstraint(
             "notify_status IN ('pending', 'sent', 'failed', 'disabled', 'skipped')", name="ck_events_notify_status"
         ),
+        CheckConstraint(
+            "verification IN ('not_required', 'pending', 'confirmed', 'rejected', 'unverified')", name="ck_events_verification"
+        ),
+        Index("ix_events_verification", "verification", postgresql_where=text("verification = 'pending'")),
         Index("ix_events_camera_timestamp", "camera_id", text("timestamp DESC")),
         Index("ix_events_timestamp", text("timestamp DESC")),
         Index("ix_events_type_timestamp", "type", text("timestamp DESC")),

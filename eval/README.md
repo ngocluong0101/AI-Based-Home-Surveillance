@@ -106,6 +106,18 @@ eval/tools/in_container.sh engine/build/stgcn_check /work/engine/models/stgcn_fa
 RUN_GPU_TESTS=1 pytest tests/engine_real/test_fall_model.py -v
 ```
 
+## V2-6 — VLM xác minh
+
+```bash
+eval/.venv/bin/pip install "transformers>=4.57" accelerate huggingface_hub        # một lần; mô hình Qwen/Qwen3-VL-2B-Instruct (~4 GB) tự tải lần đầu
+# 212 cửa sổ trên UR Fall (cửa sổ chú thích + cảnh báo thật của luật và mạng); kết quả được cache trong eval/work/vlm/, chạy lại gần như miễn phí
+nice -n 10 eval/.venv/bin/python eval/vlm/evaluate.py --frames 6 --style options --no-reason --after 2.0 --tag _after2
+eval/.venv/bin/python eval/vlm/analyse.py eval/work/vlm/results_options_f6_after2.jsonl      # loại bao nhiêu báo giả, mất bao nhiêu cú ngã thật, theo ngưỡng
+# một lần chạy thật cả chuỗi: engine (vòng đệm + snapshot) -> backend -> PostgreSQL tạm (v2-test-pg) -> dịch vụ VLM thật
+eval/.venv/bin/python eval/vlm/chain.py fall-09 adl-10 adl-34
+# M3 với vòng đệm + mạng ngã (và tải VLM chạy song song: xem ROADMAP_V2_NHAT_KY.md 10.3): engine/tools/benchmark.py --fall-model ... --frame-ring-dir ...
+```
+
 ## Kiểm tra công cụ
 
 `eval/.venv/bin/python -m pytest tests/test_eval_tools.py` (13 test: IoU, ghép khung, letterbox, decode detection và pose, đọc cột keypoint của dump, và MOTA/IDF1 trên ca có đáp án tay).

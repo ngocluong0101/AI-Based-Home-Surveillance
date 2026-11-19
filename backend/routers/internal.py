@@ -16,6 +16,8 @@ from backend.heartbeats import CameraBeat
 from backend.routers.events import publish_event
 from backend.schemas import EventIn, HeartbeatIn
 
+VERIFIED_TYPES = ("FALL", "FIGHT")   # what the VLM checks
+
 router = APIRouter(prefix="/internal", tags=["internal"])
 log = logging.getLogger(__name__)
 
@@ -49,6 +51,7 @@ def post_event(body: EventIn, request: Request, response: Response, db: Session 
             zone_id=body.zone_id,
             occurred_at=body.occurred_at,
             snapshot_file=body.snapshot,
+            verification="pending" if (request.app.state.verifier is not None and body.type in VERIFIED_TYPES) else "not_required",
         )
         .on_conflict_do_nothing(index_elements=[Event.event_id])
         .returning(Event.event_id)
@@ -69,6 +72,8 @@ def post_event(body: EventIn, request: Request, response: Response, db: Session 
             publish_event(request.app.state.hub, "event.created", stored)
         if body.snapshot:
             request.app.state.janitor.note_snapshot()
+        if request.app.state.verifier is not None and body.type in VERIFIED_TYPES:
+            request.app.state.verifier.trigger()
         request.app.state.notifier.trigger()
     return {"event_id": str(body.event_id), "duplicate": not inserted}
 

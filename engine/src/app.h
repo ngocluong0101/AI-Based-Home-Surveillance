@@ -125,6 +125,8 @@ typedef struct {
      * the first frame seen; the EventManager clock is stream_start_ns + pts. */
     gint64 stream_start_ns;
     gboolean have_stream_start;
+    gboolean ring_on;       /* keep this camera's recent frames (--frame-ring-dir) and it has a fall or fight rule; probe thread only */
+    gint64 ring_last_ns;    /* stream clock of the last frame put in the ring */
     gboolean fall_net_on;   /* the skeleton network scores this camera's people (fall_net != 0 and the model is loaded); probe thread only */
     guint64 event_count;   /* PERSON_DETECTED events emitted */
     guint64 event_errors;  /* frames dropped from event processing because memory ran out */
@@ -152,6 +154,7 @@ typedef struct AppCtx {
     SourceCtx *sources;
     guint num_sources;
     FallNet *fallnet;                /* NULL without --fall-model (or when it could not be loaded) */
+    _Atomic guint64 ring_submitted, ring_queued, ring_written;   /* frame ring (--frame-ring-dir): asked of the encoder, queued, written to disk */
     float *fallnet_window;           /* scratch for one window, used by the probe only */
     gint exit_code;
     gboolean eos_requested;  /* --output: SIGINT/SIGTERM sent EOS so that qtmux can finalize the MP4 */

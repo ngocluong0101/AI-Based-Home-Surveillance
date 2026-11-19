@@ -29,6 +29,9 @@ extern gint opt_heartbeat_interval;
 extern gint opt_rtsp_timeout;
 extern gint opt_max_cameras;
 extern gdouble opt_absence_timeout;
+extern gchar *opt_frame_ring_dir;   /* --frame-ring-dir: recent frames of cameras with fall/fight rules, for the VLM check (V2-6) */
+extern gint opt_frame_ring_fps;
+extern gint opt_frame_ring_seconds;
 extern gchar *opt_fall_model;       /* --fall-model: the skeleton network (V2-5); NULL = rules only */
 extern gint opt_fall_model_window;
 extern gint opt_fall_model_batch;

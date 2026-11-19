@@ -60,3 +60,30 @@ def test_a_missing_model_means_the_rules_decide(work):
     falls, out = run_engine(work, FALL_CLIP, "fall_net=1\nfall_still_s=1.0", model=work / "no_such.onnx")
     assert "WARNING: the fall model is not used" in out
     assert len(falls) == 1
+
+
+def test_the_frame_ring_keeps_recent_frames_of_a_camera_with_a_fall_rule(work):
+    """V2-6: --frame-ring-dir gives the VLM check its pictures: ~2 JPEGs a second per camera with a fall or fight rule, named by camera and time"""
+    import re
+    ring = work / "ring"
+    ring.mkdir(exist_ok=True)
+    for old in ring.glob("*"):
+        old.unlink()
+    ini = work / "cameras_ring.ini"
+    ini.write_text(f"[camera.1]\nuri=file:///work/eval/work/urfall/fall-09.mp4\nbehaviors=fall\n")
+    ini.chmod(0o600)
+    for need in (PGIE, FALL_CLIP, ADL_CLIP):
+        if not need.exists():
+            pytest.skip(f"{need} is missing")
+    r = subprocess.run(["docker", "run", "--rm", "--gpus", "all", "-u", "1000:1000", "-v", f"{REPO}:/work", "-w", "/work/engine", "--entrypoint", "./build/ds_engine",
+                        IMAGE, "--config", "/work/eval/work/pgie_pose_b1.txt",
+                        "--tracker-config", "/work/engine/configs/tracker_nvdcf.yml", "--cameras-file", "/work/eval/work/test_fall_model/cameras_ring.ini",
+                        "--frame-ring-dir", "/work/eval/work/test_fall_model/ring", "--fps-interval", "0"], capture_output=True, text=True, timeout=300)
+    assert r.returncode == 0, r.stderr[-1500:]
+    files = sorted(ring.glob("*.jpg"))
+    assert files and all(re.fullmatch(r"ring_cam1_\d{13}\.jpg", f.name) for f in files)    
+    assert 8 <= len(files) <= 16                                                              # a 6.4 s clip at 2 per second
+    assert all(f.read_bytes()[:2] == b"\xff\xd8" for f in files)
+    times = [int(f.stem.split("_")[2]) for f in files]
+    assert all(0.4 <= (b - a) / 1000 <= 0.7 for a, b in zip(times, times[1:]))
+    assert "frame ring: submitted=" in r.stdout

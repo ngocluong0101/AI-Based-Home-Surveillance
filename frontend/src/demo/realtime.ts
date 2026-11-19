@@ -2,7 +2,9 @@
 import type { QueryClient } from "@tanstack/react-query";
 import type { PersonEvent } from "../types";
 import { applyMessage } from "../websocket/messages";
-import { liveStatuses, newLiveEvent } from "./server";
+import { liveStatuses, newLiveEvent, settleVerification } from "./server";
+
+const VLM_ANSWERS_AFTER_MS = 3000;
 
 const STATUS_EVERY_MS = 1000;
 const FIRST_EVENT_MS = 9000; // soon enough for a visitor to see a toast
@@ -22,7 +24,13 @@ export function startDemoRealtime(qc: QueryClient, onNewEvent: (event: PersonEve
     eventTimer = window.setTimeout(() => {
       const event = newLiveEvent();
       if (event) {
-        applyMessage(qc, { type: "event.created", data: event }, onNewEvent);
+        applyMessage(qc, { type: "event.created", data: { ...event } }, onNewEvent);
+        if (event.verification === "pending") {
+          // the pretend VLM answers a few seconds later, like the real one: the card changes without a reload
+          window.setTimeout(() => {
+            applyMessage(qc, { type: "event.updated", data: { ...settleVerification(event, Math.random) } });
+          }, VLM_ANSWERS_AFTER_MS);
+        }
         scheduleEvent(NEXT_EVENT_MS[0] + Math.random() * (NEXT_EVENT_MS[1] - NEXT_EVENT_MS[0]));
       } else {
         scheduleEvent(RETRY_MS);

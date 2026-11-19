@@ -140,6 +140,7 @@ Under Docker, compose sets paths and URLs itself and takes only those marked *co
 | `ENGINE_COMMAND`, `ENGINE_CONFIG`, `ENGINE_TRACKER_CONFIG`, `ENGINE_RUNTIME_DIR`, `ENGINE_EXTRA_ARGS` | see `.env.example` | how the manager starts the engine. **Falls and fights need the pose model**: export `engine/models/yolov8n-pose.onnx` (`engine/tools/export_yolov8_pose_onnx.py`) and set `ENGINE_CONFIG` to `engine/configs/pgie_yolov8n_pose.txt` (in Docker `/app/engine/configs/pgie_yolov8n_pose.txt`); the first start builds its TensorRT engine (~4 min) |
 | `ENGINE_BACKEND_URL`, `ENGINE_HEARTBEAT_URL` | `http://127.0.0.1:8000/internal/events`, derived | where the engine posts events and heartbeats |
 | `ENGINE_STREAM_URL`, `MEDIAMTX_WEBRTC_URL`, `MEDIAMTX_PATH_PREFIX` | empty = no video, –, `live` | publishing and watching live video |
+| `VLM_URL`, `VERIFY_TIMEOUT`, `FRAME_RING_DIR` | unset, `8`, unset | the VLM check of falls and fights (see below): where the VLM service listens (unset = no check), the most seconds an alert waits for it, and the engine's frame ring (`--frame-ring-dir`; unset = the VLM sees only the event's snapshot) |
 | `HEARTBEAT_STALE_AFTER`, `NOTIFY_MAX_AGE` | `15`, `600` | seconds of silence before a camera counts offline; age after which a pending Telegram alert is dropped |
 | `LOG_LEVEL`, `LOG_FILE`, `LOG_MAX_BYTES`, `LOG_BACKUP_COUNT` | `INFO`, `logs/app.log`, 5 MB, `3` | rotating log file + terminal |
 
@@ -155,6 +156,22 @@ the snapshot exists, text otherwise), never the engine. A Telegram outage never 
 a growing pause (1 s → 60 s) and given up after `NOTIFY_MAX_AGE`. Try it: `python scripts/test_telegram_snapshot.py`, or press *Send test message* on the Settings page.
 When alerts are switched off, or an event arrives in the quiet hours, the event is stored and shown as usual and its `notify_status`
 is `skipped` (the other values: `pending`, `sent`, `disabled` = Telegram not set up, `failed`).
+
+## Checking falls and fights with a vision-language model
+
+A fall or fight can be looked at by a small VLM (Qwen3-VL-2B-Instruct, Apache 2.0, run locally, ~4.3 GB of GPU memory) before anybody is alerted. It sees six frames
+from just before to two seconds after the event and chooses what the person does: falls / lies down on purpose / crouches or bends / normal / nobody. **If it is
+sure the event is not a fall (probability of "fall" below 0.1), no Telegram message is sent; the event is still stored and shown, with the reason, under the filter
+"Not confirmed by the VLM".** Anything else - the VLM unsure, down, slow (more than `VERIFY_TIMEOUT`), or no picture - sends the alert as if there were no VLM.
+
+```bash
+pip install -r vlm_service/requirements.txt                       # on the machine with the GPU
+uvicorn vlm_service.app:create_app --factory --host 127.0.0.1 --port 8200   # first start downloads the model (~4 GB)
+# .env of the backend:  VLM_URL=http://127.0.0.1:8200   VERIFY_TIMEOUT=8   FRAME_RING_DIR=/dev/shm/ring
+# engine (ENGINE_EXTRA_ARGS): --frame-ring-dir /dev/shm/ring    (the same directory; a tmpfs: ~2 JPEGs/s per camera with a fall or fight rule are rewritten all the time)
+```
+The frame ring is what lets the VLM tell a fall from lying down on purpose; without it the VLM gets the single snapshot of the event. Measured on UR Fall
+(one room, 40 daily-activity sequences, **thresholds read off the same data: optimistic; no false-alarms-per-hour figure yet**): see `ROADMAP_V2_NHAT_KY.md` section 10 and `eval/results/2026-11-19_v2-6_vlm_urfall.json`.
 
 ## Development without Docker
 
@@ -219,6 +236,7 @@ Normally the manager starts it. By hand:
 | `--dump-detections FILE` | measuring tool: CSV of every detection (after `nvinfer`) and tracked object (after `nvtracker`) per frame, written by a separate thread; see `eval/` |
 | `--config configs/pgie_yolov8n_pose.txt` | the pose model (YOLOv8n-pose, 640x384 input): every tracked person also carries 17 keypoints, kept per track in the engine (`src/core/pose.c`) and drawn on the video of `--output` / `--stream-url`; export it with `engine/tools/export_yolov8_pose_onnx.py` |
 | `--fall-model FILE.onnx` (`--fall-model-window T`, `--fall-model-batch N`) | the skeleton network that scores falls (ST-GCN, ~0.1 M parameters; train/export: `eval/train/`). TensorRT builds an FP16 engine from it on first use and a worker thread (C++, TensorRT API) scores windows in batches, so the pad probe never waits. A camera opts in with `fall_net=1` (network decides) or `fall_net=2` (network or rules) in the cameras file, plus `fall_net_thr` / `fall_net_k`; without the model, or when it cannot be loaded, every camera runs the rules |
+| `--frame-ring-dir DIR` (`--frame-ring-fps N`, `--frame-ring-seconds SEC`) | keep the last 15 s of every camera that has a fall or fight rule as JPEG files `ring_cam<ID>_<epoch ms>.jpg` (2 per second); the backend takes the pictures for the VLM check from there. Use a tmpfs |
 | `--absence-timeout SEC`, `--rtsp-timeout SEC`, `--fps-interval SEC` | default re-alert delay (10), RTSP reconnect after SEC without frames (10), FPS print interval (5, 0 = off) |
 
 Exit codes: `0` all sources ended or stopped by SIGINT/SIGTERM, `1` pipeline error, `2` bad arguments, `3` pipeline not built.

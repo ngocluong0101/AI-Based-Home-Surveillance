@@ -103,6 +103,9 @@ void print_stats(const AppCtx *app)
                 fs.submitted, fs.scored, fs.dropped, fs.errors, fs.batches, fs.batches ? fs.total_batch_us / (double)fs.batches : 0.0,
                 fs.max_batch_us, fs.queue_peak);
     }
+    if (opt_frame_ring_dir != NULL)
+        g_print("frame ring: submitted=%" G_GUINT64_FORMAT " queued=%" G_GUINT64_FORMAT " written=%" G_GUINT64_FORMAT "\n", (guint64)app->ring_submitted,
+                (guint64)app->ring_queued, (guint64)app->ring_written);
     g_print("events published=%" G_GUINT64_FORMAT " dropped=%" G_GUINT64_FORMAT
             " pipeline_run_id=%s\n", (guint64)app->events_published, (guint64)app->events_dropped,
             app->pipeline_run_id);

@@ -1,5 +1,5 @@
 import type { PersonEvent } from "../types";
-import { describeEvent, isAlert, kindOf, SEVERITY_LABEL, SEVERITY_TONE } from "../utils/eventType";
+import { describeEvent, isAlert, kindOf, SEVERITY_LABEL, SEVERITY_TONE, verificationNote } from "../utils/eventType";
 import { percent, relativeTime } from "../utils/format";
 import { Badge } from "./ui/Badge";
 import { Thumb } from "./Thumb";
@@ -20,6 +20,7 @@ export function EventItem({
 }) {
   const kind = kindOf(event.type);
   const Icon = kind.icon;
+  const check = verificationNote(event);
   return (
     <button className={`event-item ${highlighted ? "is-new" : ""} ${isAlert(event) ? "is-alert" : ""}`} onClick={() => onOpen(event.event_id)}>
       <Thumb src={event.snapshot_url} />
@@ -27,6 +28,7 @@ export function EventItem({
         <span className="title">
           <Icon size={14} /> {kind.label}
           {event.severity !== "info" && <Badge tone={SEVERITY_TONE[event.severity]}>{SEVERITY_LABEL[event.severity]}</Badge>}
+          {check && <Badge tone={check.tone}>{check.label}</Badge>}
           {event.status === "new" && <Badge tone="warn">New</Badge>}
         </span>
         <span className="sub" style={{ display: "block" }}>

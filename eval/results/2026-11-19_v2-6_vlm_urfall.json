@@ -1,0 +1,214 @@
+{
+ "note": "Qwen3-VL-2B-Instruct (Apache 2.0, bf16, ~4.3 GB), 6 frames per window, UR Fall (30 falls, 40 daily-activity sequences, one room, 640x480). 'annotated' = windows from the dataset's own annotation; 'alert_*' = what the detectors really reported (rules at fall_still_s=1.0; skeleton network thr 0.95 k 3 seed 0 of the CV). A threshold t means: suppress the alert when p_yes < t. The threshold is read off these same windows: optimistic. Only 40 daily-activity sequences (~5 min): nothing here is a per-hour rate.",
+ "yes_no_question_one_word": {
+  "auc_annotated": 0.9913888888888889,
+  "alert_rule": {
+   "true": 20,
+   "false": 11,
+   "by_threshold": {
+    "0.5": {
+     "false_removed": 0,
+     "true_lost": 0
+    },
+    "0.8": {
+     "false_removed": 2,
+     "true_lost": 0
+    },
+    "0.9": {
+     "false_removed": 2,
+     "true_lost": 0
+    },
+    "0.95": {
+     "false_removed": 2,
+     "true_lost": 0
+    },
+    "0.98": {
+     "false_removed": 3,
+     "true_lost": 0
+    },
+    "0.99": {
+     "false_removed": 3,
+     "true_lost": 0
+    },
+    "0.995": {
+     "false_removed": 3,
+     "true_lost": 0
+    },
+    "0.999": {
+     "false_removed": 6,
+     "true_lost": 0
+    }
+   }
+  },
+  "note": "the model answered yes to crouching ('yes, ... not falling'): unusable thresholds"
+ },
+ "multiple_choice_after_0.5s": {
+  "auc_annotated": 0.9958333333333333,
+  "alert_rule": {
+   "true": 20,
+   "false": 11,
+   "by_threshold": {
+    "0.02": {
+     "false_removed": 6,
+     "true_lost": 0
+    },
+    "0.05": {
+     "false_removed": 7,
+     "true_lost": 0
+    },
+    "0.1": {
+     "false_removed": 7,
+     "true_lost": 0
+    },
+    "0.2": {
+     "false_removed": 7,
+     "true_lost": 0
+    },
+    "0.3": {
+     "false_removed": 9,
+     "true_lost": 0
+    },
+    "0.5": {
+     "false_removed": 9,
+     "true_lost": 0
+    },
+    "0.7": {
+     "false_removed": 10,
+     "true_lost": 0
+    },
+    "0.9": {
+     "false_removed": 10,
+     "true_lost": 2
+    }
+   }
+  },
+  "alert_net": {
+   "true": 30,
+   "false": 1,
+   "by_threshold": {
+    "0.02": {
+     "false_removed": 1,
+     "true_lost": 4
+    },
+    "0.05": {
+     "false_removed": 1,
+     "true_lost": 6
+    },
+    "0.1": {
+     "false_removed": 1,
+     "true_lost": 6
+    },
+    "0.2": {
+     "false_removed": 1,
+     "true_lost": 8
+    },
+    "0.3": {
+     "false_removed": 1,
+     "true_lost": 9
+    },
+    "0.5": {
+     "false_removed": 1,
+     "true_lost": 12
+    },
+    "0.7": {
+     "false_removed": 1,
+     "true_lost": 15
+    },
+    "0.9": {
+     "false_removed": 1,
+     "true_lost": 19
+    }
+   }
+  }
+ },
+ "multiple_choice_after_2s": {
+  "auc_annotated": 0.9958333333333333,
+  "alert_rule": {
+   "true": 20,
+   "false": 11,
+   "by_threshold": {
+    "0.02": {
+     "false_removed": 4,
+     "true_lost": 0
+    },
+    "0.05": {
+     "false_removed": 5,
+     "true_lost": 0
+    },
+    "0.1": {
+     "false_removed": 6,
+     "true_lost": 0
+    },
+    "0.2": {
+     "false_removed": 6,
+     "true_lost": 0
+    },
+    "0.3": {
+     "false_removed": 7,
+     "true_lost": 0
+    },
+    "0.5": {
+     "false_removed": 7,
+     "true_lost": 0
+    },
+    "0.7": {
+     "false_removed": 7,
+     "true_lost": 0
+    },
+    "0.9": {
+     "false_removed": 9,
+     "true_lost": 2
+    }
+   }
+  },
+  "alert_net": {
+   "true": 30,
+   "false": 1,
+   "by_threshold": {
+    "0.02": {
+     "false_removed": 1,
+     "true_lost": 0
+    },
+    "0.05": {
+     "false_removed": 1,
+     "true_lost": 0
+    },
+    "0.1": {
+     "false_removed": 1,
+     "true_lost": 0
+    },
+    "0.2": {
+     "false_removed": 1,
+     "true_lost": 0
+    },
+    "0.3": {
+     "false_removed": 1,
+     "true_lost": 0
+    },
+    "0.5": {
+     "false_removed": 1,
+     "true_lost": 1
+    },
+    "0.7": {
+     "false_removed": 1,
+     "true_lost": 1
+    },
+    "0.9": {
+     "false_removed": 1,
+     "true_lost": 7
+    }
+   }
+  }
+ },
+ "latency_s": {
+  "without_reason_median": 0.79,
+  "with_reason_median": 1.9,
+  "under_continuous_load_with_engine_n8_median": 1.9,
+  "under_load_max": 2.56
+ },
+ "vram_gb": {
+  "vlm_loaded": 4.26,
+  "vlm_peak": 5.14,
+  "whole_gpu_vlm_plus_engine_n8_ring_fallnet": 6.42
+ }
+}

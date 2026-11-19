@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from backend.db import get_db
 from backend.models import Event
-from backend.schemas import EVENT_TYPES, SEVERITY, EventOut, EventPage, EventPatch
+from backend.schemas import EVENT_TYPES, SEVERITY, VERIFICATION_STATES, EventOut, EventPage, EventPatch
 
 router = APIRouter(prefix="/api/events", tags=["events"])
 
@@ -35,6 +35,9 @@ def to_out(event: Event) -> EventOut:
         snapshot_url=f"/api/events/{event.event_id}/snapshot" if event.snapshot_file else None,
         status=event.status,
         notify_status=event.notify_status,
+        verification=event.verification,
+        verification_score=event.verification_score,
+        verification_reason=event.verification_reason,
     )
 
 
@@ -50,6 +53,7 @@ def list_events(
     date_to: datetime | None = Query(None, alias="to", description="exclusive upper bound"),
     type: str | None = Query(None, description="one or several types, comma separated: FALL,FIGHT"),
     status: str | None = None,
+    verification: str | None = Query(None, description="one or several of not_required, pending, confirmed, rejected, unverified, comma separated"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
@@ -70,6 +74,11 @@ def list_events(
         conditions.append(Event.type.in_(wanted))
     if status is not None:
         conditions.append(Event.status == status)
+    if verification is not None:
+        wanted_v = [v.strip() for v in verification.split(",") if v.strip()]
+        if not wanted_v or any(v not in VERIFICATION_STATES for v in wanted_v):
+            raise HTTPException(422, f"verification must be one or more of {', '.join(VERIFICATION_STATES)}")
+        conditions.append(Event.verification.in_(wanted_v))
 
     total = db.scalar(select(func.count()).select_from(Event).where(*conditions)) or 0
     rows = db.scalars(

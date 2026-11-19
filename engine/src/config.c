@@ -39,6 +39,9 @@ gint opt_heartbeat_interval = HEARTBEAT_INTERVAL_DEFAULT_S;
 gint opt_rtsp_timeout = RTSP_TIMEOUT_DEFAULT_S;
 gint opt_max_cameras = 0;
 gchar *opt_dump_detections = NULL;
+gchar *opt_frame_ring_dir = NULL;
+gint opt_frame_ring_fps = 2;
+gint opt_frame_ring_seconds = 15;
 gchar *opt_fall_model = NULL;
 gint opt_fall_model_window = 48;
 gint opt_fall_model_batch = 16;
@@ -46,6 +49,11 @@ gboolean fall_model_ready = FALSE;
 gdouble opt_absence_timeout = 10.0;  /* same default as ABSENCE_TIMEOUT in src/config */
 
 static GOptionEntry option_entries[] = {
+    { "frame-ring-dir", 0, 0, G_OPTION_ARG_FILENAME, &opt_frame_ring_dir,
+      "Keep the last --frame-ring-seconds seconds of every camera that has a fall or fight rule as JPEG files ring_cam<ID>_<epoch ms>.jpg in DIR "
+      "(--frame-ring-fps per second): what the VLM that checks an alert looks at. Put DIR on a tmpfs: it is rewritten all the time", "DIR" },
+    { "frame-ring-fps", 0, 0, G_OPTION_ARG_INT, &opt_frame_ring_fps, "Frames per second kept in the ring, 1-10 (default 2)", "N" },
+    { "frame-ring-seconds", 0, 0, G_OPTION_ARG_INT, &opt_frame_ring_seconds, "Seconds of frames kept, 5-120 (default 15)", "SEC" },
     { "fall-model", 0, 0, G_OPTION_ARG_FILENAME, &opt_fall_model,
       "ONNX file of the skeleton network that scores falls (eval/train/export_onnx.py); a TensorRT engine is built from it on first use. "
       "Cameras opt in with fall_net=1|2 in the cameras file; without this (or when it cannot be loaded) they use the rules", "FILE" },
@@ -541,6 +549,14 @@ gboolean config_load(int *argc, char ***argv, GPtrArray *specs)
         g_printerr("--snapshot-quality must be between 1 and 100\n");
         return FALSE;
     }
+    if (opt_frame_ring_fps < 1 || opt_frame_ring_fps > 10 || opt_frame_ring_seconds < 5 || opt_frame_ring_seconds > 120) {
+        g_printerr("--frame-ring-fps must be 1-10 and --frame-ring-seconds 5-120\n");
+        return FALSE;
+    }
+    if (opt_frame_ring_dir != NULL && (strlen(opt_frame_ring_dir) > SNAPSHOT_DIR_MAX || g_mkdir_with_parents(opt_frame_ring_dir, 0755) != 0)) {
+        g_printerr("Cannot use --frame-ring-dir (too long, or it cannot be created)\n");
+        return FALSE;
+    }
     if (opt_snapshot_dir != NULL) {
         if (strlen(opt_snapshot_dir) > SNAPSHOT_DIR_MAX ||
             g_mkdir_with_parents(opt_snapshot_dir, 0755) != 0) {
@@ -561,6 +577,7 @@ void config_free(void)
     g_free(opt_dump_detections);
     g_free(opt_snapshot_dir);
     g_free(opt_fall_model);
+    g_free(opt_frame_ring_dir);
     g_free(opt_backend_url);
     g_free(opt_spool_file);
     g_free(opt_heartbeat_url);

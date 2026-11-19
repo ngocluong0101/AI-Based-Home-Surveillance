@@ -21,12 +21,12 @@ import logging
 import threading
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Callable
 
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from backend.app_settings import AppSettingsStore
@@ -50,7 +50,9 @@ class Notifier:
         max_age: float,
         on_update: Callable[[uuid.UUID], None] | None = None,
         store: AppSettingsStore | None = None,
+        verify_timeout: float = 0.0,
     ) -> None:
+        self._verify_timeout = verify_timeout   # a message waits for the VLM at most this long (0 = never waits)
         self._store = store   # the alert rules of the Settings page; None = every event is sent
         self._session_factory = session_factory
         self._telegram = telegram
@@ -72,9 +74,11 @@ class Notifier:
             rows = db.execute(
                 select(Event.event_id, Event.track_id, Event.confidence, Event.timestamp,
                        Event.snapshot_file, Event.received_at, Event.type, Event.track_ids, Event.zone_id,
-                       Event.occurred_at, Camera.name.label("camera_name"))
+                       Event.occurred_at, Event.verification, Camera.name.label("camera_name"))
                 .join(Camera, Camera.id == Event.camera_id)
                 .where(Event.notify_status == "pending")
+                .where(or_(Event.verification != "pending",
+                           Event.received_at <= datetime.now(timezone.utc) - timedelta(seconds=self._verify_timeout)))
                 .order_by(Event.received_at, Event.event_id)
                 .limit(BATCH)
             ).all()   # the session ends here: no transaction stays open during a slow Telegram call
@@ -82,7 +86,9 @@ class Notifier:
         rules = self._store.get() if self._store is not None and rows else None   # one look per round
         now = datetime.now(timezone.utc)
         for row in rows:
-            if rules is not None and rules.mutes(row.received_at):
+            if row.verification == "rejected":
+                self._mark(row.event_id, "skipped")   # the VLM was sure it was not a fall / fight: stored and shown, not sent
+            elif rules is not None and rules.mutes(row.received_at):
                 self._mark(row.event_id, "skipped")
             elif not self._telegram.enabled:
                 self._mark(row.event_id, "disabled")
@@ -109,7 +115,7 @@ class Notifier:
             has_photo = path is not None and path.is_file()   # the cleaner may have removed it: send text only
             if row.type != "PERSON_DETECTED":
                 caption = behaviour_caption(row.type, row.camera_name, list(row.track_ids) or [row.track_id], row.zone_id,
-                                            row.timestamp, row.occurred_at, row.confidence)
+                                            row.timestamp, row.occurred_at, row.confidence, row.verification)
                 return bool(self._telegram.send_alert(caption, str(path) if has_photo else None))
             if has_photo:
                 return bool(self._telegram.send_person_detected_photo(event, str(path)))

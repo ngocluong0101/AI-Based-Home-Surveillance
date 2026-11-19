@@ -59,6 +59,8 @@ static gboolean slot_fill(AppCtx *app, SourceCtx *src, const gchar *spec, gboole
     }
     src->beh_pending = bs;
     src->fall_net_on = bs.cfg.fall && bs.cfg.fall_net != 0.0 && src->app->fallnet != NULL;
+    src->ring_on = opt_frame_ring_dir != NULL && (bs.cfg.fall || bs.cfg.fight);
+    src->ring_last_ns = 0;
     memcpy(src->draw_zones, bs.zones, sizeof(src->draw_zones));
     src->num_draw_zones = bs.num_zones;
     src->alert_labels = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_free);
@@ -106,6 +108,7 @@ static void slot_clear(SourceCtx *src)
     if (src->app != NULL && src->app->fallnet != NULL)
         fallnet_forget_source(src->app->fallnet, (int)src->source_id);
     src->fall_net_on = FALSE;
+    src->ring_on = FALSE;
     g_clear_pointer(&src->behavior, behavior_free);
     g_clear_pointer(&src->beh_people, g_free);
     g_clear_pointer(&src->alert_labels, g_hash_table_destroy);
