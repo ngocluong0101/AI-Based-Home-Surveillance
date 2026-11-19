@@ -70,6 +70,18 @@ docker run --rm --gpus all -u 1000:1000 -v $PWD:/repo -e HOME=/tmp --entrypoint 
 ```
 Xem video có khung xương: thêm `--output /work/eval/work/mot17/pose_09.mp4` khi chạy engine (một nguồn).
 
+## V2-4 — đánh giá đầu-cuối (M1, M2)
+
+Quay dữ liệu: [RECORDING.md](RECORDING.md). Nhãn: `eval/labels/*.json` (định dạng ở DEFINITIONS mục 2; `new_label.py` tạo khung, `check_labels.py` kiểm).
+```bash
+eval/.venv/bin/python eval/e2e/check_labels.py                                   # nhãn hợp lệ? tập test còn thiếu gì?
+eval/.venv/bin/python eval/e2e/make_dumps.py --splits train,val                  # engine + pose, một lần mỗi clip -> eval/work/dumps/
+eval/.venv/bin/python eval/e2e/run_eval.py --splits val --tag baseline           # luật Python chạy lại trên dump, in M1/M2, ghi eval/results/
+eval/.venv/bin/python eval/e2e/run_eval.py --splits val --set fall_still_s=1.5   # thử ngưỡng khác (vài giây, không động tới GPU)
+eval/.venv/bin/python eval/e2e/lock_test.py && eval/.venv/bin/python eval/e2e/run_eval.py --splits test --final   # đo đúng một lần
+eval/.venv/bin/python eval/e2e/run_eval.py --splits dev --set fall_still_s=1.0   # 8 clip UR Fall: thử máy, không ghi kết quả
+```
+
 ## Kiểm tra công cụ
 
 `eval/.venv/bin/python -m pytest tests/test_eval_tools.py` (13 test: IoU, ghép khung, letterbox, decode detection và pose, đọc cột keypoint của dump, và MOTA/IDF1 trên ca có đáp án tay).

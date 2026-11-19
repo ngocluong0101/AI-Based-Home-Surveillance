@@ -1,0 +1,21 @@
+{
+ "clip": "fall-04.mp4",
+ "fps": 30.0,
+ "width": 640,
+ "height": 480,
+ "duration_s": 3.2,
+ "scene": "urfall-room",
+ "person": "urfall-fall-04",
+ "split": "dev",
+ "has_incident": true,
+ "events": [
+  {
+   "type": "fall",
+   "start_s": 0.467,
+   "impact_s": 1.467,
+   "end_s": 3.2,
+   "label": "positive"
+  }
+ ],
+ "note": "times from the UR Fall annotation file (urfall-cam0-falls.csv): start = first frame labelled 0 (falling), impact = first frame labelled 1 (lying). The annotation is coarse (always 30 frames apart)."
+}

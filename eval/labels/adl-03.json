@@ -1,0 +1,16 @@
+{
+ "clip": "adl-03.mp4",
+ "fps": 30.0,
+ "width": 640,
+ "height": 480,
+ "duration_s": 6.0,
+ "scene": "urfall-room",
+ "person": "urfall-adl-03",
+ "split": "dev",
+ "has_incident": false,
+ "events": [],
+ "tags": [
+  "adl"
+ ],
+ "note": "UR Fall activities of daily living: no fall."
+}
