@@ -12,6 +12,46 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+/* V2-4 (M4): print "pkt <pts_ns> <wall_ns>" (CLOCK_REALTIME) for the first RTP buffers a client's stream produces, so that
+ * eval/e2e/latency.py can tell when a given frame of the clip was "on the air". The first buffers may be produced while the media
+ * prerolls, before the client's PLAY, so the caller fits wall - pts over the later, paced ones instead of trusting the first. */
+static GstPadProbeReturn pkt_probe(GstPad *pad, GstPadProbeInfo *info, gpointer data)
+{
+    (void)pad;
+    gint *n = data;
+    if (*n >= 120)
+        return GST_PAD_PROBE_REMOVE;
+    GstBuffer *buf = NULL;
+    if (info->type & GST_PAD_PROBE_TYPE_BUFFER_LIST) {
+        GstBufferList *l = GST_PAD_PROBE_INFO_BUFFER_LIST(info);
+        if (gst_buffer_list_length(l) > 0)
+            buf = gst_buffer_list_get(l, 0);
+    } else {
+        buf = GST_PAD_PROBE_INFO_BUFFER(info);
+    }
+    if (buf && GST_BUFFER_PTS_IS_VALID(buf)) {
+        g_print("pkt %" G_GUINT64_FORMAT " %" G_GINT64_FORMAT "\n", (guint64)GST_BUFFER_PTS(buf), g_get_real_time() * 1000);
+        fflush(stdout);
+        (*n)++;
+    }
+    return GST_PAD_PROBE_OK;
+}
+
+static void media_configure(GstRTSPMediaFactory *factory, GstRTSPMedia *media, gpointer data)
+{
+    (void)factory; (void)data;
+    GstElement *bin = gst_rtsp_media_get_element(media);
+    GstElement *pay = gst_bin_get_by_name_recurse_up(GST_BIN(bin), "pay0");
+    if (pay) {
+        GstPad *pad = gst_element_get_static_pad(pay, "src");
+        gint *n = g_new0(gint, 1);
+        gst_pad_add_probe(pad, GST_PAD_PROBE_TYPE_BUFFER | GST_PAD_PROBE_TYPE_BUFFER_LIST, pkt_probe, n, g_free);
+        gst_object_unref(pad);
+        gst_object_unref(pay);
+    }
+    gst_object_unref(bin);
+}
+
 int main(int argc, char **argv)
 {
     gst_init(&argc, &argv);
@@ -36,6 +76,7 @@ int main(int argc, char **argv)
      * N clients that connect at different times all have the whole file in front of them. */
     gst_rtsp_media_factory_set_shared(factory, g_getenv("RTSP_TEST_UNSHARED") == NULL);
     g_free(launch);
+    g_signal_connect(factory, "media-configure", G_CALLBACK(media_configure), NULL);
 
     GstRTSPMountPoints *mounts = gst_rtsp_server_get_mount_points(server);
     gst_rtsp_mount_points_add_factory(mounts, mount, factory);

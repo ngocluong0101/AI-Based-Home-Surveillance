@@ -82,6 +82,13 @@ eval/.venv/bin/python eval/e2e/lock_test.py && eval/.venv/bin/python eval/e2e/ru
 eval/.venv/bin/python eval/e2e/run_eval.py --splits dev --set fall_still_s=1.0   # 8 clip UR Fall: thử máy, không ghi kết quả
 ```
 
+M4 trên đường thật (cần Docker + GPU + `docker pull postgres:16-alpine`; dựng backend và PostgreSQL tạm riêng, cổng 18090/55433/8556, Telegram tắt):
+```bash
+eval/tools/in_container.sh /bin/bash -c 'cd engine && make rtsp-test-server'      # camera RTSP giả (có in dấu thời gian gói)
+nice -n 10 eval/.venv/bin/python eval/e2e/latency.py --clips fall-01,fall-02,fall-03,fall-04,fall-05 --repeats 3 --set fall_still_s=1.0
+```
+Ngoài ra kiểm tra `docker ps -a | grep m4-` sau khi chạy (container `m4-latency-pg`, `m4-rtsp-*`, `m4-engine-*` phải tự mất; nếu một lần chạy bị ngắt giữa chừng thì `docker rm -f` chúng).
+
 ## Kiểm tra công cụ
 
 `eval/.venv/bin/python -m pytest tests/test_eval_tools.py` (13 test: IoU, ghép khung, letterbox, decode detection và pose, đọc cột keypoint của dump, và MOTA/IDF1 trên ca có đáp án tay).

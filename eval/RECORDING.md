@@ -90,6 +90,6 @@ Nhờ có sẵn `impact_s` mà M4 đo được; một mình `start_s` thì khôn
 
 ## 8. Việc còn lại sau khi có dữ liệu
 
-- **M4 trên đường thật** (clip phát qua RTSP giả → engine → backend → WebSocket, đồng hồ cùng máy): `tests/engine_real/` + `rtsp_test_server`, đã có hạ tầng; cần thêm bộ đo dấu thời gian từng chặng. Bước 3 ở trên chỉ cho độ trễ **của luật** (impact → lúc luật phát), chưa tính mã hóa/mạng/DB.
+- **M4 trên đường thật**: `eval/e2e/latency.py --clips <tên clip ngã, không đuôi> --repeats 3` (clip phải nằm ở `eval/work/urfall/`; sửa `trial()` nếu để ở `datasets/safeguard/clips/`). Cần nhãn `impact_s` ghi tay từng khung (mốc UR Fall quá thô). Bước 3 ở trên chỉ cho độ trễ của luật.
 - **M2 sau VLM** chờ V2-6.
 - Đọc ≥ 20 ca sai, ghi nguyên nhân vào nhật ký, sửa luật, đo lại (ghi cả trước và sau).
