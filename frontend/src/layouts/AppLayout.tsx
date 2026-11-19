@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
-import { Bell, Cctv, Grid2x2, Info, LayoutDashboard, PanelLeftClose, PanelLeftOpen, Settings, ShieldCheck, UserRound, Video, WifiOff } from "lucide-react";
+import { Bell, Cctv, Grid2x2, Info, LayoutDashboard, PanelLeftClose, PanelLeftOpen, Settings, ShieldCheck, Video, WifiOff } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Toaster, toast } from "sonner";
 import { DEMO, REPO_URL } from "../demo/flag";
@@ -9,6 +9,7 @@ import { EventDrawerContext } from "../hooks/useEventDrawer";
 import type { Page } from "../hooks/useHashRoute";
 import { useCameras, useSettings, useUnreviewedCount } from "../hooks/queries";
 import type { PersonEvent } from "../types";
+import { describeEvent, isAlert, kindOf } from "../utils/eventType";
 import { percent } from "../utils/format";
 import { useRealtime, type Connection } from "../websocket/useRealtime";
 import { useQueryClient } from "@tanstack/react-query";
@@ -56,9 +57,13 @@ export function AppLayout({
   const onNewEvent = useCallback(
     (event: PersonEvent) => {
       const name = qc.getQueryData<Camera[]>(["cameras"])?.find((c) => c.id === event.camera_id)?.name ?? `Camera #${event.camera_id}`;
-      toast("Person detected", {
-        description: `${name} · ${percent(event.confidence)} confidence`,
-        icon: <UserRound size={16} />,
+      const kind = kindOf(event.type);
+      const Icon = kind.icon;
+      const show = isAlert(event) ? toast.error : toast; // a fall or a fight stays red and does not slip by
+      show(kind.label, {
+        description: event.type === "PERSON_DETECTED" ? `${name} · ${percent(event.confidence)} confidence` : `${name} · ${describeEvent(event)}`,
+        icon: <Icon size={16} />,
+        duration: isAlert(event) ? 15000 : undefined,
         action: { label: "View", onClick: () => setOpenId(event.event_id) },
       });
     },

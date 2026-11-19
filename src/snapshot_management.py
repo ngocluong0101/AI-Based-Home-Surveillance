@@ -7,6 +7,10 @@ from pathlib import Path
 from time import time
 
 
+# The names the engine gives snapshots: PERSON_DETECTED_..., and one per behaviour event type.
+SNAPSHOT_PATTERNS = ("PERSON_DETECTED_*.jpg", "FALL_*.jpg", "FIGHT_*.jpg", "RESTRICTED_AREA_*.jpg")
+
+
 class SnapshotCleaner:
     """Clean up old snapshot files from a directory."""
 
@@ -36,7 +40,9 @@ class SnapshotCleaner:
         now = time()
         expired: list[tuple[float, Path]] = []
 
-        for file_path in snapshot_dir.glob("PERSON_DETECTED_*.jpg"):
+        # the engine names a snapshot after its event type (ROADMAP_V2 V2-3)
+        candidates = (p for pattern in SNAPSHOT_PATTERNS for p in snapshot_dir.glob(pattern))
+        for file_path in candidates:
             if not file_path.is_file():
                 continue
             try:

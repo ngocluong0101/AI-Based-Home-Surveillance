@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from backend.db import get_db
 from backend.models import Event
-from backend.schemas import EventOut, EventPage, EventPatch
+from backend.schemas import EVENT_TYPES, SEVERITY, EventOut, EventPage, EventPatch
 
 router = APIRouter(prefix="/api/events", tags=["events"])
 
@@ -28,6 +28,10 @@ def to_out(event: Event) -> EventOut:
         confidence=event.confidence,
         timestamp=event.timestamp,
         bbox=event.bbox,
+        track_ids=list(event.track_ids) or [event.track_id],
+        zone_id=event.zone_id,
+        occurred_at=event.occurred_at,
+        severity=SEVERITY.get(event.type, "info"),
         snapshot_url=f"/api/events/{event.event_id}/snapshot" if event.snapshot_file else None,
         status=event.status,
         notify_status=event.notify_status,
@@ -44,7 +48,7 @@ def list_events(
     camera_id: int | None = None,
     date_from: datetime | None = Query(None, alias="from", description="ISO 8601; naive times count as UTC"),
     date_to: datetime | None = Query(None, alias="to", description="exclusive upper bound"),
-    type: str | None = None,
+    type: str | None = Query(None, description="one or several types, comma separated: FALL,FIGHT"),
     status: str | None = None,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
@@ -59,7 +63,11 @@ def list_events(
     if date_to is not None:
         conditions.append(Event.timestamp < date_to)
     if type is not None:
-        conditions.append(Event.type == type)
+        wanted = [t.strip() for t in type.split(",") if t.strip()]
+        unknown = [t for t in wanted if t not in EVENT_TYPES]
+        if unknown or not wanted:
+            raise HTTPException(422, f"type must be one or more of {', '.join(EVENT_TYPES)}")
+        conditions.append(Event.type.in_(wanted))
     if status is not None:
         conditions.append(Event.status == status)
 

@@ -80,8 +80,12 @@ def test_events_of_a_deleted_camera_are_still_stored(client, db_engine):
 def test_bad_payloads_are_422(client, db_engine):
     make_camera(client)
     bad = [
-        event_body(schema_version=2),
+        event_body(schema_version=3),
         event_body(type="CAT_DETECTED"),
+        event_body(schema_version=2, type="FIGHT", track_ids=[1, 2, 3]),     # at most two people
+        event_body(schema_version=2, type="FALL", track_ids=[]),
+        event_body(schema_version=2, type="RESTRICTED_AREA", zone_id=-1),
+        event_body(schema_version=2, type="FALL", occurred_at="2026-01-01T12:00:00"),   # no time zone
         event_body(event_id="not-a-uuid"),
         event_body(confidence=1.5),
         event_body(confidence=-0.1),

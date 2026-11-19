@@ -89,7 +89,8 @@ def test_start_gives_the_manager_the_real_uri_and_stop_takes_it_away(api, manage
 
     assert rec.run_once()
     assert manager.cameras == [{"id": cam["id"], "uri": RTSP,   # the manager gets the password
-                                "conf_threshold": 0.25, "absence_timeout": 10.0, "ai_enabled": True}]
+                                "conf_threshold": 0.25, "absence_timeout": 10.0, "ai_enabled": True,
+                                "behaviors": [], "zones": []}]
     st = status(client, cam["id"])
     assert st["engine"]["applied"] is True and st["engine"]["in_engine"] is True and st["engine"]["state"] == "running"
     assert "secret" not in str(st)
@@ -179,7 +180,7 @@ def test_the_settings_of_a_camera_reach_the_manager_with_its_address(api, manage
     client.post(f"/api/cameras/{cam['id']}/start")
     rec.run_once()
     assert manager.cameras == [{"id": cam["id"], "uri": "rtsp://h/one", "conf_threshold": 0.6,
-                                "absence_timeout": 30.0, "ai_enabled": False}]
+                                "absence_timeout": 30.0, "ai_enabled": False, "behaviors": [], "zones": []}]
 
 
 def test_changing_a_setting_restarts_the_engine_once_with_the_new_value(api, manager):
@@ -354,3 +355,23 @@ def test_engine_summary_uses_the_configured_places_while_nothing_runs(api, manag
     assert (body["capacity"], body["room"]) == (5, 5)
     manager.capacity = 3                            # a running one reports its own
     assert client.get("/api/engine").json()["capacity"] == 3
+
+
+def test_the_rules_of_a_camera_reach_the_manager_and_a_change_makes_a_new_revision(api, manager):
+    client, rec = api
+    square = [[0.1, 0.1], [0.9, 0.1], [0.9, 0.9], [0.1, 0.9]]
+    cam = make_camera(client, source_uri="rtsp://h/one", behaviors=["fall", "fight"],
+                      zones=[{"kind": "restricted", "points": square}])
+    client.post(f"/api/cameras/{cam['id']}/start")
+    rec.run_once()
+    sent = manager.cameras[0]
+    assert sent["behaviors"] == ["fall", "fight"]
+    assert sent["zones"] == [{"kind": "restricted", "zone_id": 1, "points": square}]
+    before = status(client, cam["id"])["engine"]["applied"]
+    assert before is True
+
+    client.patch(f"/api/cameras/{cam['id']}", json={"behaviors": ["fall"]})
+    assert status(client, cam["id"])["engine"]["applied"] is False      # the rules are part of what has to be applied
+    rec.run_once()
+    assert manager.cameras[0]["behaviors"] == ["fall"]
+    assert status(client, cam["id"])["engine"]["applied"] is True

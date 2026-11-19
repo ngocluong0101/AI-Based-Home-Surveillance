@@ -93,7 +93,10 @@ def test_filters_combine(client):
 def test_filter_by_type_and_status(client):
     seed(client)
     assert client.get("/api/events", params={"type": "PERSON_DETECTED"}).json()["total"] == 5
-    assert client.get("/api/events", params={"type": "OTHER"}).json()["total"] == 0
+    assert client.get("/api/events", params={"type": "FALL"}).json()["total"] == 0
+    assert client.get("/api/events", params={"type": "FALL,PERSON_DETECTED"}).json()["total"] == 5   # several at once
+    assert client.get("/api/events", params={"type": "OTHER"}).status_code == 422       # a type nobody sends
+    assert client.get("/api/events", params={"type": ""}).status_code == 422
     assert client.get("/api/events", params={"status": "new"}).json()["total"] == 5
     assert client.get("/api/events", params={"status": "acknowledged"}).json()["total"] == 0
 

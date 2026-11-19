@@ -49,6 +49,22 @@ static gboolean slot_fill(AppCtx *app, SourceCtx *src, const gchar *spec, gboole
     src->pose_count = 0;
     src->skeleton_overflow = 0;
 
+    BehaviorSettings bs;
+    behavior_settings_of(settings, camera_id, &bs);
+    src->behavior = behavior_new(&bs.cfg, MUXER_WIDTH, MUXER_HEIGHT);
+    src->beh_people = g_new0(BehaviorPerson, BEH_MAX_PEOPLE);
+    if (src->behavior == NULL || behavior_set_zones(src->behavior, bs.zones, bs.num_zones) != 0) {
+        g_printerr("Could not set up the behaviour rules of camera %d\n", camera_id);
+        return FALSE;
+    }
+    src->beh_pending = bs;
+    memcpy(src->draw_zones, bs.zones, sizeof(src->draw_zones));
+    src->num_draw_zones = bs.num_zones;
+    src->alert_labels = g_hash_table_new_full(g_direct_hash, g_direct_equal, NULL, g_free);
+    atomic_store_explicit(&src->beh_dirty, FALSE, memory_order_relaxed);
+    atomic_store_explicit(&src->beh_active, behavior_settings_active(&bs), memory_order_relaxed);
+    memset(src->behavior_events, 0, sizeof(src->behavior_events));
+
     gchar *scheme = g_uri_parse_scheme(src->uri);
     src->is_rtsp = (scheme != NULL && g_ascii_strcasecmp(scheme, "rtsp") == 0);
     g_free(scheme);
@@ -86,6 +102,10 @@ static void slot_clear(SourceCtx *src)
         src->track_frames = NULL;
     }
     g_clear_pointer(&src->pose_hist, g_hash_table_destroy);
+    g_clear_pointer(&src->behavior, behavior_free);
+    g_clear_pointer(&src->beh_people, g_free);
+    g_clear_pointer(&src->alert_labels, g_hash_table_destroy);
+    atomic_store_explicit(&src->beh_active, FALSE, memory_order_relaxed);
 }
 
 /*
@@ -103,6 +123,7 @@ gboolean init_sources(AppCtx *app, const GPtrArray *specs)
         src->app = app;
         src->source_id = i;
         g_mutex_init(&src->pub_lock);
+        g_mutex_init(&src->beh_lock);
         src->pub_pts_base = GST_CLOCK_TIME_NONE;
     }
     for (guint i = 0; i < specs->len; i++) {
@@ -123,11 +144,15 @@ void free_sources(AppCtx *app)
         if (app->sources[i].track_frames != NULL)
             g_hash_table_destroy(app->sources[i].track_frames);
         g_clear_pointer(&app->sources[i].pose_hist, g_hash_table_destroy);
+        g_clear_pointer(&app->sources[i].behavior, behavior_free);
+        g_clear_pointer(&app->sources[i].beh_people, g_free);
+        g_clear_pointer(&app->sources[i].alert_labels, g_hash_table_destroy);
         if (app->sources[i].mux_sinkpad != NULL)
             gst_object_unref(app->sources[i].mux_sinkpad);
         if (app->sources[i].demux_pad != NULL)
             gst_object_unref(app->sources[i].demux_pad);
         g_mutex_clear(&app->sources[i].pub_lock);
+        g_mutex_clear(&app->sources[i].beh_lock);
     }
     g_free(app->sources);
     app->sources = NULL;
@@ -339,14 +364,29 @@ gboolean on_reload(gpointer data)
             gdouble conf, absence;
             gboolean ai;
             settings_of(settings, src->camera_id, &conf, &absence, &ai);
-            if (conf == src->conf_threshold && absence == src->absence_timeout && ai == src->ai_enabled)
+            BehaviorSettings bs;
+            behavior_settings_of(settings, src->camera_id, &bs);
+            gboolean beh_changed = !behavior_settings_equal(&bs, &src->beh_pending);
+            gboolean base_changed = !(conf == src->conf_threshold && absence == src->absence_timeout && ai == src->ai_enabled);
+            if (!base_changed && !beh_changed)
                 continue;
-            src->conf_threshold = conf;
-            src->absence_timeout = absence;
-            src->ai_enabled = ai;
+            if (base_changed) {
+                src->conf_threshold = conf;
+                src->absence_timeout = absence;
+                src->ai_enabled = ai;
+                g_print("reload: camera_id=%d conf_threshold=%.2f absence_timeout=%.1f ai=%s\n",
+                        src->camera_id, conf, absence, ai ? "on" : "off");
+            }
+            if (beh_changed) {
+                g_mutex_lock(&src->beh_lock);
+                src->beh_pending = bs;
+                g_mutex_unlock(&src->beh_lock);
+                atomic_store(&src->beh_active, behavior_settings_active(&bs));
+                atomic_store(&src->beh_dirty, TRUE);
+                g_print("reload: camera_id=%d behaviors fall=%s fight=%s zones=%s, %zu zone(s)\n", src->camera_id,
+                        bs.cfg.fall ? "on" : "off", bs.cfg.fight ? "on" : "off", bs.cfg.zones ? "on" : "off", bs.num_zones);
+            }
             changed++;
-            g_print("reload: camera_id=%d conf_threshold=%.2f absence_timeout=%.1f ai=%s\n",
-                    src->camera_id, conf, absence, ai ? "on" : "off");
         }
         g_print("reload: done, %u added, %u removed, %u with new settings\n", added, removed, changed);
     }

@@ -4,6 +4,7 @@ import { ApiError } from "../api/client";
 import type {
   AppSettings,
   AppSettingsUpdate,
+  BehaviorName,
   NotificationCheck,
   Camera,
   CameraCreate,
@@ -14,9 +15,12 @@ import type {
   EngineSummary,
   EventPage,
   EventStatus,
+  EventType,
   LiveStatus,
   PersonEvent,
+  Severity,
   StreamLink,
+  Zone,
 } from "../types";
 import { peopleAt, snapshotUrl } from "./scene";
 
@@ -64,12 +68,30 @@ export function mask(uri: string): string {
   return uri.replace(/^(rtsps?:\/\/)[^@/]*@/i, "$1***@");
 }
 
-const SEED_CAMERAS: { name: string; uri: string; running: boolean; perDay: number; conf: number; absence: number }[] = [
-  { name: "Front door", uri: "rtsp://***@192.168.1.21:554/stream1", running: true, perDay: 22, conf: 0.25, absence: 10 },
-  { name: "Garage", uri: "rtsp://***@192.168.1.22:554/stream1", running: true, perDay: 9, conf: 0.25, absence: 10 },
-  { name: "Living room", uri: "rtsp://***@192.168.1.23:554/h264", running: true, perDay: 14, conf: 0.4, absence: 10 },
-  { name: "Backyard", uri: "rtsp://***@192.168.1.24:554/stream2", running: true, perDay: 11, conf: 0.25, absence: 20 },
-  { name: "Garden shed", uri: "rtsp://***@192.168.1.25:554/stream1", running: false, perDay: 4, conf: 0.25, absence: 10 },
+const SEED_CAMERAS: {
+  name: string;
+  uri: string;
+  running: boolean;
+  perDay: number;
+  conf: number;
+  absence: number;
+  behaviors: BehaviorName[];
+  zones: Zone[];
+}[] = [
+  { name: "Front door", uri: "rtsp://***@192.168.1.21:554/stream1", running: true, perDay: 22, conf: 0.25, absence: 10, behaviors: [], zones: [] },
+  {
+    name: "Garage",
+    uri: "rtsp://***@192.168.1.22:554/stream1",
+    running: true,
+    perDay: 9,
+    conf: 0.25,
+    absence: 10,
+    behaviors: ["zones"],
+    zones: [{ kind: "restricted", zone_id: 1, points: [[0.55, 0.2], [0.95, 0.2], [0.95, 0.9], [0.55, 0.9]] }],
+  },
+  { name: "Living room", uri: "rtsp://***@192.168.1.23:554/h264", running: true, perDay: 14, conf: 0.4, absence: 10, behaviors: ["fall", "fight"], zones: [{ kind: "lie_ok", zone_id: 1, points: [[0.05, 0.55], [0.4, 0.55], [0.4, 0.95], [0.05, 0.95]] }] },
+  { name: "Backyard", uri: "rtsp://***@192.168.1.24:554/stream2", running: true, perDay: 11, conf: 0.25, absence: 20, behaviors: ["fight"], zones: [] },
+  { name: "Garden shed", uri: "rtsp://***@192.168.1.25:554/stream1", running: false, perDay: 4, conf: 0.25, absence: 10, behaviors: [], zones: [] },
 ];
 
 /** Moves `t` to a moment (not after `now`) when somebody is in front of the camera, so a snapshot always shows a person. */
@@ -83,18 +105,25 @@ function momentWithPerson(cameraId: number, t: number, now: number): number {
   return Math.min(t, now);
 }
 
-function makeEvent(w: World, camera: Camera, t: number, status: EventStatus): PersonEvent {
+const SEVERITY_OF: Record<EventType, Severity> = { PERSON_DETECTED: "info", RESTRICTED_AREA: "medium", FALL: "high", FIGHT: "high" };
+
+function makeEvent(w: World, camera: Camera, t: number, status: EventStatus, type: EventType = "PERSON_DETECTED"): PersonEvent {
   const person = peopleAt(camera.id, t)[0];
+  const people = peopleAt(camera.id, t);
   const box: [number, number, number, number] = person ? [person.x, person.y, person.w, person.h] : [0.4, 0.4, 0.15, 0.4];
   const floor = Math.max(camera.conf_threshold, 0.5);
   return {
     event_id: uuid(w.rng),
     camera_id: camera.id,
     pipeline_run_id: RUN_ID,
-    type: "PERSON_DETECTED",
+    type,
     track_id: person?.id ?? 1,
+    track_ids: type === "FIGHT" && people.length > 1 ? [people[0].id, people[1].id] : [person?.id ?? 1],
+    zone_id: type === "RESTRICTED_AREA" ? (camera.zones.find((z) => z.kind === "restricted")?.zone_id ?? 1) : null,
     confidence: Math.round((floor + w.rng() * (0.97 - floor)) * 10000) / 10000,
     timestamp: new Date(t).toISOString(),
+    occurred_at: type === "PERSON_DETECTED" ? null : new Date(t - (type === "FALL" ? 2000 : type === "FIGHT" ? 1500 : 3000)).toISOString(),
+    severity: SEVERITY_OF[type],
     bbox: box.map((v) => Math.round(v * 10000) / 10000) as [number, number, number, number],
     snapshot_url: person ? snapshotUrl(camera.id, camera.name, [person], t) : null,
     status,
@@ -134,6 +163,8 @@ function build(now: number): World {
       desired_state: s.running ? "running" : "stopped",
       conf_threshold: s.conf,
       absence_timeout: s.absence,
+      behaviors: [...s.behaviors],
+      zones: s.zones.map((z) => ({ ...z, points: z.points.map(([x, y]) => [x, y] as [number, number]) })),
       created_at: new Date(now - 30 * DAY_MS).toISOString(),
       updated_at: new Date(now - 30 * DAY_MS).toISOString(),
       startedAt: now - 3_600_000, // up for an hour
@@ -157,6 +188,17 @@ function build(now: number): World {
         w.events.push(makeEvent(w, camera, t, w.rng() < (recent ? 0.85 : 0.12) ? "new" : "acknowledged"));
       }
     }
+  }
+  // a few of the things the rules catch, over the last two days
+  const scripted: [string, EventType, number][] = [
+    ["Living room", "FALL", 26 * 3_600_000],
+    ["Backyard", "FIGHT", 31 * 3_600_000],
+    ["Garage", "RESTRICTED_AREA", 5 * 3_600_000],
+    ["Garage", "RESTRICTED_AREA", 29 * 3_600_000],
+  ];
+  for (const [name, type, ago] of scripted) {
+    const camera = w.cameras.find((c) => c.name === name);
+    if (camera) w.events.push(makeEvent(w, camera, momentWithPerson(camera.id, now - ago, now), ago < 12 * 3_600_000 ? "new" : "acknowledged", type));
   }
   w.events.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
   return w;
@@ -223,12 +265,17 @@ function engineSummary(): EngineSummary {
 }
 
 /** A person is detected by a running camera: the event is stored and returned (null when nobody is in view right now). */
+let liveCount = 0;
 export function newLiveEvent(now = Date.now()): PersonEvent | null {
   const w = get();
   const candidates = w.cameras.filter((c) => reporting(c, now) && c.ai_enabled && peopleAt(c.id, now).length > 0);
   if (!candidates.length) return null;
   const camera = candidates[Math.floor(w.rng() * candidates.length)];
-  const event = makeEvent(w, camera, now, "new");
+  // The camera of the 3rd live event raises what its rules are for (a fall, a fight, someone in a zone), so the alert shows.
+  liveCount++;
+  const rule = liveCount % 3 === 0 ? camera.behaviors[0] : undefined;
+  const type: EventType = rule === "fall" ? "FALL" : rule === "fight" ? "FIGHT" : rule === "zones" ? "RESTRICTED_AREA" : "PERSON_DETECTED";
+  const event = makeEvent(w, camera, now, "new", type);
   event.notify_status = alertStatusAt(now);
   w.events.unshift(event);
   return event;
@@ -352,12 +399,18 @@ function eventPage(q: URLSearchParams): EventPage {
   const offset = Number(q.get("offset") ?? 0);
   const camera = q.get("camera_id");
   const status = q.get("status");
+  // like the real API: one or several types, comma separated; a type nobody sends is a mistake
+  const types = q.get("type") === null ? null : q.get("type")!.split(",").map((t) => t.trim()).filter(Boolean);
+  if (types !== null && (types.length === 0 || types.some((t) => !(t in SEVERITY_OF)))) {
+    throw new ApiError(422, "type must be one or more of PERSON_DETECTED, FALL, FIGHT, RESTRICTED_AREA");
+  }
   const from = q.get("from") === null ? null : new Date(q.get("from")!).toISOString();
   const to = q.get("to") === null ? null : new Date(q.get("to")!).toISOString();
   const hits = get().events.filter(
     (e) =>
       (camera === null || e.camera_id === Number(camera)) &&
       (status === null || e.status === status) &&
+      (types === null || types.includes(e.type)) &&
       (from === null || e.timestamp >= from) &&
       (to === null || e.timestamp < to),
   );
@@ -365,6 +418,21 @@ function eventPage(q: URLSearchParams): EventPage {
 }
 
 // ---- the routes
+
+/** The zones as the backend stores them: a zone left without a number gets the next free one, from 1. */
+function numberZones(zones: NonNullable<CameraCreate["zones"]>): Zone[] {
+  const taken = new Set(zones.flatMap((z) => (z.zone_id === undefined ? [] : [z.zone_id])));
+  let next = 1;
+  return zones.map((z) => {
+    let id = z.zone_id;
+    if (id === undefined) {
+      while (taken.has(next)) next++;
+      id = next;
+      taken.add(next);
+    }
+    return { kind: z.kind, zone_id: id, points: z.points.map(([x, y]) => [x, y] as [number, number]) };
+  });
+}
 
 function findCamera(id: string): DemoCamera {
   const c = get().cameras.find((x) => x.id === Number(id));
@@ -388,6 +456,8 @@ function createCamera(body: CameraCreate): Camera {
     desired_state: "stopped",
     conf_threshold: body.conf_threshold,
     absence_timeout: body.absence_timeout,
+    behaviors: [...(body.behaviors ?? [])],
+    zones: numberZones(body.zones ?? []),
     created_at: now,
     updated_at: now,
     startedAt: 0,
@@ -410,6 +480,8 @@ function updateCamera(c: DemoCamera, body: CameraUpdate): Camera {
   if (body.ai_enabled !== undefined) c.ai_enabled = body.ai_enabled;
   if (body.conf_threshold !== undefined) c.conf_threshold = body.conf_threshold;
   if (body.absence_timeout !== undefined) c.absence_timeout = body.absence_timeout;
+  if (body.behaviors !== undefined) c.behaviors = [...body.behaviors];
+  if (body.zones !== undefined) c.zones = numberZones(body.zones);
   c.updated_at = new Date().toISOString();
   return strip(c);
 }

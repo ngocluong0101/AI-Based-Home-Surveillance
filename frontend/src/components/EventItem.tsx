@@ -1,5 +1,5 @@
-import { UserRound } from "lucide-react";
 import type { PersonEvent } from "../types";
+import { describeEvent, isAlert, kindOf, SEVERITY_LABEL, SEVERITY_TONE } from "../utils/eventType";
 import { percent, relativeTime } from "../utils/format";
 import { Badge } from "./ui/Badge";
 import { Thumb } from "./Thumb";
@@ -18,16 +18,20 @@ export function EventItem({
   highlighted: boolean;
   onOpen: (id: string) => void;
 }) {
+  const kind = kindOf(event.type);
+  const Icon = kind.icon;
   return (
-    <button className={`event-item ${highlighted ? "is-new" : ""}`} onClick={() => onOpen(event.event_id)}>
+    <button className={`event-item ${highlighted ? "is-new" : ""} ${isAlert(event) ? "is-alert" : ""}`} onClick={() => onOpen(event.event_id)}>
       <Thumb src={event.snapshot_url} />
       <span className="grow">
         <span className="title">
-          <UserRound size={14} /> Person detected
+          <Icon size={14} /> {kind.label}
+          {event.severity !== "info" && <Badge tone={SEVERITY_TONE[event.severity]}>{SEVERITY_LABEL[event.severity]}</Badge>}
           {event.status === "new" && <Badge tone="warn">New</Badge>}
         </span>
         <span className="sub" style={{ display: "block" }}>
-          {cameraName} · track {event.track_id} · {percent(event.confidence)} · {relativeTime(event.timestamp, now)}
+          {cameraName} · {event.type === "PERSON_DETECTED" ? `track ${event.track_id}` : describeEvent(event)} · {percent(event.confidence)} ·{" "}
+          {relativeTime(event.timestamp, now)}
         </span>
       </span>
     </button>

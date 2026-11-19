@@ -13,6 +13,16 @@ ENGINE_EVENT = (
 )
 
 
+# A FALL as the engine writes it (engine/tests/test_event_record.c, golden JSON of schema 2).
+ENGINE_FALL_EVENT = (
+    '{"schema_version":2,"event_id":"123e4567-e89b-42d3-a456-426614174000","camera_id":1,'
+    '"pipeline_run_id":"0f8fad5b-d9cb-469f-a165-70867728950e","type":"FALL","track_id":12,"track_ids":[12],'
+    '"confidence":0.8000,"timestamp":"2026-01-01T12:00:00.123Z",'
+    '"occurred_at":"2026-01-01T11:59:58.100Z","zone_id":null,'
+    '"bbox":[0.1000,0.2000,0.3000,0.4000],"snapshot":null}'
+)
+
+
 def event_body(**overrides) -> dict:
     body = {
         "schema_version": 1,

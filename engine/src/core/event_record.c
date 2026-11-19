@@ -121,6 +121,16 @@ static void put_timestamp(Writer *w, int64_t ns)
     put_raw(w, tmp, (size_t)n);
 }
 
+const char *event_type_name(EventType t)
+{
+    switch (t) {
+    case EVENT_FALL: return "FALL";
+    case EVENT_FIGHT: return "FIGHT";
+    case EVENT_RESTRICTED_AREA: return "RESTRICTED_AREA";
+    default: return "PERSON_DETECTED";
+    }
+}
+
 int event_snapshot_name(const EventRecord *r, char *out, size_t cap)
 {
     Civil c;
@@ -134,7 +144,7 @@ int event_snapshot_name(const EventRecord *r, char *out, size_t cap)
         id8[i] = ok ? ch : '_';
     }
 
-    int n = snprintf(out, cap, "PERSON_DETECTED_cam%d_id%llu_%04d%02d%02dT%02d%02d%02d_%s.jpg",
+    int n = snprintf(out, cap, "%s_cam%d_id%llu_%04d%02d%02dT%02d%02d%02d_%s.jpg", event_type_name(r->type),
                      (int)r->camera_id, (unsigned long long)r->track_id, c.year, c.month, c.day,
                      c.hour, c.minute, c.second, id8);
     if (n < 0 || (size_t)n >= cap) {
@@ -150,22 +160,45 @@ int event_record_to_json(const EventRecord *r, char *out, size_t cap)
     if (cap == 0)
         return -1;
     Writer w = { out, cap, 0, 0 };
+    const int behaviour = r->type != EVENT_PERSON_DETECTED;
 
     put(&w, "{\"schema_version\":");
-    put_u64(&w, EVENT_RECORD_SCHEMA_VERSION);
+    put_u64(&w, behaviour ? EVENT_RECORD_SCHEMA_VERSION_BEHAVIOUR : EVENT_RECORD_SCHEMA_VERSION);
     put(&w, ",\"event_id\":");
     put_string(&w, r->event_id);
     put(&w, ",\"camera_id\":");
     put_i64(&w, r->camera_id);
     put(&w, ",\"pipeline_run_id\":");
     put_string(&w, r->pipeline_run_id);
-    put(&w, ",\"type\":\"PERSON_DETECTED\",\"track_id\":");
+    put(&w, ",\"type\":\"");
+    put(&w, event_type_name(r->type));
+    put(&w, "\",\"track_id\":");
     put_u64(&w, r->track_id);
+    if (behaviour) {
+        put(&w, ",\"track_ids\":[");
+        int n = r->num_track_ids < 1 ? 1 : (r->num_track_ids > 2 ? 2 : r->num_track_ids);
+        for (int i = 0; i < n; i++) {
+            if (i > 0)
+                put(&w, ",");
+            put_u64(&w, r->num_track_ids < 1 ? r->track_id : r->track_ids[i]);
+        }
+        put(&w, "]");
+    }
     put(&w, ",\"confidence\":");
     put_unit_float(&w, r->confidence);
     put(&w, ",\"timestamp\":\"");
     put_timestamp(&w, r->timestamp_ns);
-    put(&w, "\",\"bbox\":[");
+    put(&w, "\"");
+    if (behaviour) {
+        put(&w, ",\"occurred_at\":\"");
+        put_timestamp(&w, r->occurred_ns);
+        put(&w, "\",\"zone_id\":");
+        if (r->has_zone)
+            put_i64(&w, r->zone_id);
+        else
+            put(&w, "null");
+    }
+    put(&w, ",\"bbox\":[");
     for (int i = 0; i < 4; i++) {
         if (i > 0)
             put(&w, ",");

@@ -9,6 +9,8 @@
 
 #include <glib.h>
 
+#include "behavior.h"
+
 extern gchar **opt_cameras;
 extern gchar *opt_cameras_file;
 extern gchar *opt_config;
@@ -45,6 +47,22 @@ void config_free(void);
 void settings_of(const GHashTable *table, gint camera_id, gdouble *conf, gdouble *absence, gboolean *ai);
 
 GHashTable *new_settings_table(void);
+
+/* What the cameras file says about the behaviour rules of one camera (ROADMAP_V2 V2-3). */
+typedef struct {
+    BehaviorConfig cfg;                       /* which rules run (behaviors=) and their thresholds */
+    BehaviorZone zones[BEHAVIOR_MAX_ZONES];   /* zone.<n>= */
+    size_t num_zones;
+} BehaviorSettings;
+
+/* The behaviour settings a camera runs with: the file's, else every rule off and no zones. */
+void behavior_settings_of(const GHashTable *table, gint camera_id, BehaviorSettings *out);
+
+/* TRUE when two settings are the same (a reload that changes nothing is not announced). */
+gboolean behavior_settings_equal(const BehaviorSettings *a, const BehaviorSettings *b);
+
+/* TRUE when any rule runs or any zone exists, so the probe has something to do. */
+gboolean behavior_settings_active(const BehaviorSettings *s);
 
 /* Split "ID=URI". Returns FALSE on a bad format or when ID is not a non-negative integer. */
 gboolean parse_camera_arg(const gchar *arg, gint *camera_id, gchar **uri);

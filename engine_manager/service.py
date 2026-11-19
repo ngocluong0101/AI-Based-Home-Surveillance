@@ -7,11 +7,28 @@ interface only and has no authentication:
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from typing import Literal
 
 from fastapi import FastAPI
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from engine_manager.manager import CameraSpec, EngineManager, ManagerConfig
+
+
+class ZoneIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    kind: Literal["restricted", "lie_ok", "ignore"]
+    zone_id: int = Field(ge=0, le=100000)
+    points: list[list[float]] = Field(min_length=3, max_length=32)
+
+    @field_validator("points")
+    @classmethod
+    def _in_frame(cls, value: list[list[float]]) -> list[list[float]]:
+        for p in value:
+            if len(p) != 2 or not all(0.0 <= v <= 1.0 for v in p):
+                raise ValueError("each point is [x, y] with both between 0 and 1")
+        return value
 
 
 class CameraIn(BaseModel):
@@ -23,6 +40,8 @@ class CameraIn(BaseModel):
     conf_threshold: float | None = Field(default=None, ge=0, le=1)
     absence_timeout: float | None = Field(default=None, ge=0, le=86400)
     ai_enabled: bool | None = None
+    behaviors: list[Literal["fall", "fight", "zones"]] | None = Field(default=None, max_length=3)
+    zones: list[ZoneIn] | None = Field(default=None, max_length=8)
 
     @field_validator("uri")
     @classmethod
@@ -71,7 +90,14 @@ def create_app(manager: EngineManager | None = None, configure_logging: bool = T
     def put_cameras(body: CamerasIn) -> dict:
         """Replace the list of cameras that should run. [] stops the engine."""
         manager.set_cameras(
-            [CameraSpec(c.id, c.uri, c.conf_threshold, c.absence_timeout, c.ai_enabled) for c in body.cameras],
+            [
+                CameraSpec(
+                    c.id, c.uri, c.conf_threshold, c.absence_timeout, c.ai_enabled,
+                    None if c.behaviors is None else tuple(c.behaviors),
+                    None if c.zones is None else tuple((z.kind, z.zone_id, tuple((p[0], p[1]) for p in z.points)) for z in c.zones),
+                )
+                for c in body.cameras
+            ],
             body.revision,
         )
         return manager.status()

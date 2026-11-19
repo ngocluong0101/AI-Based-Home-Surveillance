@@ -43,6 +43,9 @@ class CameraSpec:
     conf_threshold: float | None = None    # detections below it are dropped (0-1)
     absence_timeout: float | None = None   # seconds out of sight before the same person raises a new event
     ai_enabled: bool | None = None         # False: the picture goes on, nobody is detected
+    behaviors: tuple[str, ...] | None = None   # rules that run: "fall", "fight", "zones" (ROADMAP_V2 V2-3)
+    # (kind, zone_id, ((x, y), ...)) with kind "restricted" | "lie_ok" | "ignore"; points relative to the frame
+    zones: tuple[tuple[str, int, tuple[tuple[float, float], ...]], ...] | None = None
 
 
 @dataclass
@@ -168,6 +171,10 @@ def write_cameras_file(path: Path, cameras: list[CameraSpec]) -> None:
             lines.append(f"absence_timeout={float(cam.absence_timeout)!r}")
         if cam.ai_enabled is not None:
             lines.append(f"ai_enabled={'true' if cam.ai_enabled else 'false'}")
+        if cam.behaviors:
+            lines.append(f"behaviors={','.join(cam.behaviors)}")
+        for n, (kind, zone_id, points) in enumerate(cam.zones or (), start=1):
+            lines.append(f"zone.{n}={kind}|{int(zone_id)}|" + " ".join(f"{float(x)!r},{float(y)!r}" for x, y in points))
         lines.append("")
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".cameras-")   # mkstemp creates it with mode 600

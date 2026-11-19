@@ -19,6 +19,7 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session, sessionmaker
 
 from backend.models import AppSetting
+from src.snapshot_management import SNAPSHOT_PATTERNS
 
 log = logging.getLogger(__name__)
 
@@ -89,7 +90,7 @@ def snapshot_usage(snapshot_dir: str | Path) -> tuple[int, int]:
     """(number of snapshot files, their total size in bytes), as the cleaner sees them."""
     count = size = 0
     try:
-        for path in Path(snapshot_dir).glob("PERSON_DETECTED_*.jpg"):
+        for path in (p for pattern in SNAPSHOT_PATTERNS for p in Path(snapshot_dir).glob(pattern)):
             try:
                 size += path.stat().st_size
                 count += 1

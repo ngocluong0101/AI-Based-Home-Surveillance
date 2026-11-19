@@ -1,6 +1,7 @@
 import { Check, ImageOff, RotateCcw, Video } from "lucide-react";
 import { useState } from "react";
 import { useCameraName, useEvent, useSetEventStatus } from "../hooks/queries";
+import { describeEvent, kindOf, SEVERITY_LABEL, SEVERITY_TONE } from "../utils/eventType";
 import { formatTime, percent, relativeTime } from "../utils/format";
 import { Badge } from "./ui/Badge";
 import { Drawer } from "./ui/Drawer";
@@ -50,18 +51,37 @@ function Body({ eventId, onOpenCamera }: { eventId: string; onOpenCamera: (camer
         )}
         <dl>
           <dt>Event</dt>
-          <dd>Person detected</dd>
+          <dd>
+            {kindOf(e.type).label}{" "}
+            {e.severity !== "info" && <Badge tone={SEVERITY_TONE[e.severity]}>{SEVERITY_LABEL[e.severity]}</Badge>}
+            {e.type !== "PERSON_DETECTED" && <div className="muted">{describeEvent(e)}</div>}
+          </dd>
           <dt>Camera</dt>
           <dd>{cameraName(e.camera_id)}</dd>
-          <dt>Time</dt>
+          <dt>{e.occurred_at ? "Reported" : "Time"}</dt>
           <dd>
             {formatTime(e.timestamp)}
             <div className="muted">{relativeTime(e.timestamp)}</div>
           </dd>
+          {e.occurred_at && (
+            <>
+              <dt>Began</dt>
+              <dd>
+                {formatTime(e.occurred_at)}
+                <div className="muted">{e.type === "FALL" ? "the moment the person hit the floor" : "when the behaviour started"}</div>
+              </dd>
+            </>
+          )}
           <dt>Confidence</dt>
           <dd>{percent(e.confidence)}</dd>
-          <dt>Track ID</dt>
-          <dd>{e.track_id}</dd>
+          <dt>{e.track_ids.length > 1 ? "Track IDs" : "Track ID"}</dt>
+          <dd>{e.track_ids.length > 0 ? e.track_ids.join(", ") : e.track_id}</dd>
+          {e.zone_id !== null && (
+            <>
+              <dt>Zone</dt>
+              <dd>{e.zone_id}</dd>
+            </>
+          )}
           <dt>Status</dt>
           <dd>
             <Badge tone={acknowledged ? "idle" : "warn"}>{acknowledged ? "Acknowledged" : "New"}</Badge>

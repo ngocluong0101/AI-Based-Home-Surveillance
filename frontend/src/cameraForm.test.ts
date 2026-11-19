@@ -14,6 +14,8 @@ import {
 } from "./utils/cameraForm";
 
 const camera: Camera = {
+  behaviors: [],
+  zones: [],
   id: 4,
   name: "Garage",
   source_type: "rtsp",
@@ -83,6 +85,8 @@ describe("payloads", () => {
       ai_enabled: true,
       conf_threshold: 0.25,
       absence_timeout: 10,
+      behaviors: [],
+      zones: [],
     });
   });
   it("sends the detection settings as numbers", () => {

@@ -1,4 +1,5 @@
 import type { PersonEvent } from "../types";
+import { isAlert, kindOf } from "../utils/eventType";
 import { percent, relativeTime, timeOfDay } from "../utils/format";
 import { CoverImage } from "./CoverImage";
 
@@ -16,16 +17,23 @@ export function EventCard({
   highlighted: boolean;
   onOpen: (id: string) => void;
 }) {
+  const kind = kindOf(event.type);
+  const Icon = kind.icon;
   return (
-    <button className={`shot ${highlighted ? "is-new" : ""}`} onClick={() => onOpen(event.event_id)}>
+    <button className={`shot ${highlighted ? "is-new" : ""} ${isAlert(event) ? "is-alert" : ""}`} onClick={() => onOpen(event.event_id)}>
       <span className="shot-img">
         <CoverImage src={event.snapshot_url} />
         {event.status === "new" && <span className="shot-new">New</span>}
+        {event.type !== "PERSON_DETECTED" && (
+          <span className={`shot-kind shot-kind-${event.severity}`}>
+            <Icon size={13} aria-hidden /> {kind.short}
+          </span>
+        )}
         <span className="shot-conf">{percent(event.confidence)}</span>
       </span>
       <span className="shot-cap">
         <b>
-          <span className="sr-only">Person detected, </span>
+          <span className="sr-only">{kind.label}, </span>
           {cameraName}
         </b>
         <span>

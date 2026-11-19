@@ -3,6 +3,20 @@
 export type CameraState = "RUNNING" | "RECONNECTING" | "ENDED";
 export type EventStatus = "new" | "acknowledged";
 
+/** What the engine saw (ROADMAP_V2 V2-3). */
+export type EventType = "PERSON_DETECTED" | "FALL" | "FIGHT" | "RESTRICTED_AREA";
+export type Severity = "info" | "medium" | "high";
+/** The rules a camera can run. "zones" turns on the restricted-area alerts; lie_ok and ignore zones act whenever they exist. */
+export type BehaviorName = "fall" | "fight" | "zones";
+export type ZoneKind = "restricted" | "lie_ok" | "ignore";
+
+/** A polygon on the picture; points are [x, y] relative to the frame (0..1, y down). */
+export interface Zone {
+  kind: ZoneKind;
+  zone_id: number;
+  points: [number, number][];
+}
+
 export interface Camera {
   id: number;
   name: string;
@@ -13,6 +27,8 @@ export interface Camera {
   desired_state: "running" | "stopped";
   conf_threshold: number;
   absence_timeout: number;
+  behaviors: BehaviorName[];
+  zones: Zone[];
   created_at: string;
   updated_at: string;
 }
@@ -76,10 +92,17 @@ export interface PersonEvent {
   event_id: string;
   camera_id: number;
   pipeline_run_id: string;
-  type: string;
+  type: EventType;
   track_id: number;
+  /** The people involved (a fight has two). */
+  track_ids: number[];
+  zone_id: number | null;
   confidence: number;
+  /** When the event was reported. */
   timestamp: string;
+  /** When the behaviour began (a fall: the impact); null for older events and PERSON_DETECTED. */
+  occurred_at: string | null;
+  severity: Severity;
   bbox: [number, number, number, number]; // x, y, w, h relative to the frame
   snapshot_url: string | null;
   status: EventStatus;
@@ -95,6 +118,8 @@ export interface EventPage {
 
 export interface EventFilters {
   cameraId?: number;
+  /** One or several types; none = all of them. */
+  types?: EventType[];
   status?: EventStatus;
   from?: string; // ISO 8601
   to?: string; // ISO 8601, exclusive
@@ -110,6 +135,9 @@ export interface CameraCreate {
   ai_enabled: boolean;
   conf_threshold: number;
   absence_timeout: number;
+  behaviors?: BehaviorName[];
+  /** zone_id may be left out: the next free number is used. */
+  zones?: { kind: ZoneKind; zone_id?: number; points: [number, number][] }[];
 }
 
 export type CameraUpdate = Partial<CameraCreate>;

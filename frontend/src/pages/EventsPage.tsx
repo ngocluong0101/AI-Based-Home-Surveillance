@@ -11,6 +11,7 @@ import { useCameraName, useCameras, useEvents } from "../hooks/queries";
 import { useOpenEvent } from "../hooks/useEventDrawer";
 import { useNow } from "../hooks/useNow";
 import type { EventStatus } from "../types";
+import { kindOf, SEVERITY_LABEL, SEVERITY_TONE, TYPE_FILTERS } from "../utils/eventType";
 import { formatTime, groupByDay, localDayStart, relativeTime } from "../utils/format";
 import { useHighlighted } from "../websocket/recentEvents";
 
@@ -30,6 +31,7 @@ export function EventsPage() {
 
   const [cameraId, setCameraId] = useState<number | undefined>();
   const [status, setStatus] = useState<EventStatus | undefined>();
+  const [typeFilter, setTypeFilter] = useState("all");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [offset, setOffset] = useState(0);
@@ -41,6 +43,7 @@ export function EventsPage() {
 
   const events = useEvents({
     cameraId,
+    types: TYPE_FILTERS.find((t) => t.id === typeFilter)?.types,
     status,
     from: localDayStart(from),
     to: localDayStart(to, 1), // the whole last day: the exclusive bound is the next midnight
@@ -55,8 +58,9 @@ export function EventsPage() {
       set(v);
       setOffset(0);
     };
-  const filtered = cameraId !== undefined || status !== undefined || from !== "" || to !== "";
+  const filtered = cameraId !== undefined || status !== undefined || typeFilter !== "all" || from !== "" || to !== "";
   const clear = () => {
+    setTypeFilter("all");
     setCameraId(undefined);
     setStatus(undefined);
     setFrom("");
@@ -113,8 +117,11 @@ export function EventsPage() {
           <div className="muted" style={{ fontSize: "0.78rem" }}>{relativeTime(e.timestamp, now)}</div>
         </td>
         <td>{cameraName(e.camera_id)}</td>
-        <td>Person detected</td>
-        <td>{e.track_id}</td>
+        <td>
+          {kindOf(e.type).label}{" "}
+          {e.severity !== "info" && <Badge tone={SEVERITY_TONE[e.severity]}>{SEVERITY_LABEL[e.severity]}</Badge>}
+        </td>
+        <td>{e.track_ids.length > 0 ? e.track_ids.join(", ") : e.track_id}</td>
         <td><ConfidenceBar value={e.confidence} /></td>
         <td><Badge tone={e.status === "new" ? "warn" : "idle"}>{e.status === "new" ? "New" : "Acknowledged"}</Badge></td>
       </tr>
@@ -126,11 +133,19 @@ export function EventsPage() {
       <div className="page-head">
         <div>
           <h1>Events</h1>
-          <p>Every person detected, newest first. New events appear as they happen.</p>
+          <p>Everything the cameras saw, newest first: falls, fights, people in restricted areas, people detected. New events appear as they happen.</p>
         </div>
       </div>
 
       <div className="card toolbar">
+        <label className="field">
+          Type
+          <select value={typeFilter} onChange={(e) => filter(setTypeFilter)(e.target.value)}>
+            {TYPE_FILTERS.map((t) => (
+              <option key={t.id} value={t.id}>{t.label}</option>
+            ))}
+          </select>
+        </label>
         <label className="field">
           Camera
           <select value={cameraId ?? ""} onChange={(e) => filter(setCameraId)(e.target.value ? Number(e.target.value) : undefined)}>
@@ -180,7 +195,7 @@ export function EventsPage() {
           <EmptyState
             icon={Bell}
             title={filtered ? "No events match these filters" : "No events yet"}
-            hint={filtered ? "Try a wider date range or clear the filters." : "When a person is detected, the event shows up here."}
+            hint={filtered ? "Try a wider date range or clear the filters." : "When a camera sees something, the event shows up here."}
           >
             {filtered && <button className="btn btn-sm" onClick={clear}>Clear filters</button>}
           </EmptyState>

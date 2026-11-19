@@ -2,7 +2,7 @@ import { Loader2, PlugZap } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { api } from "../api";
-import { useCreateCamera, useSettings, useTestConnection, useUpdateCamera } from "../hooks/queries";
+import { useCreateCamera, useLatestSnapshot, useSettings, useTestConnection, useUpdateCamera } from "../hooks/queries";
 import type { Camera } from "../types";
 import {
   emptyForm,
@@ -14,7 +14,9 @@ import {
   type CameraFormValues,
   type FormErrors,
 } from "../utils/cameraForm";
+import type { BehaviorName } from "../types";
 import { ConnectionResult } from "./ConnectionResult";
+import { ZoneEditor } from "./ZoneEditor";
 import { Drawer } from "./ui/Drawer";
 
 function Form({ camera, onDone }: { camera?: Camera; onDone: () => void }) {
@@ -25,12 +27,18 @@ function Form({ camera, onDone }: { camera?: Camera; onDone: () => void }) {
   const update = useUpdateCamera();
   const test = useTestConnection();
   const saving = create.isPending || update.isPending;
+  const snapshot = useLatestSnapshot(camera?.id ?? -1, camera !== undefined); // a picture to draw the zones on
   const serverError = (create.error ?? update.error)?.message;
 
   const set = <K extends keyof CameraFormValues>(key: K, value: CameraFormValues[K]) => {
     setValues((v) => ({ ...v, [key]: value }));
     setErrors({});
     test.reset();
+  };
+
+  const toggle = (name: BehaviorName, on: boolean) => {
+    const next = on ? [...values.behaviors.filter((b) => b !== name), name] : values.behaviors.filter((b) => b !== name);
+    set("behaviors", next);
   };
 
   const submit = (e: React.FormEvent) => {
@@ -169,6 +177,31 @@ function Form({ camera, onDone }: { camera?: Camera; onDone: () => void }) {
         {camera && (
           <span className="field-hint">A change to these three is applied within a second or two, without interrupting any camera.</span>
         )}
+
+        <fieldset className="rules">
+          <legend>Safety rules</legend>
+          <label className="switch">
+            <input type="checkbox" checked={values.behaviors.includes("fall")} onChange={(e) => toggle("fall", e.target.checked)} />
+            <span>Detect falls</span>
+            <small className="muted">An alert when someone falls and does not get up. Needs the pose model.</small>
+          </label>
+          <label className="switch">
+            <input type="checkbox" checked={values.behaviors.includes("fight")} onChange={(e) => toggle("fight", e.target.checked)} />
+            <span>Detect fights</span>
+            <small className="muted">An alert when people hit each other. Needs the pose model.</small>
+          </label>
+          <label className="switch">
+            <input type="checkbox" checked={values.behaviors.includes("zones")} onChange={(e) => toggle("zones", e.target.checked)} />
+            <span>Alert in restricted areas</span>
+            <small className="muted">An alert when someone stays in a restricted zone for a few seconds.</small>
+          </label>
+          <ZoneEditor zones={values.zones} onChange={(z) => set("zones", z)} background={snapshot.url} />
+          {errors.zones && <span className="field-error">{errors.zones}</span>}
+          <span className="field-hint">
+            A bed or sofa zone stops lying on it from counting as a fall; an ignore zone hides a TV or a mirror from every rule.
+            {camera && " Changes are applied within a second or two, without interrupting any camera."}
+          </span>
+        </fieldset>
 
         <div className="test-box">
           <button type="button" className="btn" disabled={!canTest || test.isPending} onClick={runTest}>

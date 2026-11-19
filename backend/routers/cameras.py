@@ -96,7 +96,10 @@ def get_camera(camera_id: int, db: Session = Depends(get_db)) -> Camera:
 def update_camera(camera_id: int, body: CameraUpdate, request: Request, db: Session = Depends(get_db)) -> Camera:
     camera = _get_active(db, camera_id)
     for field in body.model_fields_set:
-        setattr(camera, field, getattr(body, field))
+        value = getattr(body, field)
+        if field == "zones":
+            value = [z.model_dump() for z in value]
+        setattr(camera, field, value)
     camera.updated_at = func.now()
     _commit_or_conflict(db)
     db.refresh(camera)

@@ -171,6 +171,142 @@ static QueueItem *new_event_item(const AppCtx *app, const SourceCtx *src, const 
     return item;
 }
 
+/* The tracked people of one frame as the behaviour rules want them (boxes and, with the pose model, skeletons in frame pixels).
+ * Returns how many were written to out (at most max). */
+static guint collect_behavior_people(const NvDsFrameMeta *frame_meta, BehaviorPerson *out, guint max)
+{
+    guint n = 0;
+    for (NvDsMetaList *l_obj = frame_meta->obj_meta_list; l_obj != NULL && n < max; l_obj = l_obj->next) {
+        const NvDsObjectMeta *obj = (const NvDsObjectMeta *)l_obj->data;
+        if (obj->object_id == UNTRACKED_OBJECT_ID || obj->class_id != PERSON_CLASS_ID)
+            continue;
+        BehaviorPerson *p = &out[n++];
+        p->track_id = obj->object_id;
+        p->box[0] = obj->rect_params.left;
+        p->box[1] = obj->rect_params.top;
+        p->box[2] = obj->rect_params.width;
+        p->box[3] = obj->rect_params.height;
+        p->has_pose = obj->mask_params.data != NULL && obj->mask_params.size == POSE_VALUES * sizeof(float);
+        if (p->has_pose) {
+            for (int k = 0; k < BEHAVIOR_KEYPOINTS; k++) {
+                p->kp[k].x = obj->mask_params.data[3 * k];
+                p->kp[k].y = obj->mask_params.data[3 * k + 1];
+                p->kp[k].v = obj->mask_params.data[3 * k + 2];
+            }
+        }
+    }
+    return n;
+}
+
+/* Probe side: a queue item holding the EventRecord of a behaviour event of source `src`. The box is the person's, or for
+ * a fight the box around both people (relative to the frame). */
+static QueueItem *new_behavior_item(const AppCtx *app, const SourceCtx *src, const BehaviorEvent *ev,
+                                    const BehaviorPerson *people, guint num_people)
+{
+    QueueItem *item = g_new0(QueueItem, 1);
+    EventRecord *rec = &item->rec;
+    item->kind = ITEM_EVENT;
+    gchar *id = g_uuid_string_random();
+    g_strlcpy(rec->event_id, id, sizeof(rec->event_id));
+    g_free(id);
+    g_strlcpy(rec->pipeline_run_id, app->pipeline_run_id, sizeof(rec->pipeline_run_id));
+    rec->camera_id = src->camera_id;
+    rec->type = ev->type == BEHAVIOR_FALL ? EVENT_FALL : ev->type == BEHAVIOR_FIGHT ? EVENT_FIGHT : EVENT_RESTRICTED_AREA;
+    rec->track_id = ev->track_ids[0];
+    rec->num_track_ids = ev->num_tracks;
+    rec->track_ids[0] = ev->track_ids[0];
+    rec->track_ids[1] = ev->track_ids[1];
+    rec->confidence = (float)ev->score;
+    rec->timestamp_ns = ev->now_ns;
+    rec->occurred_ns = ev->occurred_ns;
+    if (ev->type == BEHAVIOR_RESTRICTED_AREA) {
+        rec->has_zone = 1;
+        rec->zone_id = ev->zone_id;
+    }
+    double x1 = 1e30, y1 = 1e30, x2 = -1e30, y2 = -1e30;
+    for (guint i = 0; i < num_people; i++) {
+        gboolean involved = people[i].track_id == ev->track_ids[0] || (ev->num_tracks > 1 && people[i].track_id == ev->track_ids[1]);
+        if (!involved)
+            continue;
+        x1 = MIN(x1, people[i].box[0]);
+        y1 = MIN(y1, people[i].box[1]);
+        x2 = MAX(x2, people[i].box[0] + people[i].box[2]);
+        y2 = MAX(y2, people[i].box[1] + people[i].box[3]);
+    }
+    if (x2 > x1 && y2 > y1)
+        detection_bbox_normalize(x1, y1, x2 - x1, y2 - y1, MUXER_WIDTH, MUXER_HEIGHT, rec->bbox);
+    return item;
+}
+
+/* ---- what the picture shows of the behaviour rules ---- */
+typedef struct {
+    gint64 until_ns;        /* stream clock */
+    BehaviorType type;
+} AlertLabel;
+
+#define ALERT_LABEL_SECONDS 5
+
+/* A display meta that has room for one more line / text; a new one is added to the frame when the current one is full. */
+static NvDsDisplayMeta *next_meta(NvDsBatchMeta *bm, NvDsFrameMeta *fm, NvDsDisplayMeta *dm, gboolean for_text,
+                                  SourceCtx *src)
+{
+    if (dm != NULL && (for_text ? dm->num_labels < MAX_ELEMENTS_IN_DISPLAY_META : dm->num_lines < MAX_ELEMENTS_IN_DISPLAY_META))
+        return dm;
+    NvDsDisplayMeta *fresh = nvds_acquire_display_meta_from_pool(bm);
+    if (fresh == NULL) {
+        src->skeleton_overflow++;
+        return NULL;
+    }
+    nvds_add_display_meta_to_frame(fm, fresh);
+    return fresh;
+}
+
+/* The zones (red: restricted, blue: lie_ok, grey: ignore) and, over a person who raised an event, its name. */
+static void draw_rules(NvDsBatchMeta *bm, NvDsFrameMeta *fm, SourceCtx *src, const BehaviorPerson *people, guint np, gint64 now)
+{
+    NvDsDisplayMeta *lines = NULL;
+    for (size_t z = 0; z < src->num_draw_zones; z++) {
+        const BehaviorZone *zone = &src->draw_zones[z];
+        if (zone->num_points < 3)
+            continue;
+        const gdouble *c = zone->kind == BEHAVIOR_ZONE_RESTRICTED ? (const gdouble[]){ 1.0, 0.2, 0.2 }
+                           : zone->kind == BEHAVIOR_ZONE_LIE_OK ? (const gdouble[]){ 0.3, 0.5, 1.0 }
+                                                                 : (const gdouble[]){ 0.6, 0.6, 0.6 };
+        for (size_t i = 0; i < zone->num_points; i++) {
+            const gdouble *a = zone->points[i], *b = zone->points[(i + 1) % zone->num_points];
+            lines = next_meta(bm, fm, lines, FALSE, src);
+            if (lines == NULL)
+                return;
+            NvOSD_LineParams *l = &lines->line_params[lines->num_lines++];
+            l->x1 = (guint)CLAMP(a[0] * MUXER_WIDTH, 0.0, MUXER_WIDTH - 1.0);
+            l->y1 = (guint)CLAMP(a[1] * MUXER_HEIGHT, 0.0, MUXER_HEIGHT - 1.0);
+            l->x2 = (guint)CLAMP(b[0] * MUXER_WIDTH, 0.0, MUXER_WIDTH - 1.0);
+            l->y2 = (guint)CLAMP(b[1] * MUXER_HEIGHT, 0.0, MUXER_HEIGHT - 1.0);
+            l->line_width = 3;
+            l->line_color = (NvOSD_ColorParams){ c[0], c[1], c[2], 1.0 };
+        }
+    }
+
+    NvDsDisplayMeta *texts = NULL;
+    for (guint i = 0; i < np; i++) {
+        const AlertLabel *al = g_hash_table_lookup(src->alert_labels, GSIZE_TO_POINTER((gsize)people[i].track_id));
+        if (al == NULL || now > al->until_ns)
+            continue;
+        texts = next_meta(bm, fm, texts, TRUE, src);
+        if (texts == NULL)
+            return;
+        NvOSD_TextParams *t = &texts->text_params[texts->num_labels++];
+        t->display_text = g_strdup(al->type == BEHAVIOR_FALL ? "FALL" : al->type == BEHAVIOR_FIGHT ? "FIGHT" : "RESTRICTED AREA");
+        t->x_offset = (guint)CLAMP(people[i].box[0], 0.0, MUXER_WIDTH - 200.0);
+        t->y_offset = (guint)CLAMP(people[i].box[1] - 36.0, 0.0, MUXER_HEIGHT - 40.0);
+        t->font_params.font_name = (gchar *)"Serif";
+        t->font_params.font_size = 22;
+        t->font_params.font_color = (NvOSD_ColorParams){ 1.0, 1.0, 1.0, 1.0 };
+        t->set_bg_clr = 1;
+        t->text_bg_clr = (NvOSD_ColorParams){ 0.85, 0.0, 0.0, 0.85 };
+    }
+}
+
 /* The events that started in one frame, as a range of the probe's `pending` array. */
 typedef struct {
     NvDsFrameMeta *frame_meta;
@@ -410,15 +546,54 @@ GstPadProbeReturn detection_probe(GstPad *pad, GstPadProbeInfo *info, gpointer u
             src->event_errors++;
         else
             src->event_count += (guint64)emitted;
-        if (emitted > 0) {
+
+        /* Behaviour rules (falls, fights, restricted areas), on the same clock. SIGHUP changes are taken over here, between
+         * two frames. */
+        BehaviorEvent bev[8];
+        int nbev = 0;
+        guint nppl = 0;
+        if (atomic_exchange(&src->beh_dirty, FALSE)) {
+            g_mutex_lock(&src->beh_lock);
+            BehaviorSettings fresh = src->beh_pending;
+            g_mutex_unlock(&src->beh_lock);
+            behavior_set_config(src->behavior, &fresh.cfg);
+            behavior_set_zones(src->behavior, fresh.zones, fresh.num_zones);
+            memcpy(src->draw_zones, fresh.zones, sizeof(src->draw_zones));
+            src->num_draw_zones = fresh.num_zones;
+        }
+        if (src->beh_active && src->behavior != NULL && src->beh_people != NULL) {
+            nppl = collect_behavior_people(frame_meta, src->beh_people, BEH_MAX_PEOPLE);
+            nbev = behavior_process(src->behavior, src->beh_people, nppl,
+                                    src->stream_start_ns + (gint64)frame_meta->buf_pts, bev, G_N_ELEMENTS(bev));
+            if (nbev < 0)
+                nbev = 0;   /* out of memory: nothing reported for this frame */
+            const gint64 now = src->stream_start_ns + (gint64)frame_meta->buf_pts;
+            for (int i = 0; i < nbev; i++) {
+                src->behavior_events[bev[i].type]++;
+                for (int k = 0; k < bev[i].num_tracks; k++) {
+                    AlertLabel *al = g_new0(AlertLabel, 1);
+                    al->until_ns = now + (gint64)ALERT_LABEL_SECONDS * G_GINT64_CONSTANT(1000000000);
+                    al->type = bev[i].type;
+                    g_hash_table_replace(src->alert_labels, GSIZE_TO_POINTER((gsize)bev[i].track_ids[k]), al);
+                }
+            }
+            if (opt_output != NULL || opt_stream_url != NULL)
+                draw_rules(batch_meta, frame_meta, src, src->beh_people, nppl, now);
+        }
+
+        if (emitted > 0 || nbev > 0) {
+            if (emitted < 0)
+                emitted = 0;
             if (pending == NULL) {
                 pending = g_ptr_array_new();
                 groups = g_array_new(FALSE, TRUE, sizeof(FrameGroup));
             }
             FrameGroup group = { .frame_meta = frame_meta, .first = pending->len,
-                                 .count = (guint)emitted };
+                                 .count = (guint)(emitted + nbev) };
             for (int i = 0; i < emitted; i++)
                 g_ptr_array_add(pending, new_event_item(app, src, &events[i]));
+            for (int i = 0; i < nbev; i++)
+                g_ptr_array_add(pending, new_behavior_item(app, src, &bev[i], src->beh_people, nppl));
             if (app->snap_ctx != NULL) {
                 submit_snapshot(app, buf, &map, &mapped, &group,
                                 (QueueItem **)pending->pdata + group.first);

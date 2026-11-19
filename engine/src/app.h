@@ -17,11 +17,16 @@
 
 #include "event_manager.h"
 #include "event_record.h"
+#include "behavior.h"
+#include "config.h"
 #include "event_spool.h"
 #include "pose.h"
 #include "gstnvdsmeta.h"
 #include "nvbufsurface.h"
 #include "nvds_obj_encode.h"   /* needs the two DeepStream headers above first */
+
+/* People handed to the behaviour rules from one frame (the first ones; a hall with more is not what the rules are for). */
+#define BEH_MAX_PEOPLE 64
 
 #define EXIT_BAD_ARGS 2
 #define EXIT_BUILD_FAILED 3
@@ -97,6 +102,21 @@ typedef struct {
     GHashTable *pose_hist;
     guint64 pose_count;
     guint64 skeleton_overflow;   /* skeletons not drawn because the frame's display-meta pool was empty */
+    /* Behaviour rules (ROADMAP_V2 V2-3: falls, fights, restricted areas). `behavior` is made with the slot and used by
+     * the probe (under slot_lock). SIGHUP (main thread) leaves new settings in beh_pending under beh_lock and sets
+     * beh_dirty; the probe takes them over at the start of its next frame, so the rules never change in the middle of one. */
+    Behavior *behavior;
+    BehaviorPerson *beh_people;     /* scratch for the probe, BEH_MAX_PEOPLE entries */
+    GMutex beh_lock;                /* guards beh_pending */
+    BehaviorSettings beh_pending;   /* the settings last asked for (the starting ones too) */
+    _Atomic gboolean beh_dirty;
+    _Atomic gboolean beh_active;    /* a rule runs or a zone exists: the probe has something to do */
+    guint64 behavior_events[3];     /* FALL, FIGHT, RESTRICTED_AREA reported (probe only) */
+    /* What the picture shows of the rules (--output / --stream-url): the zones, and for a few seconds a label on the people
+     * of an event. Probe only. */
+    BehaviorZone draw_zones[BEHAVIOR_MAX_ZONES];
+    size_t num_draw_zones;
+    GHashTable *alert_labels;       /* track_id -> AlertLabel* (probes.c) */
     /* Event de-duplication of this source (ROADMAP 2.1). Touched only by the probe, which runs on
      * one streaming thread, and read after the pipeline stopped, so it needs no lock. */
     EventManager events;

@@ -45,6 +45,9 @@ def post_event(body: EventIn, request: Request, response: Response, db: Session 
             confidence=body.confidence,
             timestamp=body.timestamp,
             bbox=body.bbox,
+            track_ids=body.track_ids or [body.track_id],
+            zone_id=body.zone_id,
+            occurred_at=body.occurred_at,
             snapshot_file=body.snapshot,
         )
         .on_conflict_do_nothing(index_elements=[Event.event_id])

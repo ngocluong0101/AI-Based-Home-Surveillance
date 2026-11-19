@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 from urllib.parse import urlsplit, urlunsplit
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -13,6 +13,14 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, field_validato
 SNAPSHOT_NAME_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._-]{0,186}\.jpg$"
 
 SourceType = Literal["file", "rtsp"]
+EventType = Literal["PERSON_DETECTED", "FALL", "FIGHT", "RESTRICTED_AREA"]
+EVENT_TYPES = ("PERSON_DETECTED", "FALL", "FIGHT", "RESTRICTED_AREA")
+# How much an event matters (a badge in the app): a fall or a fight asks for someone to look now.
+SEVERITY = {"PERSON_DETECTED": "info", "RESTRICTED_AREA": "medium", "FALL": "high", "FIGHT": "high"}
+BehaviorName = Literal["fall", "fight", "zones"]
+ZoneKind = Literal["restricted", "lie_ok", "ignore"]
+MAX_ZONES = 8            # the engine's limit (BEHAVIOR_MAX_ZONES)
+MAX_ZONE_POINTS = 32
 _SCHEMES = {"file": ("file://",), "rtsp": ("rtsp://", "rtsps://")}
 
 
@@ -33,6 +41,50 @@ def _check_uri(source_type: str, uri: str) -> None:
         raise ValueError(f"source_uri of a {source_type} camera must start with {' or '.join(_SCHEMES[source_type])}")
 
 
+class ZoneIn(BaseModel):
+    """A polygon on the picture: coordinates relative to the frame (0..1, x to the right, y down)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: ZoneKind                       # restricted: standing in it raises an alert; lie_ok: a bed or a sofa, lying there is no
+                                         # fall; ignore: nothing in it is looked at (a TV, a mirror)
+    zone_id: int | None = Field(default=None, ge=0, le=100000)   # left out: the next free number, from 1
+    points: list[list[float]] = Field(min_length=3, max_length=MAX_ZONE_POINTS)
+
+    @field_validator("points")
+    @classmethod
+    def _points_in_frame(cls, value: list[list[float]]) -> list[list[float]]:
+        for point in value:
+            if len(point) != 2 or not all(0.0 <= v <= 1.0 for v in point):
+                raise ValueError("each point is [x, y] with both between 0 and 1")
+        return value
+
+
+class ZoneOut(BaseModel):
+    kind: str
+    zone_id: int
+    points: list[list[float]]
+
+
+def _check_rules(behaviors: list[str] | None, zones: list[ZoneIn] | None) -> None:
+    if behaviors is not None and len(set(behaviors)) != len(behaviors):
+        raise ValueError("behaviors lists a rule twice")
+    if zones is None:
+        return
+    if len(zones) > MAX_ZONES:
+        raise ValueError(f"at most {MAX_ZONES} zones per camera")
+    taken = [z.zone_id for z in zones if z.zone_id is not None]
+    if len(set(taken)) != len(taken):
+        raise ValueError("two zones have the same zone_id")
+    next_id = 1
+    for z in zones:
+        if z.zone_id is None:
+            while next_id in taken:
+                next_id += 1
+            z.zone_id = next_id
+            taken.append(next_id)
+
+
 class CameraCreate(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
@@ -43,10 +95,13 @@ class CameraCreate(BaseModel):
     ai_enabled: bool = True
     conf_threshold: float = Field(default=0.25, ge=0, le=1)
     absence_timeout: float = Field(default=10.0, ge=0, le=86400)
+    behaviors: list[BehaviorName] = Field(default_factory=list, max_length=3)
+    zones: list[ZoneIn] = Field(default_factory=list, max_length=MAX_ZONES)
 
     @model_validator(mode="after")
     def _uri_matches_type(self) -> "CameraCreate":
         _check_uri(self.source_type, self.source_uri)
+        _check_rules(self.behaviors, self.zones)
         return self
 
 
@@ -62,9 +117,12 @@ class CameraUpdate(BaseModel):
     ai_enabled: bool | None = None
     conf_threshold: float | None = Field(default=None, ge=0, le=1)
     absence_timeout: float | None = Field(default=None, ge=0, le=86400)
+    behaviors: list[BehaviorName] | None = Field(default=None, max_length=3)
+    zones: list[ZoneIn] | None = Field(default=None, max_length=MAX_ZONES)
 
     @model_validator(mode="after")
     def _no_nulls_and_pair(self) -> "CameraUpdate":
+        _check_rules(self.behaviors, self.zones)
         for field in self.model_fields_set:
             if getattr(self, field) is None:
                 raise ValueError(f"{field} cannot be null")
@@ -87,6 +145,8 @@ class CameraOut(BaseModel):
     desired_state: Literal["running", "stopped"]
     conf_threshold: float
     absence_timeout: float
+    behaviors: list[str]
+    zones: list[ZoneOut]
     created_at: datetime
     updated_at: datetime
 
@@ -238,16 +298,20 @@ class EventIn(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    schema_version: Literal[1]
+    schema_version: Literal[1, 2]     # 2: a behaviour event (track_ids, occurred_at, zone_id); 1: PERSON_DETECTED
     event_id: uuid.UUID
     camera_id: int = Field(ge=0, le=2**31 - 1)
     pipeline_run_id: uuid.UUID
-    type: Literal["PERSON_DETECTED"]
+    type: EventType
     track_id: int = Field(ge=0, le=2**63 - 1)
     confidence: float = Field(ge=0, le=1)
     timestamp: AwareDatetime
     bbox: list[float] = Field(min_length=4, max_length=4)
     snapshot: str | None = Field(default=None, pattern=SNAPSHOT_NAME_PATTERN)
+    # schema 2 only; an engine of schema 1 sends none of them
+    track_ids: list[Annotated[int, Field(ge=0, le=2**63 - 1)]] | None = Field(default=None, min_length=1, max_length=2)
+    zone_id: int | None = Field(default=None, ge=0, le=100000)
+    occurred_at: AwareDatetime | None = None
 
     @field_validator("bbox")
     @classmethod
@@ -284,8 +348,12 @@ class EventOut(BaseModel):
     type: str
     track_id: int
     confidence: float
-    timestamp: datetime
+    timestamp: datetime          # when the event was reported
     bbox: list[float]
+    track_ids: list[int]         # the people involved (a fight: two); [track_id] for older events
+    zone_id: int | None
+    occurred_at: datetime | None  # when the behaviour began (a fall: the impact); None for older events
+    severity: str                # info | medium | high
     snapshot_url: str | None   # /api/events/{id}/snapshot, or None when there is no image
     status: str
     notify_status: str

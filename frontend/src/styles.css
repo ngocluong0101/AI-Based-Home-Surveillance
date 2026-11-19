@@ -370,3 +370,24 @@ button.shot:hover { background: var(--surface-2); border-color: var(--line); }
 .engine-detail { margin-top: 0.3rem; color: var(--muted); font-size: 0.88rem; }
 .engine-warn { color: var(--warn); }
 .detect-cell { display: flex; flex-direction: column; gap: 0.1rem; font-size: 0.85rem; white-space: nowrap; }
+
+/* Behaviour events (falls, fights, restricted areas) */
+.shot.is-alert .shot-img, .event-item.is-alert { box-shadow: 0 0 0 1px var(--bad), 0 0 18px rgba(248, 113, 113, 0.22); }
+.shot-kind { position: absolute; left: 0.5rem; bottom: 0.5rem; display: inline-flex; align-items: center; gap: 0.3rem; padding: 0.12rem 0.5rem; border-radius: 999px; font-size: 0.72rem; font-weight: 600; background: rgba(0, 0, 0, 0.72); color: #fff; }
+.shot-kind-high { background: #b91c1c; }
+.shot-kind-medium { background: #92400e; }
+
+/* Zone editor */
+.rules { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 0.75rem 0.9rem; display: grid; gap: 0.7rem; }
+.rules legend { padding: 0 0.4rem; color: var(--muted); font-size: 0.8rem; }
+.zone-editor { display: grid; gap: 0.6rem; }
+.zone-canvas { position: relative; aspect-ratio: 16 / 9; background: #0e1116 center / cover no-repeat; border: 1px solid var(--line); border-radius: var(--radius-sm); touch-action: none; overflow: hidden; }
+.zone-canvas svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.zone-handle { position: absolute; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; border: 2px solid #fff; padding: 0; cursor: grab; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5); }
+.zone-handle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.zone-add { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.zone-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.35rem; }
+.zone-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; padding: 0.3rem 0.5rem; border-radius: var(--radius-sm); }
+.zone-list li.is-selected { background: var(--accent-soft); }
+.zone-list .swatch { width: 12px; height: 12px; border-radius: 3px; }
+.zone-list .zone-kind { margin: 0; }

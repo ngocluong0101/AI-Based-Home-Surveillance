@@ -107,3 +107,26 @@ class TelegramNotifier:
             event.track_id,
         )
         return True
+
+    def send_alert(self, caption: str, photo_path: str | None = None) -> bool:
+        """Send an alert whose text the caller wrote (falls, fights, restricted areas), with a photo when there is one.
+
+        Returns True on success, False otherwise; never raises. The text-only and the photo calls are the same two
+        endpoints the PERSON_DETECTED messages use.
+        """
+        if not self.enabled:
+            return False
+        try:
+            if photo_path is not None:
+                url = f"https://api.telegram.org/bot{self.token}/sendPhoto"
+                with open(photo_path, "rb") as fh:
+                    resp = requests.post(url, data={"chat_id": self.chat_id, "caption": caption}, files={"photo": fh}, timeout=10)
+            else:
+                url = f"https://api.telegram.org/bot{self.token}/sendMessage"
+                resp = requests.post(url, data={"chat_id": self.chat_id, "text": caption}, timeout=10)
+            resp.raise_for_status()
+        except (RequestException, OSError) as exc:
+            self.logger.error("Failed to send Telegram alert: %s", exc, exc_info=True)
+            return False
+        self.logger.info("Alert sent (chat_id=%s)", self.chat_id)
+        return True

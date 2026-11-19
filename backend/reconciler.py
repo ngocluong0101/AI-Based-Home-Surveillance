@@ -38,6 +38,8 @@ def desired_cameras(db: Session) -> list[dict]:
             "conf_threshold": c.conf_threshold,
             "absence_timeout": c.absence_timeout,
             "ai_enabled": c.ai_enabled,
+            "behaviors": list(c.behaviors),
+            "zones": list(c.zones),
         }
         for c in rows
     ]

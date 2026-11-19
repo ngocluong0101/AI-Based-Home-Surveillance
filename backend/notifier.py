@@ -30,7 +30,8 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session, sessionmaker
 
 from backend.app_settings import AppSettingsStore
-from backend.models import Event
+from backend.captions import behaviour_caption
+from backend.models import Camera, Event
 
 log = logging.getLogger(__name__)
 
@@ -70,7 +71,9 @@ class Notifier:
         with self._session_factory() as db:
             rows = db.execute(
                 select(Event.event_id, Event.track_id, Event.confidence, Event.timestamp,
-                       Event.snapshot_file, Event.received_at)
+                       Event.snapshot_file, Event.received_at, Event.type, Event.track_ids, Event.zone_id,
+                       Event.occurred_at, Camera.name.label("camera_name"))
+                .join(Camera, Camera.id == Event.camera_id)
                 .where(Event.notify_status == "pending")
                 .order_by(Event.received_at, Event.event_id)
                 .limit(BATCH)
@@ -103,7 +106,12 @@ class Notifier:
                                 timestamp=row.timestamp.astimezone())
         try:
             path = self._snapshot_dir / row.snapshot_file if row.snapshot_file else None
-            if path is not None and path.is_file():   # the cleaner may have removed it: send text only
+            has_photo = path is not None and path.is_file()   # the cleaner may have removed it: send text only
+            if row.type != "PERSON_DETECTED":
+                caption = behaviour_caption(row.type, row.camera_name, list(row.track_ids) or [row.track_id], row.zone_id,
+                                            row.timestamp, row.occurred_at, row.confidence)
+                return bool(self._telegram.send_alert(caption, str(path) if has_photo else None))
+            if has_photo:
                 return bool(self._telegram.send_person_detected_photo(event, str(path)))
             return bool(self._telegram.send_person_detected(event))
         except Exception:   # the notifier promises not to raise; a stand-in or a bug must not kill the thread

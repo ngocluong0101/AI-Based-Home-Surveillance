@@ -37,6 +37,9 @@ void test_event_record_timestamp_is_utc(void);
 void test_event_record_numbers_are_clamped_and_rounded(void);
 void test_event_record_small_buffer_fails_cleanly(void);
 void test_event_snapshot_name(void);
+void test_event_record_behaviour_events_are_schema_2(void);
+void test_event_record_person_detected_json_is_unchanged_by_the_new_fields(void);
+void test_event_snapshot_name_starts_with_the_type(void);
 
 /* tests/test_event_spool.c */
 void test_event_spool_keeps_order_and_empties_the_file(void);
@@ -56,6 +59,12 @@ void test_heartbeat_numbers_are_always_valid_json(void);
 void test_heartbeat_escapes_the_run_id(void);
 void test_heartbeat_capacity_formula_suffices(void);
 void test_heartbeat_small_buffer_fails_cleanly(void);
+
+/* tests/test_behavior.c */
+void test_behavior_shared_vectors(void);
+void test_behavior_point_in_polygon(void);
+void test_behavior_output_capacity_and_zone_limits(void);
+void test_behavior_config_can_change_while_running(void);
 
 /* tests/test_pose.c */
 void test_pose_from_values_rejects_non_finite_numbers(void);
@@ -99,6 +108,13 @@ static const TestCase TESTS[] = {
     { "pose_normalize_handles_missing_points", test_pose_normalize_handles_missing_points },
     { "pose_history_window_repairs_short_holes_only", test_pose_history_window_repairs_short_holes_only },
     { "pose_history_ring_wraps_and_ignores_old_frames", test_pose_history_ring_wraps_and_ignores_old_frames },
+    { "event_record_behaviour_events_are_schema_2", test_event_record_behaviour_events_are_schema_2 },
+    { "event_record_person_detected_json_is_unchanged_by_the_new_fields", test_event_record_person_detected_json_is_unchanged_by_the_new_fields },
+    { "event_snapshot_name_starts_with_the_type", test_event_snapshot_name_starts_with_the_type },
+    { "behavior_shared_vectors", test_behavior_shared_vectors },
+    { "behavior_point_in_polygon", test_behavior_point_in_polygon },
+    { "behavior_output_capacity_and_zone_limits", test_behavior_output_capacity_and_zone_limits },
+    { "behavior_config_can_change_while_running", test_behavior_config_can_change_while_running },
     { NULL, NULL }, /* table terminator */
 };
 

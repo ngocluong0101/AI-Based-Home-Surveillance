@@ -75,6 +75,10 @@ void print_stats(const AppCtx *app)
                 src->source_id, src->camera_id, (guint64)src->frame_count, src->object_count,
                 src->untracked_count, tracks, short_tracks, src->event_count,
                 seconds > 0.0 ? (double)src->frame_count / seconds : 0.0);
+        if (src->behavior_events[0] + src->behavior_events[1] + src->behavior_events[2] > 0)
+            g_print("source_id=%u camera_id=%d behavior_events fall=%" G_GUINT64_FORMAT " fight=%" G_GUINT64_FORMAT
+                    " restricted_area=%" G_GUINT64_FORMAT "\n", src->source_id, src->camera_id, src->behavior_events[0],
+                    src->behavior_events[1], src->behavior_events[2]);
         if (src->pose_count > 0)
             g_print("source_id=%u camera_id=%d poses=%" G_GUINT64_FORMAT " tracks_with_pose=%u skeleton_overflow=%"
                     G_GUINT64_FORMAT "\n", src->source_id, src->camera_id, src->pose_count,

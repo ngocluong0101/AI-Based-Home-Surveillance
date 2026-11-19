@@ -100,4 +100,5 @@ datasets/               dữ liệu (không commit; xem datasets/README.md)
 ```
 
 ## Lịch sử thay đổi
+- 2026-11-19 (V2-3): các định nghĩa trên được **chuyển thành số** trong `src/events/behavior.py` (đặc tả) và `engine/src/core/behavior.c`. Sau lần thử đầu trên clip UR Fall, luật ngã được sửa: hông được tính là "đã rơi" nếu dịch ≥ 0,5 chiều dài thân **trong 0,8 s kể từ lần cuối đứng thẳng** (thay vì đo ngay lúc thân quay quá 60° — hông còn rơi tiếp sau đó); mốc "nằm yên" lấy sau khi hông ổn định (`fall_settle_s` = 1 s); khi pose mất mà box còn rộng thì dùng hông cuối. Định nghĩa bằng lời không đổi.
 - 2026-11-19: bản đầu (V2-0).

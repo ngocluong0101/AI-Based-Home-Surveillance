@@ -109,6 +109,7 @@ def test_decode_pose_empty_and_threshold():
 
 
 def test_keypoints_of_reads_the_dump_column(tmp_path):
+    pytest.importorskip("pandas")   # lives in eval/.venv
     from eval.common import ds_dump
 
     kp = " ".join(f"{v}" for k in range(17) for v in (100 + k, 200 + k, 0.9))

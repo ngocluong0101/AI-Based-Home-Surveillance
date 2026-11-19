@@ -4,6 +4,8 @@
  */
 #include "config.h"
 
+#include <stddef.h>
+
 #include <glib/gstdio.h>
 #include <gst/gst.h>
 #include <string.h>
@@ -98,6 +100,7 @@ typedef struct {
     gdouble conf_threshold;
     gdouble absence_timeout;   /* < 0: not given, --absence-timeout applies */
     gboolean ai_enabled;
+    BehaviorSettings beh;
 } CameraSettings;
 
 #define CONF_THRESHOLD_MAX 1.0
@@ -121,6 +124,196 @@ void settings_of(const GHashTable *table, gint camera_id, gdouble *conf, gdouble
     *absence = (cs != NULL && cs->absence_timeout >= 0.0) ? cs->absence_timeout : opt_absence_timeout;
 }
 
+void behavior_settings_of(const GHashTable *table, gint camera_id, BehaviorSettings *out)
+{
+    const CameraSettings *cs = table != NULL ? g_hash_table_lookup((GHashTable *)table, GINT_TO_POINTER(camera_id)) : NULL;
+    if (cs != NULL) {
+        *out = cs->beh;
+        return;
+    }
+    memset(out, 0, sizeof(*out));
+    behavior_config_default(&out->cfg);
+}
+
+gboolean behavior_settings_equal(const BehaviorSettings *a, const BehaviorSettings *b)
+{
+    if (memcmp(&a->cfg, &b->cfg, sizeof(a->cfg)) != 0 || a->num_zones != b->num_zones)
+        return FALSE;
+    for (size_t i = 0; i < a->num_zones; i++) {
+        if (a->zones[i].kind != b->zones[i].kind || a->zones[i].zone_id != b->zones[i].zone_id ||
+            a->zones[i].num_points != b->zones[i].num_points ||
+            memcmp(a->zones[i].points, b->zones[i].points, a->zones[i].num_points * sizeof(a->zones[i].points[0])) != 0)
+            return FALSE;
+    }
+    return TRUE;
+}
+
+gboolean behavior_settings_active(const BehaviorSettings *s)
+{
+    return s->cfg.fall || s->cfg.fight || s->cfg.zones || s->num_zones > 0;
+}
+
+/* The numeric thresholds of a camera group, by the names BehaviorConfig has in the Python specification. */
+typedef struct {
+    const char *name;
+    size_t offset;
+    double min, max;
+} BehaviorKey;
+
+#define BKEY(field, lo, hi) { #field, offsetof(BehaviorConfig, field), (lo), (hi) }
+static const BehaviorKey BEHAVIOR_KEYS[] = {
+    BKEY(vis_min, 0.0, 1.0), BKEY(forget_s, 0.0, 3600.0),
+    BKEY(fall_down_deg, 1.0, 179.0), BKEY(fall_up_deg, 1.0, 179.0), BKEY(fall_drop_window_s, 0.0, 60.0),
+    BKEY(fall_hip_drop_min, 0.0, 10.0), BKEY(fall_still_s, 0.0, 600.0), BKEY(fall_settle_s, 0.0, 60.0), BKEY(fall_hip_window_s, 0.0, 60.0),
+    BKEY(fall_move_max, 0.0, 10.0), BKEY(fall_lying_aspect, 0.0, 10.0),
+    BKEY(fall_stand_back_s, 0.0, 60.0), BKEY(fall_lost_s, 0.0, 60.0), BKEY(fall_cooldown_s, 0.0, 86400.0),
+    BKEY(fall_min_torso_px, 0.0, 10000.0),
+    BKEY(fight_speed, 0.0, 100.0), BKEY(fight_decay_s, 0.01, 600.0), BKEY(fight_threshold_s, 0.0, 600.0),
+    BKEY(fight_rearm, 0.0, 600.0), BKEY(fight_cooldown_s, 0.0, 86400.0), BKEY(fight_max_dt_s, 0.0, 60.0),
+    BKEY(zone_dwell_s, 0.0, 3600.0), BKEY(zone_exit_s, 0.0, 3600.0), BKEY(zone_rearm_s, 0.0, 86400.0),
+};
+
+/* behaviors=fall,fight,zones */
+static gboolean read_behaviors(GKeyFile *kf, const gchar *group, BehaviorSettings *b)
+{
+    gchar *list = g_key_file_get_string(kf, group, "behaviors", NULL);
+    if (list == NULL)
+        return TRUE;
+    gboolean ok = TRUE;
+    gchar **words = g_strsplit(list, ",", -1);
+    for (gchar **w = words; *w != NULL; w++) {
+        g_strstrip(*w);
+        if (**w == '\0')
+            continue;
+        if (strcmp(*w, "fall") == 0)
+            b->cfg.fall = 1;
+        else if (strcmp(*w, "fight") == 0)
+            b->cfg.fight = 1;
+        else if (strcmp(*w, "zones") == 0)
+            b->cfg.zones = 1;
+        else {
+            g_printerr("Cameras file: group '%s': behaviors may list fall, fight and zones, not '%s'\n", group, *w);
+            ok = FALSE;
+        }
+    }
+    g_strfreev(words);
+    g_free(list);
+    return ok;
+}
+
+/* zone.<n>=<kind>|<id>|<x>,<y> <x>,<y> <x>,<y> ...   kind = restricted | lie_ok | ignore, points relative to the frame */
+static gboolean read_zone(const gchar *group, const gchar *key, const gchar *value, BehaviorZone *z)
+{
+    gchar **parts = g_strsplit(value, "|", 3);
+    gboolean ok = FALSE;
+    if (g_strv_length(parts) == 3) {
+        g_strstrip(parts[0]);
+        if (strcmp(parts[0], "restricted") == 0)
+            z->kind = BEHAVIOR_ZONE_RESTRICTED;
+        else if (strcmp(parts[0], "lie_ok") == 0)
+            z->kind = BEHAVIOR_ZONE_LIE_OK;
+        else if (strcmp(parts[0], "ignore") == 0)
+            z->kind = BEHAVIOR_ZONE_IGNORE;
+        else
+            goto done;
+        gchar *end = NULL;
+        gint64 id = g_ascii_strtoll(g_strstrip(parts[1]), &end, 10);
+        if (*parts[1] == '\0' || *end != '\0' || id < 0 || id > 100000)
+            goto done;
+        z->zone_id = (int)id;
+        gchar **pts = g_strsplit_set(parts[2], " \t", -1);
+        z->num_points = 0;
+        gboolean pts_ok = TRUE;
+        for (gchar **pt = pts; *pt != NULL && pts_ok; pt++) {
+            if (**pt == '\0')
+                continue;
+            gchar **xy = g_strsplit(*pt, ",", -1);
+            gchar *e1 = NULL, *e2 = NULL;
+            if (g_strv_length(xy) != 2 || z->num_points >= BEHAVIOR_MAX_ZONE_POINTS) {
+                pts_ok = FALSE;
+            } else {
+                double x = g_ascii_strtod(xy[0], &e1), y = g_ascii_strtod(xy[1], &e2);
+                if (*xy[0] == '\0' || *xy[1] == '\0' || *e1 != '\0' || *e2 != '\0' || !(x >= 0.0 && x <= 1.0) ||
+                    !(y >= 0.0 && y <= 1.0)) {
+                    pts_ok = FALSE;
+                } else {
+                    z->points[z->num_points][0] = x;
+                    z->points[z->num_points][1] = y;
+                    z->num_points++;
+                }
+            }
+            g_strfreev(xy);
+        }
+        g_strfreev(pts);
+        ok = pts_ok && z->num_points >= 3;
+    }
+done:
+    g_strfreev(parts);
+    if (!ok)
+        g_printerr("Cameras file: group '%s': %s must look like kind|id|x,y x,y x,y (kind restricted, lie_ok or ignore; "
+                   "an id of 0-100000; 3 to %d points, each coordinate between 0 and 1)\n", group, key,
+                   BEHAVIOR_MAX_ZONE_POINTS);
+    return ok;
+}
+
+static gboolean read_behavior_settings(GKeyFile *kf, const gchar *group, BehaviorSettings *b)
+{
+    memset(b, 0, sizeof(*b));
+    behavior_config_default(&b->cfg);
+    if (!read_behaviors(kf, group, b))
+        return FALSE;
+
+    for (size_t i = 0; i < G_N_ELEMENTS(BEHAVIOR_KEYS); i++) {
+        const BehaviorKey *k = &BEHAVIOR_KEYS[i];
+        if (!g_key_file_has_key(kf, group, k->name, NULL))
+            continue;
+        GError *err = NULL;
+        double v = g_key_file_get_double(kf, group, k->name, &err);
+        if (err != NULL || !(v >= k->min && v <= k->max)) {
+            g_printerr("Cameras file: group '%s': %s must be a number between %g and %g\n", group, k->name, k->min, k->max);
+            g_clear_error(&err);
+            return FALSE;
+        }
+        *(double *)((char *)&b->cfg + k->offset) = v;
+    }
+    if (b->cfg.fall_up_deg >= b->cfg.fall_down_deg) {
+        g_printerr("Cameras file: group '%s': fall_up_deg must be smaller than fall_down_deg\n", group);
+        return FALSE;
+    }
+
+    /* zone.1 ... zone.8, in that order; a gap or another number is a mistake */
+    gsize nkeys = 0;
+    gchar **keys = g_key_file_get_keys(kf, group, &nkeys, NULL);
+    gboolean ok = TRUE;
+    gboolean seen[BEHAVIOR_MAX_ZONES + 1] = { FALSE };
+    for (gsize i = 0; i < nkeys && ok; i++) {
+        if (!g_str_has_prefix(keys[i], "zone."))
+            continue;
+        gchar *end = NULL;
+        gint64 n = g_ascii_strtoll(keys[i] + 5, &end, 10);
+        if (*end != '\0' || n < 1 || n > BEHAVIOR_MAX_ZONES) {
+            g_printerr("Cameras file: group '%s': %s is not a zone key (use zone.1 to zone.%d)\n", group, keys[i],
+                       BEHAVIOR_MAX_ZONES);
+            ok = FALSE;
+            break;
+        }
+        seen[n] = TRUE;
+    }
+    g_strfreev(keys);
+    for (int n = 1; ok && n <= BEHAVIOR_MAX_ZONES; n++) {
+        if (!seen[n])
+            continue;
+        gchar key[16];
+        g_snprintf(key, sizeof(key), "zone.%d", n);
+        gchar *value = g_key_file_get_string(kf, group, key, NULL);
+        ok = value != NULL && read_zone(group, key, value, &b->zones[b->num_zones]);
+        if (ok)
+            b->num_zones++;
+        g_free(value);
+    }
+    return ok;
+}
+
 /*
  * Read the optional conf_threshold=, absence_timeout= and ai_enabled= of one [camera.<ID>] group and
  * store them in `settings` (camera id -> CameraSettings). Messages name the group, never the address.
@@ -134,6 +327,8 @@ static gboolean read_camera_settings(GKeyFile *kf, const gchar *group, GHashTabl
 
     CameraSettings s = { .conf_threshold = 0.0, .absence_timeout = -1.0, .ai_enabled = TRUE };
     GError *err = NULL;
+    if (!read_behavior_settings(kf, group, &s.beh))
+        return FALSE;
 
     if (g_key_file_has_key(kf, group, "conf_threshold", NULL)) {
         s.conf_threshold = g_key_file_get_double(kf, group, "conf_threshold", &err);

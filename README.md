@@ -137,7 +137,7 @@ Under Docker, compose sets paths and URLs itself and takes only those marked *co
 | `BACKUP_INTERVAL_SECONDS`, `BACKUP_KEEP`, `BACKUP_PATH` | `86400`, `7`, `../data/backups` | *compose*: database dumps |
 | `ENGINE_MANAGER_URL` | – | where the backend finds the manager; unset = the backend only records wanted states |
 | `ENGINE_MAX_CAMERAS` | `8` | places in the running engine; cameras come and go without a restart while they fit. Empty places cost a little GPU/RAM (4 cameras in a batch of 12: +4 GPU points, +260 MiB VRAM) and need a TensorRT engine of that batch size. `0` = no spare places |
-| `ENGINE_COMMAND`, `ENGINE_CONFIG`, `ENGINE_TRACKER_CONFIG`, `ENGINE_RUNTIME_DIR`, `ENGINE_EXTRA_ARGS` | see `.env.example` | how the manager starts the engine |
+| `ENGINE_COMMAND`, `ENGINE_CONFIG`, `ENGINE_TRACKER_CONFIG`, `ENGINE_RUNTIME_DIR`, `ENGINE_EXTRA_ARGS` | see `.env.example` | how the manager starts the engine. **Falls and fights need the pose model**: export `engine/models/yolov8n-pose.onnx` (`engine/tools/export_yolov8_pose_onnx.py`) and set `ENGINE_CONFIG` to `engine/configs/pgie_yolov8n_pose.txt` (in Docker `/app/engine/configs/pgie_yolov8n_pose.txt`); the first start builds its TensorRT engine (~4 min) |
 | `ENGINE_BACKEND_URL`, `ENGINE_HEARTBEAT_URL` | `http://127.0.0.1:8000/internal/events`, derived | where the engine posts events and heartbeats |
 | `ENGINE_STREAM_URL`, `MEDIAMTX_WEBRTC_URL`, `MEDIAMTX_PATH_PREFIX` | empty = no video, –, `live` | publishing and watching live video |
 | `HEARTBEAT_STALE_AFTER`, `NOTIFY_MAX_AGE` | `15`, `600` | seconds of silence before a camera counts offline; age after which a pending Telegram alert is dropped |
@@ -222,8 +222,16 @@ Normally the manager starts it. By hand:
 
 Exit codes: `0` all sources ended or stopped by SIGINT/SIGTERM, `1` pipeline error, `2` bad arguments, `3` pipeline not built.
 
-- **Cameras file** (`[camera.<id>]` with `uri=`; optional `conf_threshold=`, `absence_timeout=`, `ai_enabled=`). A bad value exits with
-  code 2 without printing the address.
+- **Cameras file** (`[camera.<id>]` with `uri=`; optional `conf_threshold=`, `absence_timeout=`, `ai_enabled=`, and the safety rules
+  below). A bad value exits with code 2 without printing the address.
+- **Safety rules (falls, fights, restricted areas).** Per camera in the cameras file: `behaviors=fall,fight,zones` and zones as
+  `zone.1=restricted|5|0.45,0.0 1.0,0.0 1.0,1.0 0.45,1.0` (`kind|id|x,y x,y ...`, kind `restricted`, `lie_ok` (a bed or sofa: lying
+  there is no fall) or `ignore` (a TV, a mirror), coordinates relative to the frame, at most 8 zones of 3-32 points). Thresholds
+  have the names of `BehaviorConfig` in `src/events/behavior.py` (`fall_still_s`, `fight_speed`, `zone_dwell_s`, ...), which is also the
+  specification of every rule; `engine/src/core/behavior.c` is its C port and both pass the same vectors (`tests/vectors/behavior_*.json`).
+  Falls and fights need the pose model (`--config configs/pgie_yolov8n_pose.txt`); restricted areas also work with the detection model.
+  They are all off unless `behaviors=` says so, and a SIGHUP applies a change without interrupting the camera. With `--output` or
+  `--stream-url` the zones are drawn (red, blue, grey) and the people of an event get a label for 5 s.
 - **Changing cameras while running (SIGHUP).** The engine re-reads the file: new cameras take free places, removed ones are
   released, the settings of the rest are updated. All or nothing: if the file is invalid or needs more places than are free,
   nothing changes and it prints `reload: nothing applied, ...` (the manager then restarts it).
@@ -234,7 +242,7 @@ Exit codes: `0` all sources ended or stopped by SIGINT/SIGTERM, `1` pipeline err
   to disk by the engine; the backend serves them from the same directory.
 - **Live video.** One H.264 encoder per camera (the GPU has 12 NVENC sessions, so ~12 cameras with video). Each camera publishes
   through a small pipeline of its own; if MediaMTX dies, only that publisher is rebuilt every 5 s and detection is untouched.
-- **Event schema v1** (one JSON per event):
+- **Event schema** (one JSON per event; v1 for `PERSON_DETECTED`, v2 for the safety events):
 
 ```json
 {"schema_version":1,"event_id":"<uuid>","camera_id":1,"pipeline_run_id":"<uuid>","type":"PERSON_DETECTED",
@@ -244,6 +252,11 @@ Exit codes: `0` all sources ended or stopped by SIGINT/SIGTERM, `1` pipeline err
 `timestamp` is UTC (stream start + PTS), `bbox` is x, y, w, h relative to the frame, `snapshot` is a file name like
 `PERSON_DETECTED_cam1_id12_20260101T120000_123e4567.jpg` or `null`. A person is `(pipeline_run_id, camera_id, track_id)`:
 track IDs restart with each engine run.
+
+A safety event (`"type":"FALL"`, `"FIGHT"` or `"RESTRICTED_AREA"`, `"schema_version":2`) has the same fields plus three,
+so a reader of v1 still understands it: `"track_ids":[12]` (a fight has two), `"occurred_at":"..."` (when the behaviour *began*; a fall
+is reported `fall_still_s` after the impact and `occurred_at` is the impact) and `"zone_id":3` or `null`. `confidence` is the score of the
+rule, the snapshot is named after the type (`FALL_cam1_id12_...jpg`) and `bbox` is the person (a fight: the box around both).
 
 Model note: on a 1442-frame test video boxes match Ultralytics (IoU 0.95-0.99) but the engine finds ~10% fewer people at the same
 0.25 threshold (boxes near the threshold). NvDCF gave 21 tracks vs 36 for ByteTrack; there is no ground truth yet to measure ID switches.
@@ -255,7 +268,7 @@ FastAPI + SQLAlchemy 2 + Alembic on PostgreSQL; interactive docs at `/docs`.
 | Endpoint | |
 |---|---|
 | `GET /api/health` | 200, or 503 when the database is unreachable |
-| `GET/POST /api/cameras`, `GET/PATCH/DELETE /api/cameras/{id}` | cameras (soft delete) |
+| `GET/POST /api/cameras`, `GET/PATCH/DELETE /api/cameras/{id}` | cameras (soft delete); `behaviors` (`fall`, `fight`, `zones`) and `zones` (`{kind, zone_id?, points}`, a missing `zone_id` gets the next free number) are the safety rules of the camera and reach the engine within a second or two |
 | `POST /api/cameras/test-connection` | body `{source_type, source_uri}` or `{camera_id}`; checks connect, login (Basic/Digest), stream, codec (H.264/H.265), resolution. A broken camera is `ok:false` with a reason, not an HTTP error |
 | `POST /api/cameras/{id}/start`, `/stop` | set the wanted state (applied in the background; a disabled camera answers 409) |
 | `GET /api/cameras/{id}/status` | wanted state, engine process state, and what the engine reports: `state` (`RUNNING`/`RECONNECTING`/`ENDED`), `fps`, `people`, `last_frame_age` |
@@ -263,7 +276,7 @@ FastAPI + SQLAlchemy 2 + Alembic on PostgreSQL; interactive docs at `/docs`.
 | `GET /api/engine` | engine as a whole: manager reachability, `capacity`, `running`, `wanted`, free `room` |
 | `GET/PATCH /api/settings` | what the Settings page changes: `alerts_enabled`, `quiet_hours_enabled`, `quiet_start`, `quiet_end` (`"HH:MM"`, server's local time), `snapshot_retention_days` (1-365), `default_conf_threshold`, `default_absence_timeout`; plus read-only `telegram_configured`, `snapshot_count`, `snapshot_bytes`, `version`. PATCH takes only the fields to change (unknown field, bad value, or quiet hours that start and end at the same minute: 422) |
 | `POST /api/settings/test-notification` | sends a test message to Telegram (whatever the alert switch says); `{ok, message}`, a Telegram that is not set up or refuses is `ok: false`, not an HTTP error |
-| `GET /api/events` | newest first; filters `camera_id`, `from`, `to`, `type`, `status`; `limit` (1-200), `offset`; answers `{items, total, limit, offset}` |
+| `GET /api/events` | newest first; filters `camera_id`, `from`, `to`, `type` (one or several, comma separated: `FALL,FIGHT`; an unknown type is 422), `status`; `limit` (1-200), `offset`; answers `{items, total, limit, offset}`; each event has `track_ids`, `zone_id`, `occurred_at`, `severity` (`info` / `medium` / `high`) |
 | `GET /api/events/{id}`, `.../snapshot` | one event; its JPEG |
 | `PATCH /api/events/{id}` | `{"status": "new" \| "acknowledged"}` |
 | `WS /api/ws` | server → client `{type, data}`: `event.created`, `event.updated`, `camera.status`. No replay (read current state over REST); a client 100 messages behind is closed (1013) |

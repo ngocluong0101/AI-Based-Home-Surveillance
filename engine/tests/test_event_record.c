@@ -175,3 +175,83 @@ void test_event_snapshot_name(void)
     CHECK(event_snapshot_name(&r, name, 10) == -1);
     CHECK(name[0] == '\0');
 }
+
+void test_event_record_behaviour_events_are_schema_2(void)
+{
+    EventRecord r = sample();
+    char json[EVENT_JSON_MAX];
+
+    r.type = EVENT_FALL;
+    r.confidence = 0.8f;
+    r.track_ids[0] = 12;
+    r.num_track_ids = 1;
+    r.occurred_ns = 1767268798100000000LL;   /* 2026-01-01T11:59:58.100Z, two seconds before the report */
+    r.timestamp_ns = 1767268800123456789LL;
+    int n = event_record_to_json(&r, json, sizeof(json));
+    CHECK(n > 0);
+    CHECK(strcmp(json,
+                 "{\"schema_version\":2,\"event_id\":\"" ID_A "\",\"camera_id\":1,"
+                 "\"pipeline_run_id\":\"" ID_B "\",\"type\":\"FALL\",\"track_id\":12,\"track_ids\":[12],"
+                 "\"confidence\":0.8000,\"timestamp\":\"2026-01-01T12:00:00.123Z\","
+                 "\"occurred_at\":\"2026-01-01T11:59:58.100Z\",\"zone_id\":null,"
+                 "\"bbox\":[0.1000,0.2000,0.3000,0.4000],\"snapshot\":null}") == 0);
+
+    /* a fight names both people; a restricted-area event names its zone */
+    r.type = EVENT_FIGHT;
+    r.track_ids[0] = 12;
+    r.track_ids[1] = 15;
+    r.num_track_ids = 2;
+    CHECK(event_record_to_json(&r, json, sizeof(json)) > 0);
+    CHECK(strstr(json, "\"type\":\"FIGHT\"") != NULL && strstr(json, "\"track_ids\":[12,15]") != NULL);
+    r.type = EVENT_RESTRICTED_AREA;
+    r.num_track_ids = 1;
+    r.has_zone = 1;
+    r.zone_id = 3;
+    CHECK(event_record_to_json(&r, json, sizeof(json)) > 0);
+    CHECK(strstr(json, "\"type\":\"RESTRICTED_AREA\"") != NULL && strstr(json, "\"zone_id\":3,") != NULL);
+
+    /* a behaviour record without track_ids still lists its person */
+    r.num_track_ids = 0;
+    CHECK(event_record_to_json(&r, json, sizeof(json)) > 0);
+    CHECK(strstr(json, "\"track_ids\":[12]") != NULL);
+
+    /* it parses back, and the longest one (a fight with a long snapshot name) fits EVENT_JSON_MAX */
+    JsonValue *doc = json_parse(json);
+    CHECK(doc != NULL);
+    json_free(doc);
+    r.type = EVENT_FIGHT;
+    r.num_track_ids = 2;
+    r.track_ids[0] = r.track_ids[1] = 18446744073709551615ULL;
+    r.track_id = 18446744073709551615ULL;
+    memset(r.snapshot, 'a', EVENT_SNAPSHOT_NAME_MAX - 1);
+    r.snapshot[EVENT_SNAPSHOT_NAME_MAX - 1] = '\0';
+    CHECK(event_record_to_json(&r, json, EVENT_JSON_MAX) > 0);
+}
+
+void test_event_record_person_detected_json_is_unchanged_by_the_new_fields(void)
+{
+    EventRecord r = sample();
+    r.track_ids[0] = 99;          /* behaviour-only fields are ignored for a PERSON_DETECTED record */
+    r.num_track_ids = 1;
+    r.has_zone = 1;
+    r.zone_id = 4;
+    r.occurred_ns = 5;
+    char json[EVENT_JSON_MAX];
+    CHECK(event_record_to_json(&r, json, sizeof(json)) > 0);
+    CHECK(strstr(json, "\"schema_version\":1,") != NULL);
+    CHECK(strstr(json, "track_ids") == NULL && strstr(json, "occurred_at") == NULL && strstr(json, "zone_id") == NULL);
+}
+
+void test_event_snapshot_name_starts_with_the_type(void)
+{
+    EventRecord r = sample();
+    char name[EVENT_SNAPSHOT_NAME_MAX];
+    CHECK(event_snapshot_name(&r, name, sizeof(name)) > 0);
+    CHECK(strncmp(name, "PERSON_DETECTED_cam1_id12_", 26) == 0);
+    r.type = EVENT_FALL;
+    CHECK(event_snapshot_name(&r, name, sizeof(name)) > 0);
+    CHECK(strcmp(name, "FALL_cam1_id12_20260101T120000_123e4567.jpg") == 0);
+    r.type = EVENT_RESTRICTED_AREA;
+    CHECK(event_snapshot_name(&r, name, sizeof(name)) > 0);
+    CHECK(strncmp(name, "RESTRICTED_AREA_cam1_", 21) == 0);
+}
