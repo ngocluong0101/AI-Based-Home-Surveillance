@@ -20,8 +20,10 @@
  *  - Never keep NvDs*Meta pointers outside a probe callback; a probe returns GST_PAD_PROBE_OK fast.
  *  - Never log a full URI (an RTSP URL may contain a password); log only the scheme.
  */
+#include <execinfo.h>
 #include <glib-unix.h>
 #include <signal.h>
+#include <unistd.h>
 #include <stdatomic.h>
 #include <stdio.h>
 
@@ -62,6 +64,37 @@ static gboolean eos_drain_timeout(gpointer data)
     app->eos_timer_id = 0;
     g_main_loop_quit(app->loop);
     return G_SOURCE_REMOVE;
+}
+
+/* A crash prints where it happened (the stack of the crashing thread) before the process dies, so that a segfault of a long
+ * run leaves something to look at without a debugger or a core dump (containers cannot count on either). Only async-signal-safe
+ * calls after the first backtrace(), which loads libgcc and is therefore called once at start-up. Symbol names need -rdynamic
+ * (Makefile); for the rest use addr2line on the offsets. The signal is then raised again with its default action. */
+static void on_crash(int sig)
+{
+    static const char head[] = "\nds_engine: crashed (signal ";
+    void *frames[48];
+    char num[4] = {(char)('0' + sig / 10), (char)('0' + sig % 10), ')', '\n'};
+    if (write(STDERR_FILENO, head, sizeof head - 1) < 0 || write(STDERR_FILENO, num, sizeof num) < 0)
+        _exit(128 + sig);
+    int n = backtrace(frames, 48);
+    backtrace_symbols_fd(frames, n, STDERR_FILENO);
+    signal(sig, SIG_DFL);
+    raise(sig);
+}
+
+static void install_crash_handler(void)
+{
+    void *warm[1];
+    backtrace(warm, 1);
+    struct sigaction sa = {0};
+    sa.sa_handler = on_crash;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = SA_RESETHAND;
+    sigaction(SIGSEGV, &sa, NULL);
+    sigaction(SIGABRT, &sa, NULL);
+    sigaction(SIGBUS, &sa, NULL);
+    sigaction(SIGFPE, &sa, NULL);
 }
 
 /* Stop on SIGINT/SIGTERM like on EOS: leave the loop, then the pipeline is stopped in order and the
@@ -351,6 +384,8 @@ int main(int argc, char *argv[])
         return EXIT_BAD_ARGS;
     }
     print_sources(&app);
+
+    install_crash_handler();
 
     /* Installed this early so that a SIGHUP during the start (which can include minutes of TensorRT
      * building) waits for the main loop instead of killing the process; on_reload() runs once it runs. */

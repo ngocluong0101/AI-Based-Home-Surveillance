@@ -16,6 +16,7 @@ import type {
   EventPage,
   EventStatus,
   EventType,
+  FallNet,
   LiveStatus,
   PersonEvent,
   Severity,
@@ -77,6 +78,7 @@ const SEED_CAMERAS: {
   absence: number;
   behaviors: BehaviorName[];
   zones: Zone[];
+  fallNet?: FallNet;
 }[] = [
   { name: "Front door", uri: "rtsp://***@192.168.1.21:554/stream1", running: true, perDay: 22, conf: 0.25, absence: 10, behaviors: [], zones: [] },
   {
@@ -89,7 +91,7 @@ const SEED_CAMERAS: {
     behaviors: ["zones"],
     zones: [{ kind: "restricted", zone_id: 1, points: [[0.55, 0.2], [0.95, 0.2], [0.95, 0.9], [0.55, 0.9]] }],
   },
-  { name: "Living room", uri: "rtsp://***@192.168.1.23:554/h264", running: true, perDay: 14, conf: 0.4, absence: 10, behaviors: ["fall", "fight"], zones: [{ kind: "lie_ok", zone_id: 1, points: [[0.05, 0.55], [0.4, 0.55], [0.4, 0.95], [0.05, 0.95]] }] },
+  { name: "Living room", uri: "rtsp://***@192.168.1.23:554/h264", running: true, perDay: 14, conf: 0.4, absence: 10, behaviors: ["fall", "fight"], fallNet: 2, zones: [{ kind: "lie_ok", zone_id: 1, points: [[0.05, 0.55], [0.4, 0.55], [0.4, 0.95], [0.05, 0.95]] }] },
   { name: "Backyard", uri: "rtsp://***@192.168.1.24:554/stream2", running: true, perDay: 11, conf: 0.25, absence: 20, behaviors: ["fight"], zones: [] },
   { name: "Garden shed", uri: "rtsp://***@192.168.1.25:554/stream1", running: false, perDay: 4, conf: 0.25, absence: 10, behaviors: [], zones: [] },
 ];
@@ -167,6 +169,7 @@ function build(now: number): World {
       conf_threshold: s.conf,
       absence_timeout: s.absence,
       behaviors: [...s.behaviors],
+      fall_net: s.fallNet ?? 0,
       zones: s.zones.map((z) => ({ ...z, points: z.points.map(([x, y]) => [x, y] as [number, number]) })),
       created_at: new Date(now - 30 * DAY_MS).toISOString(),
       updated_at: new Date(now - 30 * DAY_MS).toISOString(),
@@ -468,6 +471,7 @@ function createCamera(body: CameraCreate): Camera {
     conf_threshold: body.conf_threshold,
     absence_timeout: body.absence_timeout,
     behaviors: [...(body.behaviors ?? [])],
+    fall_net: body.fall_net ?? 0,
     zones: numberZones(body.zones ?? []),
     created_at: now,
     updated_at: now,
@@ -492,6 +496,7 @@ function updateCamera(c: DemoCamera, body: CameraUpdate): Camera {
   if (body.conf_threshold !== undefined) c.conf_threshold = body.conf_threshold;
   if (body.absence_timeout !== undefined) c.absence_timeout = body.absence_timeout;
   if (body.behaviors !== undefined) c.behaviors = [...body.behaviors];
+  if (body.fall_net !== undefined) c.fall_net = body.fall_net;
   if (body.zones !== undefined) c.zones = numberZones(body.zones);
   c.updated_at = new Date().toISOString();
   return strip(c);

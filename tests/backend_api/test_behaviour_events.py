@@ -144,7 +144,20 @@ def test_a_camera_starts_with_no_rules_and_takes_rules_and_zones(client):
     assert [(z["kind"], z["zone_id"]) for z in body["zones"]] == [("restricted", 1), ("lie_ok", 7), ("ignore", 2)]   # free numbers are filled in
 
 
+def test_the_fall_network_is_off_by_default_and_takes_0_1_2(client):
+    assert make_camera(client)["fall_net"] == 0
+    cam = make_camera(client, "hall", behaviors=["fall"], fall_net=1)
+    assert cam["fall_net"] == 1
+    for value in (0, 2):
+        assert client.patch(f"/api/cameras/{cam['id']}", json={"fall_net": value}).json()["fall_net"] == value
+
+
 @pytest.mark.parametrize("patch", [
+    {"fall_net": 3},
+    {"fall_net": -1},
+    {"fall_net": None},
+    {"fall_net": "network"},
+    {"fall_net": 1.5},
     {"behaviors": ["fall", "fall"]},
     {"behaviors": ["jump"]},
     {"zones": [{"kind": "restricted", "points": SQUARE[:2]}]},                              # fewer than 3 points
@@ -158,3 +171,22 @@ def test_a_camera_starts_with_no_rules_and_takes_rules_and_zones(client):
 def test_bad_rules_are_422(client, patch):
     cam = make_camera(client)
     assert client.patch(f"/api/cameras/{cam['id']}", json=patch).status_code == 422
+
+
+def test_migration_0006_adds_the_fall_network_choice_and_downgrades(database_url, db_engine):
+    from .conftest import migrate
+    with db_engine.begin() as conn:
+        conn.execute(text("INSERT INTO cameras (id, name, source_type, source_uri, fall_net) VALUES (1, 'c', 'file', 'file:///a.mp4', 2)"))
+    try:
+        migrate(database_url, "0005", downgrade=True)
+        with db_engine.connect() as conn:
+            cols = {r[0] for r in conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'cameras'"))}
+        assert "fall_net" not in cols
+    finally:
+        migrate(database_url)
+    with db_engine.begin() as conn:
+        conn.execute(text("INSERT INTO cameras (id, name, source_type, source_uri) VALUES (2, 'd', 'file', 'file:///b.mp4')"))
+        assert conn.execute(text("SELECT fall_net FROM cameras WHERE id = 2")).scalar_one() == 0     # an older camera keeps the rules
+    with pytest.raises(Exception):
+        with db_engine.begin() as conn:
+            conn.execute(text("UPDATE cameras SET fall_net = 3 WHERE id = 2"))

@@ -226,6 +226,18 @@ def test_cameras_file_carries_the_settings_that_are_set(tmp_path):
     assert third.strip() == "uri=rtsp://h/c"   # no key at all, so an older engine and a newer one read it alike
 
 
+def test_cameras_file_writes_the_fall_network_only_when_it_is_on(tmp_path):
+    path = tmp_path / "cameras.ini"
+    write_cameras_file(path, [
+        CameraSpec(1, "rtsp://h/a", behaviors=("fall",), fall_net=2),
+        CameraSpec(2, "rtsp://h/b", behaviors=("fall",), fall_net=0),
+        CameraSpec(3, "rtsp://h/c", behaviors=("fall",)),
+    ])
+    parts = path.read_text().split("[camera.")
+    assert "fall_net=2\n" in parts[1]
+    assert "fall_net" not in parts[2] and "fall_net" not in parts[3]   # 0 = the engine's default: no key, an older engine reads it alike
+
+
 def hups(rec):
     return [json.loads(p.read_text()) for p in sorted(rec.glob("hup-[0-9]*.json"), key=lambda p: int(p.stem[4:]))]
 

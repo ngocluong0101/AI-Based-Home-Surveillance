@@ -97,6 +97,7 @@ class CameraCreate(BaseModel):
     absence_timeout: float = Field(default=10.0, ge=0, le=86400)
     behaviors: list[BehaviorName] = Field(default_factory=list, max_length=3)
     zones: list[ZoneIn] = Field(default_factory=list, max_length=MAX_ZONES)
+    fall_net: Literal[0, 1, 2] = 0   # what decides a fall: 0 rules, 1 skeleton network, 2 network or rules
 
     @model_validator(mode="after")
     def _uri_matches_type(self) -> "CameraCreate":
@@ -119,6 +120,7 @@ class CameraUpdate(BaseModel):
     absence_timeout: float | None = Field(default=None, ge=0, le=86400)
     behaviors: list[BehaviorName] | None = Field(default=None, max_length=3)
     zones: list[ZoneIn] | None = Field(default=None, max_length=MAX_ZONES)
+    fall_net: Literal[0, 1, 2] | None = None
 
     @model_validator(mode="after")
     def _no_nulls_and_pair(self) -> "CameraUpdate":
@@ -147,6 +149,7 @@ class CameraOut(BaseModel):
     absence_timeout: float
     behaviors: list[str]
     zones: list[ZoneOut]
+    fall_net: Literal[0, 1, 2]
     created_at: datetime
     updated_at: datetime
 

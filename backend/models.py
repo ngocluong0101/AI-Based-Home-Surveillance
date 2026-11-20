@@ -15,6 +15,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    SmallInteger,
     String,
     Text,
     func,
@@ -49,6 +50,8 @@ class Camera(Base):
     # "ignore", "zone_id": 1, "points": [[x, y], ...]}], coordinates relative to the frame (0..1).
     behaviors: Mapped[list[str]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
     zones: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
+    # What decides a fall (only with the "fall" rule): 0 the rules, 1 the skeleton network, 2 the network or the rules.
+    fall_net: Mapped[int] = mapped_column(SmallInteger, server_default=text("0"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -60,6 +63,7 @@ class Camera(Base):
         CheckConstraint("desired_state IN ('running', 'stopped')", name="ck_cameras_desired_state"),
         CheckConstraint("conf_threshold >= 0 AND conf_threshold <= 1", name="ck_cameras_conf_threshold"),
         CheckConstraint("absence_timeout >= 0", name="ck_cameras_absence_timeout"),
+        CheckConstraint("fall_net IN (0, 1, 2)", name="ck_cameras_fall_net"),
         # A deleted camera keeps its row (events point at it) but frees its name.
         Index("uq_cameras_name_active", "name", unique=True, postgresql_where=text("deleted_at IS NULL")),
     )

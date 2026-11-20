@@ -42,6 +42,7 @@ class CameraIn(BaseModel):
     ai_enabled: bool | None = None
     behaviors: list[Literal["fall", "fight", "zones"]] | None = Field(default=None, max_length=3)
     zones: list[ZoneIn] | None = Field(default=None, max_length=8)
+    fall_net: Literal[0, 1, 2] | None = None
 
     @field_validator("uri")
     @classmethod
@@ -95,6 +96,7 @@ def create_app(manager: EngineManager | None = None, configure_logging: bool = T
                     c.id, c.uri, c.conf_threshold, c.absence_timeout, c.ai_enabled,
                     None if c.behaviors is None else tuple(c.behaviors),
                     None if c.zones is None else tuple((z.kind, z.zone_id, tuple((p[0], p[1]) for p in z.points)) for z in c.zones),
+                    c.fall_net,
                 )
                 for c in body.cameras
             ],

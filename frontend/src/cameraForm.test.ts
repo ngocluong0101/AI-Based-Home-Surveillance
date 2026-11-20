@@ -16,6 +16,7 @@ import {
 const camera: Camera = {
   behaviors: [],
   zones: [],
+  fall_net: 0,
   id: 4,
   name: "Garage",
   source_type: "rtsp",
@@ -87,7 +88,14 @@ describe("payloads", () => {
       absence_timeout: 10,
       behaviors: [],
       zones: [],
+      fall_net: 0,
     });
+  });
+  it("sends the fall network choice on create, and on edit only when it changed", () => {
+    expect(toCreatePayload(form({ behaviors: ["fall"], fallNet: 2 }))).toMatchObject({ behaviors: ["fall"], fall_net: 2 });
+    expect(toUpdatePayload({ ...formFromCamera(camera), fallNet: 1 }, camera)).toEqual({ fall_net: 1 });
+    expect(toUpdatePayload(formFromCamera({ ...camera, fall_net: 2 }), { ...camera, fall_net: 2 })).toEqual({});
+    expect(formFromCamera({ ...camera, fall_net: 2 }).fallNet).toBe(2);
   });
   it("sends the detection settings as numbers", () => {
     expect(toCreatePayload(form({ aiEnabled: false, confThreshold: "0.6", absenceTimeout: "0.5" }))).toMatchObject({

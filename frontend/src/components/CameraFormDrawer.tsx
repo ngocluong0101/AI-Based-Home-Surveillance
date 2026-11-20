@@ -14,7 +14,7 @@ import {
   type CameraFormValues,
   type FormErrors,
 } from "../utils/cameraForm";
-import type { BehaviorName } from "../types";
+import type { BehaviorName, FallNet } from "../types";
 import { ConnectionResult } from "./ConnectionResult";
 import { ZoneEditor } from "./ZoneEditor";
 import { Drawer } from "./ui/Drawer";
@@ -185,6 +185,20 @@ function Form({ camera, onDone }: { camera?: Camera; onDone: () => void }) {
             <span>Detect falls</span>
             <small className="muted">An alert when someone falls and does not get up. Needs the pose model.</small>
           </label>
+          {values.behaviors.includes("fall") && (
+            <label className="field">
+              How a fall is decided
+              <select value={values.fallNet} onChange={(e) => set("fallNet", Number(e.target.value) as FallNet)}>
+                <option value={0}>Rules (the person is on the floor and stays there)</option>
+                <option value={1}>Skeleton network (learned from falls)</option>
+                <option value={2}>Network or rules (an alert from either)</option>
+              </select>
+              <span className="field-hint">
+                The network reacts about a second sooner and raised far fewer false alarms in the lab tests, but it was learned from one
+                room; the rules are the safe default. Without the model file the engine uses the rules.
+              </span>
+            </label>
+          )}
           <label className="switch">
             <input type="checkbox" checked={values.behaviors.includes("fight")} onChange={(e) => toggle("fight", e.target.checked)} />
             <span>Detect fights</span>

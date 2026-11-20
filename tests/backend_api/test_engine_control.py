@@ -90,7 +90,7 @@ def test_start_gives_the_manager_the_real_uri_and_stop_takes_it_away(api, manage
     assert rec.run_once()
     assert manager.cameras == [{"id": cam["id"], "uri": RTSP,   # the manager gets the password
                                 "conf_threshold": 0.25, "absence_timeout": 10.0, "ai_enabled": True,
-                                "behaviors": [], "zones": []}]
+                                "behaviors": [], "zones": [], "fall_net": 0}]
     st = status(client, cam["id"])
     assert st["engine"]["applied"] is True and st["engine"]["in_engine"] is True and st["engine"]["state"] == "running"
     assert "secret" not in str(st)
@@ -180,7 +180,7 @@ def test_the_settings_of_a_camera_reach_the_manager_with_its_address(api, manage
     client.post(f"/api/cameras/{cam['id']}/start")
     rec.run_once()
     assert manager.cameras == [{"id": cam["id"], "uri": "rtsp://h/one", "conf_threshold": 0.6,
-                                "absence_timeout": 30.0, "ai_enabled": False, "behaviors": [], "zones": []}]
+                                "absence_timeout": 30.0, "ai_enabled": False, "behaviors": [], "zones": [], "fall_net": 0}]
 
 
 def test_changing_a_setting_restarts_the_engine_once_with_the_new_value(api, manager):
@@ -374,4 +374,19 @@ def test_the_rules_of_a_camera_reach_the_manager_and_a_change_makes_a_new_revisi
     assert status(client, cam["id"])["engine"]["applied"] is False      # the rules are part of what has to be applied
     rec.run_once()
     assert manager.cameras[0]["behaviors"] == ["fall"]
+    assert status(client, cam["id"])["engine"]["applied"] is True
+
+
+def test_the_fall_network_choice_reaches_the_manager_and_a_change_is_applied(api, manager):
+    client, rec = api
+    cam = make_camera(client, source_uri="rtsp://h/one", behaviors=["fall"])
+    assert cam["fall_net"] == 0                                        # the rules, as every camera did before the network existed
+    client.post(f"/api/cameras/{cam['id']}/start")
+    rec.run_once()
+    assert manager.cameras[0]["fall_net"] == 0
+
+    assert client.patch(f"/api/cameras/{cam['id']}", json={"fall_net": 2}).json()["fall_net"] == 2
+    assert status(client, cam["id"])["engine"]["applied"] is False      # part of what has to be applied (the engine reloads it, no restart)
+    rec.run_once()
+    assert manager.cameras[0]["fall_net"] == 2
     assert status(client, cam["id"])["engine"]["applied"] is True

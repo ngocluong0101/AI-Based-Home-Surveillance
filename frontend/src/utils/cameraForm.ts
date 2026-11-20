@@ -1,4 +1,4 @@
-import type { BehaviorName, Camera, CameraCreate, CameraUpdate, ConnectionCheckBody } from "../types";
+import type { BehaviorName, Camera, CameraCreate, CameraUpdate, ConnectionCheckBody, FallNet } from "../types";
 import { sameZones, zoneErrors, zonesOf, type ZoneDraft } from "./zones";
 
 export interface CameraFormValues {
@@ -16,6 +16,8 @@ export interface CameraFormValues {
   /** Which rules run on this camera, and the zones they use (ROADMAP_V2 V2-3). */
   behaviors: BehaviorName[];
   zones: ZoneDraft[];
+  /** What decides a fall: the rules, the skeleton network, or either. */
+  fallNet: FallNet;
 }
 
 /** What a new camera starts with: what the Settings page says (`defaults`), else 0.25 (what the detector produces anyway) and 10 s. */
@@ -31,6 +33,7 @@ export const emptyForm = (defaults?: { default_conf_threshold: number; default_a
   absenceTimeout: String(defaults?.default_absence_timeout ?? 10),
   behaviors: [],
   zones: [],
+  fallNet: 0,
 });
 
 const asNumber = (text: string): number => (text.trim() === "" ? NaN : Number(text));
@@ -94,6 +97,7 @@ export function toCreatePayload(values: CameraFormValues): CameraCreate {
     absence_timeout: asNumber(values.absenceTimeout),
     behaviors: values.behaviors,
     zones: values.zones,
+    fall_net: values.fallNet,
   };
 }
 
@@ -109,6 +113,7 @@ export function toUpdatePayload(values: CameraFormValues, original: Camera): Cam
   if (absence !== original.absence_timeout) body.absence_timeout = absence;
   if (JSON.stringify([...values.behaviors].sort()) !== JSON.stringify([...original.behaviors].sort())) body.behaviors = values.behaviors;
   if (!sameZones(values.zones, zonesOf(original.zones))) body.zones = values.zones;
+  if (values.fallNet !== original.fall_net) body.fall_net = values.fallNet;
   if (values.sourceUri.trim()) {
     body.source_type = values.sourceType;
     body.source_uri = composeUri(values);
@@ -135,4 +140,5 @@ export const formFromCamera = (c: Camera): CameraFormValues => ({
   absenceTimeout: String(c.absence_timeout),
   behaviors: [...c.behaviors],
   zones: zonesOf(c.zones),
+  fallNet: c.fall_net,
 });

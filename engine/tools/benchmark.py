@@ -33,6 +33,7 @@ import argparse
 import json
 import os
 import re
+import shlex
 import shutil
 import signal
 import statistics
@@ -83,7 +84,10 @@ class Engine:
     def __init__(self, index: int, cameras: list[int], uris: dict[int, str], config: Path, tracker: Path,
                  interval: int = 2, stream_url: str | None = None, max_cameras: int = 0, cameras_file: Path | None = None,
                  fall_model: str | None = None, ring_dir: str | None = None):
-        cmd = ["stdbuf", "-oL", "-eL", str(ENGINE_DIR / "build" / "ds_engine"), "--config", str(config),
+        # BENCH_ENGINE_PREFIX: a debugger or profiler in front of the engine, e.g. (backtrace of a crash, SIGINT still reaches the engine)
+        #   gdb -q -batch -ex "handle SIGINT nostop noprint pass" -ex run -ex "thread apply all bt 15" --args
+        prefix = shlex.split(os.environ.get("BENCH_ENGINE_PREFIX", ""))
+        cmd = ["stdbuf", "-oL", "-eL", *prefix, str(ENGINE_DIR / "build" / "ds_engine"), "--config", str(config),
                "--tracker-config", str(tracker), "--fps-interval", str(interval)]
         if stream_url:
             cmd += ["--stream-url", stream_url]   # one H.264 encoder (NVENC session) per camera

@@ -85,10 +85,10 @@ engine (2-3 min; `docker compose logs -f engine`); later starts take seconds.
 | `vlm`, `backend`, `db`, `engine`, `backup` | nothing | the engine manager (port 8100, no auth) is reachable only inside Docker |
 
 **VLM and the GPU.** `engine` and `vlm` share the one GPU. Measured on an RTX 4060 Laptop (8 GB), 1080p H.264 cameras at 30 fps, pose + fall network
-+ frame ring + video, VLM asked every 2 s (`ROADMAP_V2_NHAT_KY.md`, section 11): 8 cameras keep 30 fps (GPU ~100%, VRAM 7.2 GiB); **12 cameras are at the edge**
-(VRAM 7.8 of 8.2 GiB, per-camera FPS dips to 20-25, and one of five runs ended with the engine crashing at stop): plan for 8 with the VLM on 8 GB.
++ frame ring + video, VLM asked every 2 s (`ROADMAP_V2_NHAT_KY.md`, section 11): 8 cameras keep 30 fps (GPU ~100%, VRAM 7.2 GiB); **12 cameras do not fit** (VLM 5.1 GiB + engine ~2.2 GiB + the desktop leave under 120 MiB of 8.2 GiB; when VRAM runs out DeepStream fails with CUDA errors and the engine can crash): with the VLM on an 8 GB GPU use at most 8 cameras (`ENGINE_MAX_CAMERAS`, default 8). Without the VLM 12 cameras hold 30 fps.
 The ring of recent frames (`/ring`) is a tmpfs volume shared by `engine` (writes) and `backend` (reads). The ST-GCN fall network is loaded
-(`--fall-model`) but a camera only uses it with `fall_net` in its cameras file entry; the app does not set that yet, so cameras use the rules.
+(`--fall-model`); a camera uses it when its form says so (**Safety rules → Detect falls → How a fall is decided**: rules, skeleton network, or
+either; the default is the rules, and a change is applied within a second or two without a restart).
 
 Every container restarts by itself (`unless-stopped`) except ones you stopped yourself. Stop the engine gracefully (it flushes
 pending events, up to 45 s); do not kill it. A `file://` camera stops at the end of the file ("Ended"); press Start to replay.

@@ -40,6 +40,7 @@ def desired_cameras(db: Session) -> list[dict]:
             "ai_enabled": c.ai_enabled,
             "behaviors": list(c.behaviors),
             "zones": list(c.zones),
+            "fall_net": c.fall_net,
         }
         for c in rows
     ]

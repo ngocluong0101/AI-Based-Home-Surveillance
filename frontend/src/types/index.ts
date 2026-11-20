@@ -7,6 +7,8 @@ export type EventStatus = "new" | "acknowledged";
 export type EventType = "PERSON_DETECTED" | "FALL" | "FIGHT" | "RESTRICTED_AREA";
 export type Severity = "info" | "medium" | "high";
 /** The rules a camera can run. "zones" turns on the restricted-area alerts; lie_ok and ignore zones act whenever they exist. */
+export type FallNet = 0 | 1 | 2;
+
 export type BehaviorName = "fall" | "fight" | "zones";
 export type ZoneKind = "restricted" | "lie_ok" | "ignore";
 
@@ -29,6 +31,8 @@ export interface Camera {
   absence_timeout: number;
   behaviors: BehaviorName[];
   zones: Zone[];
+  /** What decides a fall (needs the "fall" rule): 0 the rules, 1 the skeleton network, 2 the network or the rules. */
+  fall_net: FallNet;
   created_at: string;
   updated_at: string;
 }
@@ -145,6 +149,7 @@ export interface CameraCreate {
   conf_threshold: number;
   absence_timeout: number;
   behaviors?: BehaviorName[];
+  fall_net?: FallNet;
   /** zone_id may be left out: the next free number is used. */
   zones?: { kind: ZoneKind; zone_id?: number; points: [number, number][] }[];
 }
