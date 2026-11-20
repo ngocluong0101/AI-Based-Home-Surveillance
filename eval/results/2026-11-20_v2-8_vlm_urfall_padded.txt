@@ -1,0 +1,46 @@
+# UR Fall, 4:3 clips kept at their shape (enable-padding), re-measured 2026-11-20 after the stretch fix. Compare with the 2026-11-19 files (stretched).
+## VLM, frames up to +2.0 s after the alert (the shipped setting)
+annotated windows: 150 (30 falls); AUC of p_yes 0.996
+  falls     p_yes min/5%/25%/median: [0.047 0.616 0.968 0.989]
+  non-falls p_yes median/75%/90%/95%/max: [0.001 0.003 0.038 0.105 0.59 ]
+alert_rule: 14 true, 6 false alarms
+   suppress if p_yes < 0.02 : false removed  2/6   real falls lost  0/14
+   suppress if p_yes < 0.05 : false removed  2/6   real falls lost  0/14
+   suppress if p_yes < 0.1  : false removed  2/6   real falls lost  0/14
+   suppress if p_yes < 0.2  : false removed  2/6   real falls lost  0/14
+   suppress if p_yes < 0.3  : false removed  2/6   real falls lost  0/14
+   suppress if p_yes < 0.5  : false removed  4/6   real falls lost  0/14
+   suppress if p_yes < 0.7  : false removed  4/6   real falls lost  0/14
+   suppress if p_yes < 0.9  : false removed  5/6   real falls lost  2/14
+alert_net: 25 true, 2 false alarms
+   suppress if p_yes < 0.02 : false removed  0/2   real falls lost  0/25
+   suppress if p_yes < 0.05 : false removed  0/2   real falls lost  0/25
+   suppress if p_yes < 0.1  : false removed  0/2   real falls lost  0/25
+   suppress if p_yes < 0.2  : false removed  0/2   real falls lost  0/25
+   suppress if p_yes < 0.3  : false removed  0/2   real falls lost  0/25
+   suppress if p_yes < 0.5  : false removed  0/2   real falls lost  1/25
+   suppress if p_yes < 0.7  : false removed  0/2   real falls lost  1/25
+   suppress if p_yes < 0.9  : false removed  0/2   real falls lost  7/25
+
+## VLM, frames only up to +0.5 s after the alert
+annotated windows: 150 (30 falls); AUC of p_yes 0.996
+  falls     p_yes min/5%/25%/median: [0.047 0.616 0.968 0.989]
+  non-falls p_yes median/75%/90%/95%/max: [0.001 0.003 0.038 0.105 0.59 ]
+alert_rule: 14 true, 6 false alarms
+   suppress if p_yes < 0.02 : false removed  3/6   real falls lost  0/14
+   suppress if p_yes < 0.05 : false removed  4/6   real falls lost  0/14
+   suppress if p_yes < 0.1  : false removed  4/6   real falls lost  0/14
+   suppress if p_yes < 0.2  : false removed  4/6   real falls lost  0/14
+   suppress if p_yes < 0.3  : false removed  4/6   real falls lost  0/14
+   suppress if p_yes < 0.5  : false removed  4/6   real falls lost  0/14
+   suppress if p_yes < 0.7  : false removed  5/6   real falls lost  0/14
+   suppress if p_yes < 0.9  : false removed  6/6   real falls lost  2/14
+alert_net: 25 true, 2 false alarms
+   suppress if p_yes < 0.02 : false removed  2/2   real falls lost  3/25
+   suppress if p_yes < 0.05 : false removed  2/2   real falls lost  4/25
+   suppress if p_yes < 0.1  : false removed  2/2   real falls lost  6/25
+   suppress if p_yes < 0.2  : false removed  2/2   real falls lost  6/25
+   suppress if p_yes < 0.3  : false removed  2/2   real falls lost  8/25
+   suppress if p_yes < 0.5  : false removed  2/2   real falls lost 10/25
+   suppress if p_yes < 0.7  : false removed  2/2   real falls lost 11/25
+   suppress if p_yes < 0.9  : false removed  2/2   real falls lost 17/25

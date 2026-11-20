@@ -77,7 +77,7 @@ HOC_DU_AN.md
 # ...but not the engine's Dockerfile, whose name ends the same way
 !deploy/Dockerfile.engine
 
-# V2 (SafeGuard): datasets are never committed (their licenses forbid redistribution); keep only the README.
+# V2: datasets are never committed (their licenses forbid redistribution); keep only the README.
 # eval/work holds intermediate files (frames, dumps, converted videos); eval/results (small JSON) is kept.
 datasets/*
 !datasets/README.md

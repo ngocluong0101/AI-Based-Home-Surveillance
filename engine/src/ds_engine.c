@@ -270,6 +270,10 @@ static GstElement *build_pipeline(AppCtx *app)
     g_object_set(streammux, "batch-size", batch, "width", MUXER_WIDTH, "height",
                  MUXER_HEIGHT, "batched-push-timeout", MUXER_BATCH_TIMEOUT_USEC, "live-source",
                  live, NULL);
+    /* A source that is not 16:9 keeps its shape (black bars left and right) instead of being stretched: a 4:3 camera stretched
+     * to 16:9 is 1.33 times too wide, which tilts every body angle the fall rule and the skeleton network look at. Boxes, zones
+     * and snapshots all refer to this same padded frame, so they stay consistent. */
+    g_object_set(streammux, "enable-padding", !opt_stretch_sources, NULL);
     if (opt_stream_url != NULL)
         g_object_set(streammux, "buffer-pool-size",
                      MIN((guint)MUXER_POOL_MAX, (guint)STREAM_POOL_EXTRA + batch), NULL);

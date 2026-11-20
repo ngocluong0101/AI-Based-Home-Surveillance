@@ -4,7 +4,7 @@ One clip at a time, `nice`d: the GPU is shared with the V1 stack on this laptop.
     eval/.venv/bin/python eval/e2e/make_dumps.py --splits val,test
     eval/.venv/bin/python eval/e2e/make_dumps.py --only hallway_03 --force
 
-Clips are looked up in datasets/safeguard/clips/ (your own recordings), then eval/work/urfall/ (public UR Fall clips, split 'dev').
+Clips are looked up in datasets/own/clips/ (your own recordings), then eval/work/urfall/ (public UR Fall clips, split 'dev').
 Needs eval/work/pgie_pose_b1.txt: `eval/.venv/bin/python eval/tools/make_pgie_config.py --base pgie_yolov8n_pose.txt --batch 1 --out eval/work/pgie_pose_b1.txt`.
 """
 import argparse
@@ -18,7 +18,7 @@ sys.path.insert(0, str(REPO))
 
 from eval.e2e import labels  # noqa: E402
 
-CLIP_DIRS = [REPO / "datasets/safeguard/clips", REPO / "eval/work/urfall"]
+CLIP_DIRS = [REPO / "datasets/own/clips", REPO / "eval/work/urfall"]
 DUMP_DIR = REPO / "eval/work/dumps"
 PGIE = "eval/work/pgie_pose_b1.txt"
 

@@ -1,4 +1,7 @@
-# eval/ — đo SafeGuard (ROADMAP_V2)
+# eval/ — đo hệ thống phát hiện ngã và xô xát (ROADMAP_V2)
+
+> **Lưu ý 2026-11-20 (nguồn 4:3):** engine từng kéo giãn mọi nguồn không phải 16:9 cho vừa khung 1920x1080 (UR Fall 640x480 bị rộng ra 1,33 lần, mọi góc thân bị lệch). Nay mặc định **giữ tỉ lệ, đệm đen hai bên** (`enable-padding`); cờ `--stretch-sources` trả về cách cũ. Mọi số trên UR Fall của 2026-11-19 (`eval/results/2026-11-19_*`) đo khi còn giãn; đã đo lại bản giữ tỉ lệ ở `eval/results/2026-11-20_v2-8_*` và `…_m4_pad_*`. Muốn tái hiện số cũ: thêm `--stretch-sources` vào lệnh engine (dump cũ còn ở `eval/work/urfall_stretch/`). Nguồn 16:9 (MOT17, camera 1080p) không đổi.
+
 
 Mọi thứ ở đây là công cụ **offline** (Python + container DeepStream); không nằm trong đường xử lý frame của engine.
 Định nghĩa hành vi và bốn chỉ số M1-M4: [DEFINITIONS.md](DEFINITIONS.md). Dữ liệu và license: [../datasets/README.md](../datasets/README.md).

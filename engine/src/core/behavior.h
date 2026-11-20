@@ -1,5 +1,5 @@
 /*
- * behavior.h - the behaviour rules of SafeGuard (ROADMAP_V2 V2-3): falls, fights and people in restricted areas, from the
+ * behavior.h - the behaviour rules of this project (ROADMAP_V2 V2-3): falls, fights and people in restricted areas, from the
  * skeletons and boxes of the people a tracker follows. C port of src/events/behavior.py, which is the specification and
  * explains every rule; both are run against the same vectors (tests/vectors/behavior_*.json).
  *

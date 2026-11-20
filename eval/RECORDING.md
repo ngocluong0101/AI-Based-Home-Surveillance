@@ -23,7 +23,7 @@ là mức tối thiểu để khoảng tin cậy đủ hẹp để nói được
 - Đặt ở **cao 2-2,5 m, nghiêng xuống** như camera an ninh trong nhà; một vài clip đặt ngang tầm ngực để kiểm độ nhạy với góc.
 - Ánh sáng ban ngày + một ít buổi tối bật đèn. Không dùng tính năng chống rung/tự zoom/tự crop của điện thoại.
 - Đừng cắt ghép: một clip = một lần quay liền, **mỗi clip 30-120 s** cho clip có sự cố (đủ vào-ngã-nằm-đứng dậy, ít nhất 5 s nằm yên sau ngã), clip ngoài ra dài tùy ý.
-- Tên file: `<cảnh>_<người>_<số>.mp4`, ví dụ `livingroom_ann_03.mp4`, để trong `datasets/safeguard/clips/` (thư mục này không bao giờ vào git).
+- Tên file: `<cảnh>_<người>_<số>.mp4`, ví dụ `livingroom_ann_03.mp4`, để trong `datasets/own/clips/` (thư mục này không bao giờ vào git).
 
 ## 3. Té ngã và ca khó
 
@@ -69,7 +69,7 @@ Trước khi dùng phải **xem lướt toàn bộ** để chắc không có ng�
 ```bash
 python=eval/.venv/bin/python
 # 1. tạo nhãn trống cho từng clip, rồi điền events (xem new_label.py)
-$python eval/e2e/new_label.py datasets/safeguard/clips/livingroom_ann_03.mp4 --scene livingroom --person ann --split train
+$python eval/e2e/new_label.py datasets/own/clips/livingroom_ann_03.mp4 --scene livingroom --person ann --split train
 #    chia split THEO NGƯỜI VÀ CẢNH ngay từ lúc quay: người/cảnh dành cho test không bao giờ xuất hiện ở train/val
 $python eval/e2e/check_labels.py                       # kiểm nhãn, in còn thiếu bao nhiêu so với mục tiêu của tập test
 # 2. engine thật chạy pose trên từng clip (chậm, làm một lần mỗi clip; dùng nice)
@@ -90,6 +90,6 @@ Nhờ có sẵn `impact_s` mà M4 đo được; một mình `start_s` thì khôn
 
 ## 8. Việc còn lại sau khi có dữ liệu
 
-- **M4 trên đường thật**: `eval/e2e/latency.py --clips <tên clip ngã, không đuôi> --repeats 3` (clip phải nằm ở `eval/work/urfall/`; sửa `trial()` nếu để ở `datasets/safeguard/clips/`). Cần nhãn `impact_s` ghi tay từng khung (mốc UR Fall quá thô). Bước 3 ở trên chỉ cho độ trễ của luật.
+- **M4 trên đường thật**: `eval/e2e/latency.py --clips <tên clip ngã, không đuôi> --repeats 3` (clip phải nằm ở `eval/work/urfall/`; sửa `trial()` nếu để ở `datasets/own/clips/`). Cần nhãn `impact_s` ghi tay từng khung (mốc UR Fall quá thô). Bước 3 ở trên chỉ cho độ trễ của luật.
 - **M2 sau VLM** chờ V2-6.
 - Đọc ≥ 20 ca sai, ghi nguyên nhân vào nhật ký, sửa luật, đo lại (ghi cả trước và sau).

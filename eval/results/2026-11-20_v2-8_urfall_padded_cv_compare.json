@@ -1,0 +1,82 @@
+[
+ {
+  "name": "rule, fall_still_s=2.0 (default)",
+  "falls": 30,
+  "tp": 2,
+  "adl": 40,
+  "fp_adl": 1,
+  "fp_fall_seq": 0,
+  "delay_median_s": 1.3666666666666667
+ },
+ {
+  "name": "rule, fall_still_s=1.0 (tuned on 5 of these)",
+  "falls": 30,
+  "tp": 14,
+  "adl": 40,
+  "fp_adl": 6,
+  "fp_fall_seq": 0,
+  "delay_median_s": 0.6499999999999999
+ },
+ {
+  "model": "pad_stgcn_T48",
+  "thr": 0.9,
+  "k": 3,
+  "seeds": 3,
+  "window_auc": [
+   0.9722736421815396,
+   0.9272589983836541,
+   0.9721913561114437
+  ],
+  "falls": [
+   27,
+   27,
+   28
+  ],
+  "false_alarms_adl": [
+   1,
+   1,
+   0
+  ],
+  "false_alarms_in_fall_sequences": [
+   2,
+   1,
+   1
+  ],
+  "delay_median_s": [
+   -0.5,
+   -0.5,
+   -0.5
+  ]
+ },
+ {
+  "model": "pad_stgcn_T48",
+  "thr": 0.95,
+  "k": 3,
+  "seeds": 3,
+  "window_auc": [
+   0.9722736421815396,
+   0.9272589983836541,
+   0.9721913561114437
+  ],
+  "falls": [
+   25,
+   26,
+   24
+  ],
+  "false_alarms_adl": [
+   0,
+   1,
+   0
+  ],
+  "false_alarms_in_fall_sequences": [
+   2,
+   1,
+   1
+  ],
+  "delay_median_s": [
+   -0.4666666666666667,
+   -0.45,
+   -0.5166666666666666
+  ]
+ }
+]

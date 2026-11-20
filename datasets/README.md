@@ -1,6 +1,6 @@
 # datasets/
 
-Dữ liệu dùng để **đo** SafeGuard (ROADMAP_V2). Thư mục này **không bao giờ được commit** (xem `.gitignore`): license của hầu hết
+Dữ liệu dùng để **đo** hệ thống phát hiện ngã và xô xát (ROADMAP_V2). Thư mục này **không bao giờ được commit** (xem `.gitignore`): license của hầu hết
 các bộ dữ liệu cấm hoặc hạn chế phân phối lại. Ở đây chỉ giữ README này.
 
 Cách tải và dựng lại: `eval/prepare_data.py` (tải COCO val2017 + MOT17, giải nén vào `datasets/coco`, `datasets/mot17`).

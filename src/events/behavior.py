@@ -1,4 +1,4 @@
-"""Behaviour rules of SafeGuard (ROADMAP_V2 V2-3): falls, fights and people in restricted areas, from the skeletons and
+"""Behaviour rules of this project (ROADMAP_V2 V2-3): falls, fights and people in restricted areas, from the skeletons and
 boxes of the people a tracker follows.
 
 This module is the SPECIFICATION. engine/src/core/behavior.c is its C port, and both are run against the same files

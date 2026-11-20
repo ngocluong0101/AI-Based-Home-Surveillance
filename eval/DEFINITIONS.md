@@ -1,4 +1,4 @@
-# SafeGuard — định nghĩa hành vi và chỉ số (V2-0)
+# Định nghĩa hành vi và chỉ số (V2-0)
 
 Tài liệu này **chốt trước khi gán nhãn hay đo**. Đổi định nghĩa sau khi đã có số liệu = các số cũ hết giá trị, nên mọi thay đổi phải ghi
 vào mục "Lịch sử thay đổi" ở cuối và đo lại. Viết ngày 2026-11-19; **chưa dựa trên JD Asilla thật** (chưa đọc được, xem ROADMAP_V2 mục 1).
