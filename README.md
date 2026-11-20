@@ -1,7 +1,9 @@
-# SafeGuard: fall and fight detection on several cameras, at the edge
+# AI-Based Home Surveillance
+
+Fall and fight detection on several cameras, at the edge.
 
 **The problem.** Someone alone at home, or in a care room, falls and cannot get up. A camera sees it, but nobody is watching
-the screen. SafeGuard watches several cameras at once on one GPU, recognises a **fall** (and, in principle, a **fight** or a
+the screen. This system watches several cameras at once on one GPU, recognises a **fall** (and, in principle, a **fight** or a
 person in a **restricted area**) from the body's skeleton, and alerts within a second or two. It does not identify anyone: it
 reads posture and movement, not faces. Everything runs locally, including the language model that double-checks an alert before
 it reaches your phone.
@@ -19,10 +21,12 @@ you trust a number.
 
 | | What it measures | Result | How far to trust it |
 |---|---|---|---|
-| **M1** fall recall | falls caught, per event | skeleton network (ST-GCN): **29.3 of 30** falls; the hand-written rules: 20 of 30 | UR Fall dataset (30 falls, 40 daily-activity sequences), one room, 5-fold cross-validation by sequence, 3 seeds. The alert threshold was picked on the same data, so **optimistic**. **No footage of my own yet.** |
-| **M2** false alarms | alerts with no fall | network: **0.7 of 40** activity sequences; rules: 11 of 40. With the VLM check: 6 of the rules' 11 false alarms removed, **0 of 20 real falls lost** | same dataset and caveats. **False alarms per camera-hour are not measured**: that needs hours of real, ordinary household footage, which I do not have. |
+| **M1** fall recall | falls caught, per event | skeleton network (ST-GCN): **27.3 of 30** falls (27-28 over 3 seeds); the hand-written rules: 14 of 30 | UR Fall dataset (30 falls, 40 daily-activity sequences), one room, 5-fold cross-validation by sequence, 3 seeds. The rules' threshold was tuned on 5 of these clips, so the rules' number is **optimistic**. **No footage of my own yet.** |
+| **M2** false alarms | alerts with no fall | network: **0.7 of 40** activity sequences (0-1), plus about 1 stray alert in the 30 fall clips; rules: 6 of 40. With the VLM check: of the rules' 6 false alarms 2 are removed (4 with a looser threshold), **0 of 14 real falls lost**; it caught neither of the network's 2 | same dataset and caveats. **False alarms per camera-hour are not measured**: that needs hours of real, ordinary household footage, which I do not have. |
 | **M3** throughput | frames per second per camera with N cameras | **30 fps on every camera at N = 1, 4, 8 and 12** (1080p H.264, pose + fall network + frame ring + video output), on a laptop RTX 4060 8 GB | fake RTSP cameras replaying one crowded clip. With the VLM answering alerts at the same time **8 cameras hold 30 fps; 12 do not fit in 8 GB**: only ~100 MiB are left, and one run in five crashed. The engine now refuses to start when its own estimate of the memory it needs is above what is free; that catches 16 places, but not the borderline 12. |
-| **M4** latency | fall to alert | alert **0.19 s after the network decides** (0.09 s of it is transport); the rule path alerts 1.09 s after it sees the person hit the floor, because it waits to see them stay down. With the VLM check the Telegram message arrives about 4.5 s after the decision (2.5 s waiting for the frames after the fall, 1.9 s for the VLM) | UR Fall clips replayed in real time through the real engine, backend and WebSocket. The dataset's "impact" labels are coarse. Telegram not timed. |
+| **M4** latency | fall to alert | the network alerts **0.19 s after it decides** (0.1 s to see 3 scores in a row, 0.09 s transport), on all 10 trials; the rules alert about 1.1 s after they see the person hit the floor, because they wait to see them stay down, and caught 12 of 15 trials. With the VLM check the Telegram message arrives about 4.5 s after the decision (2.5 s waiting for the frames after the fall, 1.9 s for the VLM) | UR Fall clips replayed in real time through the real engine, backend and WebSocket. The dataset's "impact" labels are coarse. Telegram not timed. |
+
+**A number that moved.** UR Fall is 4:3 and the engine used to stretch every non-16:9 picture to fill a 16:9 frame, which made people 1.33 times too wide and tilted every body angle. I fixed that (the picture now keeps its shape, with black bars) and re-measured. With the old stretch the network scored 29.3 of 30 falls and the rules 20 of 30 (with 11 of 40 false alarms); with correct geometry 27.3 and 14 (6 of 40). The numbers above are the new ones; the old ones are kept in `eval/results/` from 2026-11-19. The cameras this is meant for are 16:9, where nothing changed.
 
 One-hour soak, 4 cameras, everything switched on: 29.8 fps on the slowest camera, 0 restarts, 0 errors, GPU memory flat;
 the engine's RAM grew 936 → 1089 MiB, slowing down but not flat, so **a slow leak is neither shown nor ruled out**
@@ -41,10 +45,7 @@ the engine's RAM grew 936 → 1089 MiB, slowing down but not flat, so **a slow l
   falls.
 - **A false alarm rate per hour is unknown**, see M2. The VLM removes some false alarms but also needs the frames after a fall,
   so it adds about 4.5 s before Telegram.
-- **Not tried on a Jetson**, on a real IP camera brand, or for days. The design is meant to port (TensorRT, DeepStream), but
-  nothing here was run on aarch64.
-- **No privacy mode yet.** Snapshots and the live video are full frames. No face recognition is done, but a stored picture is
-  still a picture of a person.
+- **Not tried on a real IP camera brand, or for days.** The longest run is one hour with fake cameras (see the soak result above).
 - **No login.** It is built for one machine in a trusted LAN; do not put it on the internet as it is.
 
 ## Write-ups
@@ -238,7 +239,7 @@ uvicorn vlm_service.app:create_app --factory --host 127.0.0.1 --port 8200   # fi
 # engine (ENGINE_EXTRA_ARGS): --frame-ring-dir /dev/shm/ring    (the same directory; a tmpfs: ~2 JPEGs/s per camera with a fall or fight rule are rewritten all the time)
 ```
 The frame ring is what lets the VLM tell a fall from lying down on purpose; without it the VLM gets the single snapshot of the event. Measured on UR Fall
-(one room, 40 daily-activity sequences, **thresholds read off the same data: optimistic; no false-alarms-per-hour figure yet**): see `ROADMAP_V2_NHAT_KY.md` section 10 and `eval/results/2026-11-19_v2-6_vlm_urfall.json`.
+(one room, 40 daily-activity sequences, **thresholds read off the same data: optimistic; no false-alarms-per-hour figure yet**): see `eval/results/2026-11-20_v2-8_vlm_urfall_padded.txt` (current) and `ROADMAP_V2_NHAT_KY.md` section 10 (first round, before the picture-stretch fix).
 
 ## Development without Docker
 
@@ -303,6 +304,7 @@ Normally the manager starts it. By hand:
 | `--dump-detections FILE` | measuring tool: CSV of every detection (after `nvinfer`) and tracked object (after `nvtracker`) per frame, written by a separate thread; see `eval/` |
 | `--config configs/pgie_yolov8n_pose.txt` | the pose model (YOLOv8n-pose, 640x384 input): every tracked person also carries 17 keypoints, kept per track in the engine (`src/core/pose.c`) and drawn on the video of `--output` / `--stream-url`; export it with `engine/tools/export_yolov8_pose_onnx.py` |
 | `--fall-model FILE.onnx` (`--fall-model-window T`, `--fall-model-batch N`) | the skeleton network that scores falls (ST-GCN, ~0.1 M parameters; train/export: `eval/train/`). TensorRT builds an FP16 engine from it on first use and a worker thread (C++, TensorRT API) scores windows in batches, so the pad probe never waits. A camera opts in with `fall_net=1` (network decides) or `fall_net=2` (network or rules) in the cameras file, plus `fall_net_thr` / `fall_net_k`; without the model, or when it cannot be loaded, every camera runs the rules |
+| `--stretch-sources` | stretch a picture that is not 16:9 to fill the 1920x1080 frame, as the engine used to; by default it keeps its shape and gets black bars (a stretched 4:3 camera makes people 1.33 times too wide and tilts every body angle). Only needed to reproduce the 2026-11-19 numbers |
 | `--no-vram-check` | the engine refuses to start (exit code 4) when the free GPU memory is below an estimate for its camera places (fitted to the measurements: ~0.4 GiB for 1 place, ~1.5 GiB for 8, ~2.6 GiB for 12 with the video, +15 %), because DeepStream crashes instead of failing cleanly when the GPU runs out of memory. This turns the check off |
 | `--frame-ring-dir DIR` (`--frame-ring-fps N`, `--frame-ring-seconds SEC`) | keep the last 15 s of every camera that has a fall or fight rule as JPEG files `ring_cam<ID>_<epoch ms>.jpg` (2 per second); the backend takes the pictures for the VLM check from there. Use a tmpfs |
 | `--absence-timeout SEC`, `--rtsp-timeout SEC`, `--fps-interval SEC` | default re-alert delay (10), RTSP reconnect after SEC without frames (10), FPS print interval (5, 0 = off) |
@@ -378,6 +380,7 @@ pytest                                  # backend, manager, event logic, shared 
 cd engine && make test-core             # pure-C core under ASan/UBSan, no GPU
 cd frontend && npm test                 # unit tests (vitest)
 cd frontend && npm run e2e              # end-to-end + accessibility in Chrome (own backend, DB and fake engine on ports 18765/18766/5174)
+cd frontend && npm run e2e:demo         # the same for the demo build (made-up cameras, no backend), incl. the scripted fall; Playwright's own Chromium, e.g. in mcr.microsoft.com/playwright:v1.64.1-noble
 RUN_GPU_TESTS=1 pytest tests/engine_real -v   # the real engine on the GPU, ~5 min, GPU must be idle
 ```
 

@@ -11,7 +11,8 @@
     "build:demo": "tsc -b && vite build --mode demo --outDir dist-demo",
     "typecheck": "tsc -b",
     "test": "vitest run",
-    "e2e": "playwright test"
+    "e2e": "playwright test",
+    "e2e:demo": "playwright test -c playwright.demo.config.ts"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.105.1",

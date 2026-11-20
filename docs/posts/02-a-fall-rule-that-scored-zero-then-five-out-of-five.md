@@ -36,12 +36,19 @@ rule scored exactly like the network. The honest figure for the tuned rule:
 
 | | Falls caught (of 30) | False alarms (of 40 activity sequences) |
 |---|---|---|
-| rule, default settings | 6 | 4 |
-| rule, tuned on 5 clips | 20 | **11** |
-| ST-GCN skeleton network (T=48, threshold 0.95) | **29.3** | **0.7** |
+| rule, default settings | 2 | 1 |
+| rule, tuned on 5 clips | 14 | **6** |
+| ST-GCN skeleton network (T=48, threshold 0.9) | **27.3** | **0.7** |
 
-The "5 of 5" rule produced a false alarm in more than a quarter of the daily-activity sequences, all of them people lying
-down on the floor on purpose (the dataset's activity sequences 30 to 35 and 40). That is the number I would have shipped.
+The "5 of 5" rule produced false alarms in 6 of the 40 daily-activity sequences, people lying down on the floor on purpose, and
+it caught fewer than half of the 30 falls. That is the number I would have shipped.
+
+**These are not the first numbers I got.** I first measured 20 of 30 and 11 of 40 for the tuned rule, and 29.3 and 0.7 for
+the network. Then I found a geometry bug: UR Fall is 4:3 and my pipeline stretched every non-16:9 picture to fill a 16:9
+frame, so people were 1.33 times too wide and every body angle was tilted. I fixed it, re-ran the skeleton extraction, the
+cross-validation and the replay of the rules, and the table above is the corrected one. The rule lost a lot (its thresholds had
+been tuned on stretched skeletons), the network lost a little, and the conclusion did not change. The lesson I took: a number
+you have published is a claim about your pipeline *as it was*; when you fix the pipeline, measure again and say that you did.
 
 ## What the network is, and what it does not show
 
@@ -53,7 +60,7 @@ That is some evidence that the graph structure and the motion both matter.
 What it does not show:
 
 - **Everything is one room.** UR Fall has one camera view, one background, volunteers acting falls.
-- **The threshold (0.95) was picked by looking at these same results.** Optimistic by construction.
+- **The threshold was picked by looking at these same results** (0.9 is the engine's default; 0.95 gave fewer false alarms and fewer falls caught). Optimistic by construction.
 - **There are no real fights in the data**, so there is no fight model, only a rule.
 
 I still consider the network the right default over the rule, because it is not tuned by hand on a handful of clips. But I

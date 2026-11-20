@@ -16,7 +16,7 @@ My first prompt was the obvious one: "Did this person fall? Answer yes or no."
 The numbers looked good. Ranked by the probability of "yes", the model separated falls from non-falls very well (AUC 0.991).
 But the *absolute* answers were useless: for a person squatting, the model would reply "Yes, the person is crouching ... not
 falling". It was answering "yes, that is a correct description of what I see" to the question as a whole. At every threshold
-I tried, it removed at most 3 of the 11 false alarms.
+I tried, it removed at most 3 of the 11 false alarms the rules had at that point.
 
 I changed the question to a multiple choice:
 
@@ -26,10 +26,12 @@ I changed the question to a multiple choice:
 and read the probability of the first token "A". The ranking quality barely changed (AUC 0.996) but now the probability
 meant something. With the rule that "no" is only acted on when P(A) is below 0.1:
 
-- the rules' 11 false alarms: **6 removed**, and **0 of 20 real falls lost**;
-- the network's false alarm: removed, 0 of 30 falls lost.
+- the rules' 6 false alarms: **2 removed** (4 with a looser threshold, P(A) below 0.5), and **0 of 14 real falls lost**;
+- the network raised 2 false alarms; the VLM removed neither, and lost 0 of its 25 true detections.
 
-(Thresholds were read from the same data, so those are optimistic, and the dataset is one room.)
+(Thresholds were read from the same data, so those are optimistic, the dataset is one room, and a handful of false alarms is
+a small sample: "2 of 6" could easily be 1 or 4 with other clips. These are the numbers after I fixed a picture-stretching bug;
+before the fix the rules had 11 false alarms and caught more falls, see the previous article.)
 
 The lesson I keep: **a metric that ranks well (AUC) can hide an answer format that is unusable.** Check what the model says
 at the threshold you will actually use.
@@ -38,7 +40,8 @@ at the threshold you will actually use.
 
 The network raises its alert *during* the fall, about half a second before the person is lying down. If the VLM only gets
 frames up to the alert, it sees someone mid-air and says no. With frames up to 0.5 s after the alert and a threshold of 0.5
-it **rejected 12 of 30 real falls** (6 to 12 over the thresholds I tried). Giving it frames up to 2 s after the alert brought that to 0 of 30.
+it **rejected 10 of 25 real falls** (3 to 10 over thresholds up to 0.5). Giving it frames up to 2 s after the alert brought that
+to 1 of 25 (and 0 at the threshold I ship).
 
 The price is time: the alert waits 2.5 s for those frames, then 1.9 s for the model. About 4.5 s from decision to Telegram,
 against 0.3 s without the check. The web app and the WebSocket see the event immediately as "pending"; only the phone

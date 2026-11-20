@@ -5,3 +5,4 @@ dist-demo/
 e2e/results/
 playwright-report/
 test-results/
+e2e-demo/results/

@@ -79,8 +79,9 @@ def make_video(hours: float, out: Path) -> None:
 # ---------------------------------------------------------------- the stack
 
 class Stack:
-    def __init__(self, out: Path, video: Path, cameras: int):
+    def __init__(self, out: Path, video: Path, cameras: int, engine_env: list[str] | None = None):
         self.out, self.video, self.cameras = out, video, cameras
+        self.engine_env = engine_env or []   # KEY=VALUE for the engine container, e.g. MALLOC_ARENA_MAX=2 (RAM experiments)
         self.env_file = out / "soak.env"
         self.override = out / "soak.override.yml"
         self.base = f"http://127.0.0.1:{PORT}"
@@ -99,7 +100,10 @@ class Stack:
         # engine container as rtsp://fakecam:8554/cam; every client gets its own copy of the video from the start
         # restart "no" everywhere: after a reboot the soak run is dead (it is a process on the host), and a stack that
         # Docker brought back by itself would run on with nobody watching the disk
-        no_restart = "".join(f"  {svc}:\n    restart: 'no'\n" for svc in ("db", "mediamtx", "backend", "engine", "frontend"))
+        no_restart = "".join(f"  {svc}:\n    restart: 'no'\n" for svc in ("db", "mediamtx", "backend", "frontend"))
+        no_restart += "  engine:\n    restart: 'no'\n"
+        if self.engine_env:
+            no_restart += "    environment:\n" + "".join(f"      {kv.split('=', 1)[0]}: '{kv.split('=', 1)[1]}'\n" for kv in self.engine_env)
         no_restart += f"  vlm:\n    restart: 'no'\n    ports: ['127.0.0.1:{VLM_PORT}:8200']\n"   # published on loopback for the load generator
         self.override.write_text(
             "services:\n" + no_restart +
@@ -341,7 +345,7 @@ def run(args) -> int:
             sys.exit(f"engine/models/{model} is missing (README, Quick start)")
     out = Path(args.out or f"soak-{datetime.now().strftime('%Y%m%d-%H%M')}").resolve()
     out.mkdir(parents=True, exist_ok=True)
-    stack = Stack(out, video, args.cameras)
+    stack = Stack(out, video, args.cameras, args.engine_env)
     stack.write_files()
     events = (out / "events.log").open("a", buffering=1)
 
@@ -432,6 +436,8 @@ def main() -> int:
     r = sub.add_parser("run", help="run the soak test")
     r.add_argument("--hours", type=float, default=3.0)
     r.add_argument("--cameras", type=int, default=4)
+    r.add_argument("--engine-env", action="append", default=[], metavar="KEY=VALUE",
+                   help="set an environment variable in the engine container (repeatable), e.g. MALLOC_ARENA_MAX=2 to test the allocator")
     r.add_argument("--vlm-every", type=float, default=10.0, help="seconds between two VLM requests (the load generator)")
     r.add_argument("--sample", type=float, default=30.0, help="seconds between samples")
     r.add_argument("--video", default=str(REPO / "data" / "videos" / "soak_loop.mp4"))
