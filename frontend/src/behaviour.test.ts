@@ -74,7 +74,7 @@ describe("zones", () => {
 describe("the camera form and the rules", () => {
   const camera: Camera = {
     id: 4, name: "Hall", source_type: "rtsp", source_uri: "rtsp://***@h/s", enabled: true, ai_enabled: true, desired_state: "stopped",
-    conf_threshold: 0.25, absence_timeout: 10, behaviors: ["fall"], fall_net: 0, zones: [{ kind: "lie_ok", zone_id: 3, points: [[0.1, 0.5], [0.4, 0.5], [0.4, 0.9]] }],
+    conf_threshold: 0.25, absence_timeout: 10, behaviors: ["fall"], fall_net: 0, fall_net_thr: 0.9, fall_net_k: 3, zones: [{ kind: "lie_ok", zone_id: 3, points: [[0.1, 0.5], [0.4, 0.5], [0.4, 0.9]] }],
     created_at: "", updated_at: "",
   };
   const filled = () => ({ ...emptyForm(), name: "Hall", sourceUri: "rtsp://h/s" });

@@ -98,6 +98,8 @@ class CameraCreate(BaseModel):
     behaviors: list[BehaviorName] = Field(default_factory=list, max_length=3)
     zones: list[ZoneIn] = Field(default_factory=list, max_length=MAX_ZONES)
     fall_net: Literal[0, 1, 2] = 0   # what decides a fall: 0 rules, 1 skeleton network, 2 network or rules
+    fall_net_thr: float = Field(default=0.9, ge=0, le=1)   # the network's score that counts as "fall"
+    fall_net_k: int = Field(default=3, ge=1, le=100)        # this many such scores in a row make a fall
 
     @model_validator(mode="after")
     def _uri_matches_type(self) -> "CameraCreate":
@@ -121,6 +123,8 @@ class CameraUpdate(BaseModel):
     behaviors: list[BehaviorName] | None = Field(default=None, max_length=3)
     zones: list[ZoneIn] | None = Field(default=None, max_length=MAX_ZONES)
     fall_net: Literal[0, 1, 2] | None = None
+    fall_net_thr: float | None = Field(default=None, ge=0, le=1)
+    fall_net_k: int | None = Field(default=None, ge=1, le=100)
 
     @model_validator(mode="after")
     def _no_nulls_and_pair(self) -> "CameraUpdate":
@@ -150,6 +154,8 @@ class CameraOut(BaseModel):
     behaviors: list[str]
     zones: list[ZoneOut]
     fall_net: Literal[0, 1, 2]
+    fall_net_thr: float
+    fall_net_k: int
     created_at: datetime
     updated_at: datetime
 

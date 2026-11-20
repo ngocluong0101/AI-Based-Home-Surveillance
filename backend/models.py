@@ -52,6 +52,9 @@ class Camera(Base):
     zones: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, server_default=text("'[]'::jsonb"))
     # What decides a fall (only with the "fall" rule): 0 the rules, 1 the skeleton network, 2 the network or the rules.
     fall_net: Mapped[int] = mapped_column(SmallInteger, server_default=text("0"))
+    # How sure the network has to be (score >= thr) and for how many scores in a row (k) before it calls a fall; only with fall_net 1 or 2.
+    fall_net_thr: Mapped[float] = mapped_column(Float, server_default=text("0.9"))
+    fall_net_k: Mapped[int] = mapped_column(SmallInteger, server_default=text("3"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -64,6 +67,8 @@ class Camera(Base):
         CheckConstraint("conf_threshold >= 0 AND conf_threshold <= 1", name="ck_cameras_conf_threshold"),
         CheckConstraint("absence_timeout >= 0", name="ck_cameras_absence_timeout"),
         CheckConstraint("fall_net IN (0, 1, 2)", name="ck_cameras_fall_net"),
+        CheckConstraint("fall_net_thr >= 0 AND fall_net_thr <= 1", name="ck_cameras_fall_net_thr"),
+        CheckConstraint("fall_net_k >= 1 AND fall_net_k <= 100", name="ck_cameras_fall_net_k"),
         # A deleted camera keeps its row (events point at it) but frees its name.
         Index("uq_cameras_name_active", "name", unique=True, postgresql_where=text("deleted_at IS NULL")),
     )

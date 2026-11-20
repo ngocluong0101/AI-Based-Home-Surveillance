@@ -47,6 +47,8 @@ class CameraSpec:
     # (kind, zone_id, ((x, y), ...)) with kind "restricted" | "lie_ok" | "ignore"; points relative to the frame
     zones: tuple[tuple[str, int, tuple[tuple[float, float], ...]], ...] | None = None
     fall_net: int | None = None            # what decides a fall: 0 the rules, 1 the skeleton network, 2 the network or the rules
+    fall_net_thr: float | None = None      # the network's score that counts as a fall (0-1)
+    fall_net_k: int | None = None          # this many such scores in a row make a fall
 
 
 @dataclass
@@ -176,6 +178,10 @@ def write_cameras_file(path: Path, cameras: list[CameraSpec]) -> None:
             lines.append(f"behaviors={','.join(cam.behaviors)}")
         if cam.fall_net:
             lines.append(f"fall_net={int(cam.fall_net)}")
+            if cam.fall_net_thr is not None:
+                lines.append(f"fall_net_thr={float(cam.fall_net_thr)!r}")
+            if cam.fall_net_k is not None:
+                lines.append(f"fall_net_k={int(cam.fall_net_k)}")
         for n, (kind, zone_id, points) in enumerate(cam.zones or (), start=1):
             lines.append(f"zone.{n}={kind}|{int(zone_id)}|" + " ".join(f"{float(x)!r},{float(y)!r}" for x, y in points))
         lines.append("")

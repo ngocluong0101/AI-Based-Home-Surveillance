@@ -18,6 +18,9 @@ export interface CameraFormValues {
   zones: ZoneDraft[];
   /** What decides a fall: the rules, the skeleton network, or either. */
   fallNet: FallNet;
+  /** The network's thresholds; text while they are typed (checked by validateForm). */
+  fallNetThr: string;
+  fallNetK: string;
 }
 
 /** What a new camera starts with: what the Settings page says (`defaults`), else 0.25 (what the detector produces anyway) and 10 s. */
@@ -34,6 +37,8 @@ export const emptyForm = (defaults?: { default_conf_threshold: number; default_a
   behaviors: [],
   zones: [],
   fallNet: 0,
+  fallNetThr: "0.9",
+  fallNetK: "3",
 });
 
 const asNumber = (text: string): number => (text.trim() === "" ? NaN : Number(text));
@@ -50,7 +55,7 @@ export function composeUri(values: CameraFormValues): string {
   return `${match[1]}${login}@${match[2]}`;
 }
 
-export type FormErrors = Partial<Record<"name" | "sourceUri" | "login" | "confThreshold" | "absenceTimeout" | "zones", string>>;
+export type FormErrors = Partial<Record<"name" | "sourceUri" | "login" | "confThreshold" | "absenceTimeout" | "zones" | "fallNetThr" | "fallNetK", string>>;
 
 /** What is wrong with the form, field by field; empty = fine. `original` is the camera being edited. */
 export function validateForm(values: CameraFormValues, original?: Camera): FormErrors {
@@ -78,6 +83,13 @@ export function validateForm(values: CameraFormValues, original?: Camera): FormE
   const absence = asNumber(values.absenceTimeout);
   if (!(absence >= 0 && absence <= 86400)) errors.absenceTimeout = "Enter a number of seconds from 0 to 86400.";
 
+  if (values.fallNet !== 0) {
+    const thr = asNumber(values.fallNetThr);
+    if (!(thr >= 0 && thr <= 1)) errors.fallNetThr = "Enter a number from 0 to 1.";
+    const k = asNumber(values.fallNetK);
+    if (!(Number.isInteger(k) && k >= 1 && k <= 100)) errors.fallNetK = "Enter a whole number from 1 to 100.";
+  }
+
   const zoneProblems = zoneErrors(values.zones);
   if (zoneProblems.length > 0) errors.zones = zoneProblems[0];
   else if (values.behaviors.includes("zones") && !values.zones.some((z) => z.kind === "restricted")) {
@@ -98,6 +110,8 @@ export function toCreatePayload(values: CameraFormValues): CameraCreate {
     behaviors: values.behaviors,
     zones: values.zones,
     fall_net: values.fallNet,
+    fall_net_thr: asNumber(values.fallNetThr),
+    fall_net_k: asNumber(values.fallNetK),
   };
 }
 
@@ -114,6 +128,12 @@ export function toUpdatePayload(values: CameraFormValues, original: Camera): Cam
   if (JSON.stringify([...values.behaviors].sort()) !== JSON.stringify([...original.behaviors].sort())) body.behaviors = values.behaviors;
   if (!sameZones(values.zones, zonesOf(original.zones))) body.zones = values.zones;
   if (values.fallNet !== original.fall_net) body.fall_net = values.fallNet;
+  if (values.fallNet !== 0) {   // the thresholds only matter with the network (and are not checked otherwise)
+    const thr = asNumber(values.fallNetThr);
+    if (thr !== original.fall_net_thr) body.fall_net_thr = thr;
+    const k = asNumber(values.fallNetK);
+    if (k !== original.fall_net_k) body.fall_net_k = k;
+  }
   if (values.sourceUri.trim()) {
     body.source_type = values.sourceType;
     body.source_uri = composeUri(values);
@@ -141,4 +161,6 @@ export const formFromCamera = (c: Camera): CameraFormValues => ({
   behaviors: [...c.behaviors],
   zones: zonesOf(c.zones),
   fallNet: c.fall_net,
+  fallNetThr: String(c.fall_net_thr),
+  fallNetK: String(c.fall_net_k),
 });

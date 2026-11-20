@@ -172,6 +172,8 @@ function build(now: number): World {
       absence_timeout: s.absence,
       behaviors: [...s.behaviors],
       fall_net: s.fallNet ?? 0,
+      fall_net_thr: 0.9,
+      fall_net_k: 3,
       zones: s.zones.map((z) => ({ ...z, points: z.points.map(([x, y]) => [x, y] as [number, number]) })),
       created_at: new Date(now - 30 * DAY_MS).toISOString(),
       updated_at: new Date(now - 30 * DAY_MS).toISOString(),
@@ -487,6 +489,8 @@ function createCamera(body: CameraCreate): Camera {
     absence_timeout: body.absence_timeout,
     behaviors: [...(body.behaviors ?? [])],
     fall_net: body.fall_net ?? 0,
+    fall_net_thr: body.fall_net_thr ?? 0.9,
+    fall_net_k: body.fall_net_k ?? 3,
     zones: numberZones(body.zones ?? []),
     created_at: now,
     updated_at: now,
@@ -512,6 +516,8 @@ function updateCamera(c: DemoCamera, body: CameraUpdate): Camera {
   if (body.absence_timeout !== undefined) c.absence_timeout = body.absence_timeout;
   if (body.behaviors !== undefined) c.behaviors = [...body.behaviors];
   if (body.fall_net !== undefined) c.fall_net = body.fall_net;
+  if (body.fall_net_thr !== undefined) c.fall_net_thr = body.fall_net_thr;
+  if (body.fall_net_k !== undefined) c.fall_net_k = body.fall_net_k;
   if (body.zones !== undefined) c.zones = numberZones(body.zones);
   c.updated_at = new Date().toISOString();
   return strip(c);

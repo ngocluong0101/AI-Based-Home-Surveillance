@@ -17,6 +17,8 @@ const camera: Camera = {
   behaviors: [],
   zones: [],
   fall_net: 0,
+  fall_net_thr: 0.9,
+  fall_net_k: 3,
   id: 4,
   name: "Garage",
   source_type: "rtsp",
@@ -89,6 +91,8 @@ describe("payloads", () => {
       behaviors: [],
       zones: [],
       fall_net: 0,
+      fall_net_thr: 0.9,
+      fall_net_k: 3,
     });
   });
   it("sends the fall network choice on create, and on edit only when it changed", () => {
@@ -96,6 +100,18 @@ describe("payloads", () => {
     expect(toUpdatePayload({ ...formFromCamera(camera), fallNet: 1 }, camera)).toEqual({ fall_net: 1 });
     expect(toUpdatePayload(formFromCamera({ ...camera, fall_net: 2 }), { ...camera, fall_net: 2 })).toEqual({});
     expect(formFromCamera({ ...camera, fall_net: 2 }).fallNet).toBe(2);
+  });
+  it("checks and sends the network thresholds, only when the network is used", () => {
+    expect(validateForm({ ...form(), fallNet: 1, fallNetThr: "1.5" }).fallNetThr).toBeDefined();
+    expect(validateForm({ ...form(), fallNet: 2, fallNetThr: "" }).fallNetThr).toBeDefined();
+    for (const k of ["0", "101", "2.5", "x", ""]) expect(validateForm({ ...form(), fallNet: 1, fallNetK: k }).fallNetK).toBeDefined();
+    expect(validateForm({ ...form(), fallNet: 1, fallNetThr: "0.95", fallNetK: "5" })).toEqual({});
+    expect(validateForm({ ...form(), fallNet: 0, fallNetThr: "9", fallNetK: "0" })).toEqual({});   // not used: not checked
+    expect(toCreatePayload(form({ behaviors: ["fall"], fallNet: 1, fallNetThr: "0.95", fallNetK: "5" }))).toMatchObject({ fall_net_thr: 0.95, fall_net_k: 5 });
+    const base = { ...formFromCamera({ ...camera, fall_net: 2 }) };
+    expect(toUpdatePayload({ ...base, fallNetThr: "0.95" }, { ...camera, fall_net: 2 })).toEqual({ fall_net_thr: 0.95 });
+    expect(toUpdatePayload({ ...base, fallNetK: "4" }, { ...camera, fall_net: 2 })).toEqual({ fall_net_k: 4 });
+    expect(toUpdatePayload({ ...formFromCamera(camera), fallNetThr: "0.5" }, camera)).toEqual({});   // network off: nothing sent
   });
   it("sends the detection settings as numbers", () => {
     expect(toCreatePayload(form({ aiEnabled: false, confThreshold: "0.6", absenceTimeout: "0.5" }))).toMatchObject({

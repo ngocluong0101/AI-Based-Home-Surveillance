@@ -33,6 +33,9 @@ export interface Camera {
   zones: Zone[];
   /** What decides a fall (needs the "fall" rule): 0 the rules, 1 the skeleton network, 2 the network or the rules. */
   fall_net: FallNet;
+  /** With the network: its score that counts as a fall (0-1) and how many such scores in a row make one. */
+  fall_net_thr: number;
+  fall_net_k: number;
   created_at: string;
   updated_at: string;
 }
@@ -150,6 +153,8 @@ export interface CameraCreate {
   absence_timeout: number;
   behaviors?: BehaviorName[];
   fall_net?: FallNet;
+  fall_net_thr?: number;
+  fall_net_k?: number;
   /** zone_id may be left out: the next free number is used. */
   zones?: { kind: ZoneKind; zone_id?: number; points: [number, number][] }[];
 }

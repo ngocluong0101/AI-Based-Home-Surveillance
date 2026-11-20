@@ -152,7 +152,23 @@ def test_the_fall_network_is_off_by_default_and_takes_0_1_2(client):
         assert client.patch(f"/api/cameras/{cam['id']}", json={"fall_net": value}).json()["fall_net"] == value
 
 
+def test_the_network_thresholds_default_to_the_engines_and_take_their_ranges(client):
+    cam = make_camera(client, "thr")
+    assert (cam["fall_net_thr"], cam["fall_net_k"]) == (0.9, 3)
+    got = client.patch(f"/api/cameras/{cam['id']}", json={"fall_net_thr": 0.95, "fall_net_k": 1}).json()
+    assert (got["fall_net_thr"], got["fall_net_k"]) == (0.95, 1)
+    for ok in ({"fall_net_thr": 0}, {"fall_net_thr": 1}, {"fall_net_k": 100}):
+        assert client.patch(f"/api/cameras/{cam['id']}", json=ok).status_code == 200
+
+
 @pytest.mark.parametrize("patch", [
+    {"fall_net_thr": 1.01},
+    {"fall_net_thr": -0.1},
+    {"fall_net_thr": None},
+    {"fall_net_k": 0},
+    {"fall_net_k": 101},
+    {"fall_net_k": 2.5},
+    {"fall_net_k": None},
     {"fall_net": 3},
     {"fall_net": -1},
     {"fall_net": None},
@@ -190,3 +206,24 @@ def test_migration_0006_adds_the_fall_network_choice_and_downgrades(database_url
     with pytest.raises(Exception):
         with db_engine.begin() as conn:
             conn.execute(text("UPDATE cameras SET fall_net = 3 WHERE id = 2"))
+
+
+def test_migration_0007_adds_the_network_thresholds_with_the_engines_defaults_and_downgrades(database_url, db_engine):
+    from .conftest import migrate
+    with db_engine.begin() as conn:
+        conn.execute(text("INSERT INTO cameras (id, name, source_type, source_uri, fall_net_thr, fall_net_k) VALUES (1, 'c', 'file', 'file:///a.mp4', 0.97, 7)"))
+    try:
+        migrate(database_url, "0006", downgrade=True)
+        with db_engine.connect() as conn:
+            cols = {r[0] for r in conn.execute(text("SELECT column_name FROM information_schema.columns WHERE table_name = 'cameras'"))}
+        assert "fall_net_thr" not in cols and "fall_net_k" not in cols and "fall_net" in cols
+    finally:
+        migrate(database_url)
+    with db_engine.begin() as conn:
+        conn.execute(text("INSERT INTO cameras (id, name, source_type, source_uri) VALUES (2, 'd', 'file', 'file:///b.mp4')"))
+        row = conn.execute(text("SELECT fall_net_thr, fall_net_k FROM cameras WHERE id = 2")).one()
+        assert (row[0], row[1]) == (0.9, 3)
+    for bad in ("fall_net_thr = 1.5", "fall_net_k = 0", "fall_net_k = 101"):
+        with pytest.raises(Exception):
+            with db_engine.begin() as conn:
+                conn.execute(text(f"UPDATE cameras SET {bad} WHERE id = 2"))

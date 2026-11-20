@@ -41,6 +41,8 @@ def desired_cameras(db: Session) -> list[dict]:
             "behaviors": list(c.behaviors),
             "zones": list(c.zones),
             "fall_net": c.fall_net,
+            "fall_net_thr": c.fall_net_thr,
+            "fall_net_k": c.fall_net_k,
         }
         for c in rows
     ]

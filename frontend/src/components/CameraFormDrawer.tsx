@@ -199,6 +199,34 @@ function Form({ camera, onDone }: { camera?: Camera; onDone: () => void }) {
               </span>
             </label>
           )}
+          {values.behaviors.includes("fall") && values.fallNet !== 0 && (
+            <div className="field-row">
+              <label className="field">
+                Network score that counts as a fall
+                <input
+                  inputMode="decimal"
+                  value={values.fallNetThr}
+                  onChange={(e) => set("fallNetThr", e.target.value)}
+                  aria-invalid={errors.fallNetThr ? true : undefined}
+                />
+                {errors.fallNetThr && <span className="field-error">{errors.fallNetThr}</span>}
+              </label>
+              <label className="field">
+                Scores in a row needed
+                <input
+                  inputMode="numeric"
+                  value={values.fallNetK}
+                  onChange={(e) => set("fallNetK", e.target.value)}
+                  aria-invalid={errors.fallNetK ? true : undefined}
+                />
+                {errors.fallNetK && <span className="field-error">{errors.fallNetK}</span>}
+              </label>
+              <span className="field-hint wide">
+                Higher score or more scores in a row: fewer false alarms, a slightly later alert. 0.9 and 3 are the defaults; 0.95 gave
+                the fewest false alarms on the lab data (UR Fall), which is one room.
+              </span>
+            </div>
+          )}
           <label className="switch">
             <input type="checkbox" checked={values.behaviors.includes("fight")} onChange={(e) => toggle("fight", e.target.checked)} />
             <span>Detect fights</span>

@@ -238,6 +238,19 @@ def test_cameras_file_writes_the_fall_network_only_when_it_is_on(tmp_path):
     assert "fall_net" not in parts[2] and "fall_net" not in parts[3]   # 0 = the engine's default: no key, an older engine reads it alike
 
 
+def test_cameras_file_writes_the_network_thresholds_only_with_the_network(tmp_path):
+    path = tmp_path / "cameras.ini"
+    write_cameras_file(path, [
+        CameraSpec(1, "rtsp://h/a", behaviors=("fall",), fall_net=1, fall_net_thr=0.95, fall_net_k=5),
+        CameraSpec(2, "rtsp://h/b", behaviors=("fall",), fall_net=0, fall_net_thr=0.95, fall_net_k=5),   # network off: they mean nothing
+        CameraSpec(3, "rtsp://h/c", behaviors=("fall",), fall_net=2),                                      # not given: the engine's defaults
+    ])
+    parts = path.read_text().split("[camera.")
+    assert "fall_net=1\nfall_net_thr=0.95\nfall_net_k=5\n" in parts[1]
+    assert "fall_net_thr" not in parts[2] and "fall_net_k" not in parts[2]
+    assert "fall_net=2\n" in parts[3] and "fall_net_thr" not in parts[3]
+
+
 def hups(rec):
     return [json.loads(p.read_text()) for p in sorted(rec.glob("hup-[0-9]*.json"), key=lambda p: int(p.stem[4:]))]
 
