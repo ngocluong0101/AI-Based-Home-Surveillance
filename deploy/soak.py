@@ -36,11 +36,13 @@ COMPOSE = REPO / "deploy" / "compose.yml"
 PROJECT = "surveillance-soak"
 PORT = 18081
 IMAGE = "nvcr.io/nvidia/deepstream:7.1-triton-multiarch"
-SAMPLE_VIDEO = REPO / "data" / "videos" / "sample_1080p_h264.mp4"
-SAMPLE_SECONDS = 48.1
+# V2: a crowded 1080p scene (MOT17-04, re-encoded to ~6 Mbps like a real camera: the 40 Mbps original would make a 1 h video 18 GB)
+SAMPLE_VIDEO = REPO / "data" / "videos" / "soak_sample_6m.mp4"
+SAMPLE_SECONDS = 35.0
+VLM_PORT = 18200   # the VLM of the soak stack, published on loopback for the load generator
 MIN_FREE_DISK_GB = 8.0
 MIN_AVAILABLE_RAM_GB = 1.0
-SERVICES = ("db", "mediamtx", "backend", "engine", "frontend", "fakecam")
+SERVICES = ("db", "mediamtx", "backend", "engine", "frontend", "fakecam", "vlm")
 WARMUP_S = 600           # ignored by the drift checks: engines, caches and pools settle
 UNITS = {"b": 1, "kib": 1024, "mib": 1024 ** 2, "gib": 1024 ** 3, "kb": 1000, "mb": 1000 ** 2, "gb": 1000 ** 3}
 
@@ -88,14 +90,20 @@ class Stack:
         with os.fdopen(fd, "w") as f:
             f.write(f"POSTGRES_PASSWORD={secrets.token_hex(8)}\nINTERNAL_TOKEN={secrets.token_hex(16)}\n"
                     f"ENABLE_TELEGRAM=false\nTELEGRAM_BOT_TOKEN=\nTELEGRAM_CHAT_ID=\nHTTP_PORT={PORT}\n"
-                    "PUBLIC_HOST=localhost\n")
+                    f"PUBLIC_HOST=localhost\nENGINE_MAX_CAMERAS={self.cameras}\n"
+                    "WEBRTC_PORT=18889\nWEBRTC_UDP_PORT=18189\n")   # the WebRTC ports of a real stack stay free   # no spare places: the VLM leaves little VRAM
+            hf = Path.home() / ".cache" / "huggingface"
+            if hf.exists():   # reuse a model that is already downloaded instead of 4 GB again
+                f.write(f"VLM_HF_CACHE={hf}\n")
         # the fake camera: the repository's rtsp_test_server (built by `make rtsp-test-server`), reachable from the
         # engine container as rtsp://fakecam:8554/cam; every client gets its own copy of the video from the start
         # restart "no" everywhere: after a reboot the soak run is dead (it is a process on the host), and a stack that
         # Docker brought back by itself would run on with nobody watching the disk
         no_restart = "".join(f"  {svc}:\n    restart: 'no'\n" for svc in ("db", "mediamtx", "backend", "engine", "frontend"))
+        no_restart += f"  vlm:\n    restart: 'no'\n    ports: ['127.0.0.1:{VLM_PORT}:8200']\n"   # published on loopback for the load generator
         self.override.write_text(
-            "services:\n" + no_restart + "  fakecam:\n"
+            "services:\n" + no_restart +
+            "  fakecam:\n"
             f"    image: {IMAGE}\n    user: '1000:1000'\n    restart: 'no'\n"
             "    entrypoint: ['/repo/engine/build/rtsp_test_server']\n"
             f"    command: ['/videos/{self.video.name}', '8554', '/cam']\n"
@@ -105,7 +113,10 @@ class Stack:
     def compose(self, *args, **kw) -> str:
         cmd = ["docker", "compose", "--env-file", str(REPO / ".env"), "--env-file", str(self.env_file),
                "-p", PROJECT, "-f", str(COMPOSE), "-f", str(self.override), *args]
-        return sh(cmd, cwd=REPO, **kw)
+        done = subprocess.run(cmd, cwd=REPO, capture_output=True, text=True, **kw)
+        if done.returncode != 0 and args and args[0] in ("up", "build", "config"):   # a stack that never came up must not look like a slow start
+            raise RuntimeError(f"docker compose {args[0]} failed: {(done.stderr or done.stdout).strip()[-600:]}")
+        return done.stdout.strip()
 
     def secrets_(self) -> list[str]:
         vals = dict(l.split("=", 1) for l in self.env_file.read_text().splitlines() if "=" in l)
@@ -133,12 +144,36 @@ class Stack:
     def add_cameras(self) -> list[int]:
         ids = []
         for i in range(self.cameras):
+            # the fall rule + the skeleton network (fall_net 2) switch on the whole V2 path: pose, ST-GCN worker, frame ring
             cam = self.api("POST", "/api/cameras", {"name": f"Soak {i + 1}", "source_type": "rtsp",
-                                                    "source_uri": "rtsp://fakecam:8554/cam"})
+                                                    "source_uri": "rtsp://fakecam:8554/cam",
+                                                    "behaviors": ["fall"], "fall_net": 2})
             ids.append(cam["id"])
         for cid in ids:
             self.api("POST", f"/api/cameras/{cid}/start")
         return ids
+
+
+def start_vlm_load(out: Path, hours: float, every: float):
+    """Keeps the VLM working (a real fall is rare, so a soak run would otherwise leave it idle): eval/vlm/load.py in the background."""
+    for _ in range(100):   # the model needs a little while to load
+        try:
+            if json.load(urllib.request.urlopen(f"http://127.0.0.1:{VLM_PORT}/health", timeout=3)).get("loaded"):
+                break
+        except (urllib.error.URLError, OSError, ValueError):
+            pass
+        time.sleep(3)
+    frames = out / "frames"
+    frames.mkdir(exist_ok=True)
+    src = REPO / "datasets" / "mot17" / "MOT17" / "train" / "MOT17-04-FRCNN" / "img1"
+    for i, n in enumerate(range(100, 160, 10)):
+        if (src / f"{n:06d}.jpg").exists():
+            shutil.copy(src / f"{n:06d}.jpg", frames / f"{i}.jpg")
+    if len(list(frames.glob("*.jpg"))) < 6:
+        return None
+    return subprocess.Popen([sys.executable, str(REPO / "eval" / "vlm" / "load.py"), "--url", f"http://127.0.0.1:{VLM_PORT}",
+                             "--frames", str(frames), "--every", str(every), "--seconds", str(hours * 3600 + 600),
+                             "--out", str(out / "vlm_load.json")], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 # ---------------------------------------------------------------- sampling
@@ -191,6 +226,9 @@ def sample(stack: Stack, cam_ids: list[int], baseline_vram: int) -> dict:
     dbs = sh(["docker", "exec", container("db"), "psql", "-U", "surveillance", "-d", "surveillance", "-Atc",
               "select pg_database_size('surveillance')"])
     row["db_mib"] = round(int(dbs) / 1024 ** 2, 1) if dbs.isdigit() else ""
+    ring = sh(["docker", "exec", container("engine"), "sh", "-c", "du -sk /ring | cut -f1; ls /ring | wc -l"]).split()
+    row["ring_mib"] = round(int(ring[0]) / 1024, 1) if len(ring) == 2 else ""
+    row["ring_files"] = ring[1] if len(ring) == 2 else ""
     row["host_free_disk_gb"] = round(shutil.disk_usage("/").free / 1024 ** 3, 1)
     mem = {k: int(v) for k, v in re.findall(r"(\w+):\s+(\d+) kB", Path("/proc/meminfo").read_text())}
     row["host_available_ram_gb"] = round(mem.get("MemAvailable", 0) / 1024 ** 2, 1)
@@ -234,7 +272,8 @@ def report(out: Path, leaks: list[str] | None = None, notes: list[str] | None = 
     lines.append("Drift (mean of the first third vs the last third of the run after a 10 min warm-up; slope per hour):")
     steady = [r for r in rows if float(r["epoch"]) - t0 >= WARMUP_S] or rows
     for name, label in [("rss_engine_mib", "engine RAM (MiB)"), ("rss_backend_mib", "backend RAM (MiB)"),
-                        ("rss_db_mib", "PostgreSQL RAM (MiB)"), ("rss_mediamtx_mib", "MediaMTX RAM (MiB)"),
+                        ("rss_db_mib", "PostgreSQL RAM (MiB)"), ("rss_mediamtx_mib", "MediaMTX RAM (MiB)"), ("rss_vlm_mib", "VLM RAM (MiB)"),
+                        ("ring_mib", "frame ring in tmpfs (MiB)"),
                         ("vram_mib", "VRAM, whole GPU (MiB)")]:
         pts = column(steady, name)
         if len(pts) < 6:
@@ -297,8 +336,9 @@ def run(args) -> int:
         sys.exit(f"{video} does not exist: run `python3 deploy/soak.py video --hours {args.hours}` first")
     if not (REPO / "engine" / "build" / "rtsp_test_server").exists():
         sys.exit("build the fake camera first: make -C engine rtsp-test-server (inside the DeepStream container)")
-    if not (REPO / "engine" / "models" / "yolov8n.onnx").exists():
-        sys.exit("engine/models/yolov8n.onnx is missing (python engine/tools/export_yolov8_onnx.py)")
+    for model in ("yolov8n-pose.onnx", "stgcn_fall.onnx"):
+        if not (REPO / "engine" / "models" / model).exists():
+            sys.exit(f"engine/models/{model} is missing (README, Quick start)")
     out = Path(args.out or f"soak-{datetime.now().strftime('%Y%m%d-%H%M')}").resolve()
     out.mkdir(parents=True, exist_ok=True)
     stack = Stack(out, video, args.cameras)
@@ -314,15 +354,19 @@ def run(args) -> int:
     for sig in (signal.SIGINT, signal.SIGTERM):
         signal.signal(sig, lambda *_: stop.append(sig))
     notes: list[str] = []
+    load = None
     try:
         baseline = int(sh(["nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits"]))
         log(f"starting the stack (project {PROJECT}, port {PORT}, {args.cameras} cameras, {args.hours} h, output {out})")
         # named on purpose: not the "backup" service (it writes into the real data/backups/ and a soak run has no
         # data worth keeping)
-        stack.compose("up", "-d", "--build", "db", "mediamtx", "backend", "engine", "frontend", "fakecam")
+        stack.compose("up", "-d", "--build", "db", "mediamtx", "backend", "engine", "frontend", "fakecam", "vlm")
         stack.wait_healthy()
         cam_ids = stack.add_cameras()
         log(f"cameras {cam_ids} added and started")
+        load = start_vlm_load(out, args.hours, args.vlm_every)
+        if load is not None:
+            log(f"VLM load: one request every {args.vlm_every:g} s")
         deadline = time.monotonic() + args.hours * 3600
         with (out / "samples.csv").open("w", newline="") as f:
             writer = None
@@ -346,6 +390,16 @@ def run(args) -> int:
     except Exception as exc:   # report what we have, then clean up
         notes.append(f"aborted: {type(exc).__name__}: {exc}")
         log(notes[-1])
+    if load is not None:
+        load.terminate()
+        try:
+            load.wait(timeout=60)
+        except subprocess.TimeoutExpired:
+            load.kill()
+        try:
+            notes.append("VLM load: " + (out / "vlm_load.json").read_text().replace("\n", " ").strip())
+        except OSError:
+            notes.append("VLM load: no summary (the generator was stopped before it wrote one)")
     leaks = []
     try:
         for svc in SERVICES[:5]:
@@ -378,6 +432,7 @@ def main() -> int:
     r = sub.add_parser("run", help="run the soak test")
     r.add_argument("--hours", type=float, default=3.0)
     r.add_argument("--cameras", type=int, default=4)
+    r.add_argument("--vlm-every", type=float, default=10.0, help="seconds between two VLM requests (the load generator)")
     r.add_argument("--sample", type=float, default=30.0, help="seconds between samples")
     r.add_argument("--video", default=str(REPO / "data" / "videos" / "soak_loop.mp4"))
     r.add_argument("--out", help="output directory (default soak-<date>-<time> in the current directory)")

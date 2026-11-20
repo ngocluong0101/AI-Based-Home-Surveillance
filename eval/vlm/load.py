@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import signal
 import statistics
 import sys
 import time
@@ -32,9 +33,11 @@ def main() -> int:
                        "frames": [base64.b64encode(f.read_bytes()).decode() for f in files]}).encode()
     lat: list[float] = []
     errors = 0
+    stopping = []
+    signal.signal(signal.SIGTERM, lambda *_: stopping.append(1))   # soak.py ends the run with SIGTERM: still write the summary
     t_end = time.monotonic() + a.seconds
     nxt = time.monotonic()
-    while time.monotonic() < t_end:
+    while time.monotonic() < t_end and not stopping:
         t0 = time.monotonic()
         try:
             req = urllib.request.Request(a.url + "/verify", body, {"content-type": "application/json"})
@@ -44,7 +47,10 @@ def main() -> int:
             errors += 1
             print("error:", type(exc).__name__, file=sys.stderr)
         nxt += a.every
-        time.sleep(max(0.0, nxt - time.monotonic()))
+        for _ in range(int(max(0.0, nxt - time.monotonic()) * 10)):
+            if stopping:
+                break
+            time.sleep(0.1)
     out = {"requests": len(lat), "errors": errors, "every_s": a.every,
            "latency_median_s": round(statistics.median(lat), 2) if lat else None,
            "latency_max_s": round(max(lat), 2) if lat else None}

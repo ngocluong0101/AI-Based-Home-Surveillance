@@ -20,6 +20,7 @@
  *  - Never keep NvDs*Meta pointers outside a probe callback; a probe returns GST_PAD_PROBE_OK fast.
  *  - Never log a full URI (an RTSP URL may contain a password); log only the scheme.
  */
+#include <cuda_runtime_api.h>
 #include <execinfo.h>
 #include <glib-unix.h>
 #include <signal.h>
@@ -36,6 +37,7 @@
 #include "report.h"
 #include "sources.h"
 #include "stream_out.h"
+#include "vram.h"
 
 /* NvDCF tracker (low-level library of nvtracker) and the frame size it works at; both must be
  * multiples of 32. The algorithm itself is chosen by the --tracker-config YAML file. */
@@ -64,6 +66,30 @@ static gboolean eos_drain_timeout(gpointer data)
     app->eos_timer_id = 0;
     g_main_loop_quit(app->loop);
     return G_SOURCE_REMOVE;
+}
+
+/* Refuses to start when there is clearly not enough free GPU memory for these camera places: a start that runs out of memory half
+ * way ends in CUDA errors and a crash, after minutes of building TensorRT engines. The estimate is in core/vram.c. Returns FALSE
+ * when the start has to be refused; a GPU that cannot be queried is not a reason to refuse. */
+static gboolean vram_is_sufficient(const AppCtx *app)
+{
+    if (opt_no_vram_check)
+        return TRUE;
+    size_t free_b = 0, total_b = 0;
+    if (cudaMemGetInfo(&free_b, &total_b) != cudaSuccess) {
+        g_printerr("WARNING: could not read the free GPU memory; starting without the check\n");
+        return TRUE;
+    }
+    const int64_t free_mib = (int64_t)(free_b >> 20);
+    const int64_t need_mib = vram_needed_mib(app->num_sources, opt_stream_url != NULL);
+    g_print("gpu memory: %lld MiB free of %lld MiB, about %lld MiB needed for %u camera place(s)%s\n", (long long)free_mib,
+            (long long)(total_b >> 20), (long long)need_mib, app->num_sources, opt_stream_url != NULL ? " with the video" : "");
+    if (vram_is_enough(free_mib, app->num_sources, opt_stream_url != NULL))
+        return TRUE;
+    g_printerr("ERROR: not enough free GPU memory: %lld MiB free, about %lld MiB needed for %u camera place(s). Stop what else uses "
+               "the GPU (the VLM, other programs), use fewer cameras or --max-cameras, or start anyway with --no-vram-check\n",
+               (long long)free_mib, (long long)need_mib, app->num_sources);
+    return FALSE;
 }
 
 /* A crash prints where it happened (the stack of the crashing thread) before the process dies, so that a segfault of a long
@@ -384,6 +410,11 @@ int main(int argc, char *argv[])
         return EXIT_BAD_ARGS;
     }
     print_sources(&app);
+
+    if (!vram_is_sufficient(&app)) {
+        free_sources(&app);
+        return EXIT_NO_VRAM;
+    }
 
     install_crash_handler();
 

@@ -246,6 +246,7 @@ Normally the manager starts it. By hand:
 | `--dump-detections FILE` | measuring tool: CSV of every detection (after `nvinfer`) and tracked object (after `nvtracker`) per frame, written by a separate thread; see `eval/` |
 | `--config configs/pgie_yolov8n_pose.txt` | the pose model (YOLOv8n-pose, 640x384 input): every tracked person also carries 17 keypoints, kept per track in the engine (`src/core/pose.c`) and drawn on the video of `--output` / `--stream-url`; export it with `engine/tools/export_yolov8_pose_onnx.py` |
 | `--fall-model FILE.onnx` (`--fall-model-window T`, `--fall-model-batch N`) | the skeleton network that scores falls (ST-GCN, ~0.1 M parameters; train/export: `eval/train/`). TensorRT builds an FP16 engine from it on first use and a worker thread (C++, TensorRT API) scores windows in batches, so the pad probe never waits. A camera opts in with `fall_net=1` (network decides) or `fall_net=2` (network or rules) in the cameras file, plus `fall_net_thr` / `fall_net_k`; without the model, or when it cannot be loaded, every camera runs the rules |
+| `--no-vram-check` | the engine refuses to start (exit code 4) when the free GPU memory is below an estimate for its camera places (fitted to the measurements: ~0.4 GiB for 1 place, ~1.5 GiB for 8, ~2.6 GiB for 12 with the video, +15 %), because DeepStream crashes instead of failing cleanly when the GPU runs out of memory. This turns the check off |
 | `--frame-ring-dir DIR` (`--frame-ring-fps N`, `--frame-ring-seconds SEC`) | keep the last 15 s of every camera that has a fall or fight rule as JPEG files `ring_cam<ID>_<epoch ms>.jpg` (2 per second); the backend takes the pictures for the VLM check from there. Use a tmpfs |
 | `--absence-timeout SEC`, `--rtsp-timeout SEC`, `--fps-interval SEC` | default re-alert delay (10), RTSP reconnect after SEC without frames (10), FPS print interval (5, 0 = off) |
 
@@ -327,6 +328,12 @@ RUN_GPU_TESTS=1 pytest tests/engine_real -v   # the real engine on the GPU, ~5 m
 C implementation so the two cannot drift apart. No test touches your database, your `.env` Telegram settings or Telegram itself.
 Tools in `engine/tools/`: `fake_receiver.py` (fake backend), `rtsp_test_server.c` (fake RTSP camera: `make rtsp-test-server`),
 `benchmark.py`, `check_reload.sh`, `check_dynamic.sh`. `deploy/soak.py` runs the whole stack for hours and reports drift.
+
+**Soak (long run).** `python3 deploy/soak.py video --hours 1.2` once, then `python3 deploy/soak.py run --hours 1 --cameras 4 --out logs/soak-1h`
+(own compose project and ports, Telegram off; the machine must stay on and awake). One hour with 4 fake 1080p cameras, pose, the fall network,
+the frame ring, video output and the VLM asked every 10 s: every camera held 29.8 fps, 0 restarts, 0 errors, VRAM and the frame ring stayed flat;
+the engine's RAM grew from 936 to 1089 MiB, slowing down (+73, +31, +18, +14, +17 MiB per 10 min) but not flat. **One hour cannot tell whether
+that is a leak**; a longer run has not been done (`ROADMAP_V2_NHAT_KY.md`, 11.8).
 
 ## Troubleshooting
 

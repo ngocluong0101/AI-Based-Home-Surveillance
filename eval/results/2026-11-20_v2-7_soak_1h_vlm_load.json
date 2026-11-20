@@ -1,0 +1,7 @@
+{
+ "requests": 360,
+ "errors": 0,
+ "every_s": 10.0,
+ "latency_median_s": 2.28,
+ "latency_max_s": 3.93
+}

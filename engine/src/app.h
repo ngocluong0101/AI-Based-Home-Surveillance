@@ -31,6 +31,7 @@
 
 #define EXIT_BAD_ARGS 2
 #define EXIT_BUILD_FAILED 3
+#define EXIT_NO_VRAM 4   /* not enough free GPU memory for these cameras (see vram.h); the engine manager retries later */
 
 /* nvstreammux output size and how long it waits to fill a batch (microseconds). Shorter than a frame
  * interval at 30 fps (33 ms): with a longer wait, a camera that is down would limit the others to

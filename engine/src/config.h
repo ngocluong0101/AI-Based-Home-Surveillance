@@ -26,6 +26,7 @@ extern gchar *opt_heartbeat_url;
 extern gchar *opt_stream_url;
 extern gint opt_stream_bitrate;
 extern gint opt_heartbeat_interval;
+extern gboolean opt_no_vram_check;
 extern gint opt_rtsp_timeout;
 extern gint opt_max_cameras;
 extern gdouble opt_absence_timeout;

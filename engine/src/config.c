@@ -36,6 +36,7 @@ gchar *opt_heartbeat_url = NULL;
 gchar *opt_stream_url = NULL;
 gint opt_stream_bitrate = STREAM_BITRATE_DEFAULT_KBPS;
 gint opt_heartbeat_interval = HEARTBEAT_INTERVAL_DEFAULT_S;
+gboolean opt_no_vram_check = FALSE;
 gint opt_rtsp_timeout = RTSP_TIMEOUT_DEFAULT_S;
 gint opt_max_cameras = 0;
 gchar *opt_dump_detections = NULL;
@@ -78,6 +79,9 @@ static GOptionEntry option_entries[] = {
       "each --heartbeat-interval seconds. Needs --backend-url; uses the same DS_ENGINE_TOKEN", "URL" },
     { "heartbeat-interval", 0, 0, G_OPTION_ARG_INT, &opt_heartbeat_interval,
       "Seconds between two heartbeats, 1-3600 (default 5)", "SEC" },
+    { "no-vram-check", 0, 0, G_OPTION_ARG_NONE, &opt_no_vram_check,
+      "Do not refuse to start when the free GPU memory is below the estimate for this many camera places (the check exists "
+      "because DeepStream crashes, instead of failing cleanly, when the GPU runs out of memory)", NULL },
     { "stream-url", 0, 0, G_OPTION_ARG_STRING, &opt_stream_url,
       "Publish every camera, with boxes and track IDs drawn on it, over RTMP to a media server such as "
       "MediaMTX at BASE/cam<ID> (e.g. rtmp://127.0.0.1:1935). One H.264 encoder per camera. Cannot be "

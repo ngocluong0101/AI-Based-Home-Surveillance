@@ -18,6 +18,11 @@ typedef struct {
     test_fn fn;
 } TestCase;
 
+/* tests/test_vram.c */
+void test_vram_estimate_follows_the_measurements(void);
+void test_vram_estimate_grows_with_places_and_with_the_video(void);
+void test_vram_check_refuses_what_cannot_fit(void);
+
 /* tests/test_detection.c */
 void test_bbox_normalize_inside_frame(void);
 void test_bbox_normalize_clips_to_frame(void);
@@ -78,6 +83,9 @@ void test_pose_history_window_repairs_short_holes_only(void);
 void test_pose_history_ring_wraps_and_ignores_old_frames(void);
 
 static const TestCase TESTS[] = {
+    { "vram_estimate_follows_the_measurements", test_vram_estimate_follows_the_measurements },
+    { "vram_estimate_grows_with_places_and_with_the_video", test_vram_estimate_grows_with_places_and_with_the_video },
+    { "vram_check_refuses_what_cannot_fit", test_vram_check_refuses_what_cannot_fit },
     { "bbox_normalize_inside_frame", test_bbox_normalize_inside_frame },
     { "bbox_normalize_clips_to_frame", test_bbox_normalize_clips_to_frame },
     { "bbox_normalize_rejects_unusable_boxes", test_bbox_normalize_rejects_unusable_boxes },
