@@ -1,8 +1,10 @@
-// What the WebSocket does in the demo: every second a camera.status for each camera, and now and then a person is detected.
+// What the WebSocket does in the demo: every second a camera.status for each camera, now and then a person is detected, and
+// when the person on the living room's picture falls (every 70 s) a fall alert arrives and the pretend VLM confirms it.
 import type { QueryClient } from "@tanstack/react-query";
 import type { PersonEvent } from "../types";
 import { applyMessage } from "../websocket/messages";
-import { liveStatuses, newLiveEvent, settleVerification } from "./server";
+import { nextFallAlertMs } from "./scene";
+import { liveStatuses, newFallEvent, newLiveEvent, settleVerification } from "./server";
 
 const VLM_ANSWERS_AFTER_MS = 3000;
 
@@ -39,8 +41,25 @@ export function startDemoRealtime(qc: QueryClient, onNewEvent: (event: PersonEve
   };
   scheduleEvent(FIRST_EVENT_MS);
 
+  // the person who falls on the living room's picture: the alert comes when the picture shows them on the floor
+  let fallTimer = 0;
+  const scheduleFall = () => {
+    fallTimer = window.setTimeout(() => {
+      const event = newFallEvent();
+      if (event) {
+        applyMessage(qc, { type: "event.created", data: { ...event } }, onNewEvent);
+        window.setTimeout(() => {
+          applyMessage(qc, { type: "event.updated", data: { ...settleVerification(event, Math.random, true) } });
+        }, VLM_ANSWERS_AFTER_MS);
+      }
+      scheduleFall();
+    }, nextFallAlertMs(Date.now()) - Date.now());
+  };
+  scheduleFall();
+
   return () => {
     window.clearInterval(statusTimer);
     window.clearTimeout(eventTimer);
+    window.clearTimeout(fallTimer);
   };
 }

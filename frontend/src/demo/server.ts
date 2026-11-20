@@ -23,7 +23,7 @@ import type {
   StreamLink,
   Zone,
 } from "../types";
-import { peopleAt, snapshotUrl } from "./scene";
+import { FALL_CAMERA, fallerAt, lyingPersonAt, peopleAt, snapshotUrl } from "./scene";
 
 const CAPACITY = 8;
 const DAY_MS = 86_400_000;
@@ -110,8 +110,10 @@ function momentWithPerson(cameraId: number, t: number, now: number): number {
 const SEVERITY_OF: Record<EventType, Severity> = { PERSON_DETECTED: "info", RESTRICTED_AREA: "medium", FALL: "high", FIGHT: "high" };
 
 function makeEvent(w: World, camera: Camera, t: number, status: EventStatus, type: EventType = "PERSON_DETECTED"): PersonEvent {
-  const person = peopleAt(camera.id, t)[0];
-  const people = peopleAt(camera.id, t);
+  // a fall is shown as it ends: the person on the floor (whoever else is in view stays as they are)
+  const lying = type === "FALL" ? lyingPersonAt(t) : null;
+  const people = lying ? [lying] : peopleAt(camera.id, t);
+  const person = people[0];
   const box: [number, number, number, number] = person ? [person.x, person.y, person.w, person.h] : [0.4, 0.4, 0.15, 0.4];
   const floor = Math.max(camera.conf_threshold, 0.5);
   return {
@@ -279,13 +281,26 @@ export function newLiveEvent(now = Date.now()): PersonEvent | null {
   const camera = candidates[Math.floor(w.rng() * candidates.length)];
   // The camera of the 3rd live event raises what its rules are for (a fall, a fight, someone in a zone), so the alert shows.
   liveCount++;
-  const rule = liveCount % 3 === 0 ? camera.behaviors[0] : undefined;
-  const type: EventType = rule === "fall" ? "FALL" : rule === "fight" ? "FIGHT" : rule === "zones" ? "RESTRICTED_AREA" : "PERSON_DETECTED";
+  // (a fall is not raised here: the one on the living room's picture raises its own alert, see newFallEvent)
+  const rule = liveCount % 3 === 0 ? camera.behaviors.find((b) => b !== "fall") : undefined;
+  const type: EventType = rule === "fight" ? "FIGHT" : rule === "zones" ? "RESTRICTED_AREA" : "PERSON_DETECTED";
   const event = makeEvent(w, camera, now, "new", type);
   event.notify_status = alertStatusAt(now);
-  if (type === "FALL" || type === "FIGHT") {
+  if (type === "FIGHT") {
     event.verification = "pending";    // the demo's VLM answers a few seconds later (realtime.ts calls settleVerification)
   }
+  w.events.unshift(event);
+  return event;
+}
+
+/** The alert for the fall on the living room's picture (realtime.ts calls it when it is due); null when that camera is not watching. */
+export function newFallEvent(now = Date.now()): PersonEvent | null {
+  const w = get();
+  const camera = w.cameras.find((c) => c.id === FALL_CAMERA);
+  if (!camera || !reporting(camera, now) || !camera.ai_enabled || !camera.behaviors.includes("fall") || !fallerAt(now)) return null;
+  const event = makeEvent(w, camera, now, "new", "FALL");
+  event.notify_status = alertStatusAt(now);
+  event.verification = "pending";
   w.events.unshift(event);
   return event;
 }
@@ -567,8 +582,8 @@ export async function handle<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 /** Demo only: the made-up VLM settles a pending event: mostly confirms, now and then does not. */
-export function settleVerification(event: PersonEvent, rng: () => number): PersonEvent {
-  const r = rng();
+export function settleVerification(event: PersonEvent, rng: () => number, sure = false): PersonEvent {
+  const r = sure ? 0 : rng(); // `sure`: a person is plainly on the floor in the picture, the VLM confirms
   if (r < 0.7) {
     event.verification = "confirmed";
     event.verification_score = 0.93;

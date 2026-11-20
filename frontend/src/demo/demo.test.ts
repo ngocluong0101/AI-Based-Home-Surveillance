@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import type { AppSettings, Camera, CameraStatus, ConnectionCheckResult, EventPage, NotificationCheck, PersonEvent } from "../types";
-import { FRAME_H, FRAME_W, peopleAt } from "./scene";
-import { alertStatusAt, handle, inQuietHours, mask, resetDemo, setLatency } from "./server";
+import { FALL_ALERT_AFTER_S, fallerAt, FRAME_H, FRAME_W, jointsOf, lyingPersonAt, nextFallAlertMs, peopleAt } from "./scene";
+import { alertStatusAt, handle, inQuietHours, mask, newFallEvent, newLiveEvent, resetDemo, setLatency, settleVerification } from "./server";
 
 beforeEach(() => {
   setLatency(0);
@@ -256,10 +256,83 @@ describe("the made-up scene", () => {
           expect(p.x + p.w).toBeLessThanOrEqual(1.0001);
           expect(p.y).toBeGreaterThanOrEqual(0);
           expect(p.y + p.h).toBeLessThanOrEqual(1.0001);
-          expect(p.w * FRAME_W).toBeLessThan(p.h * FRAME_H); // taller than wide
+          if (!p.lying) expect(p.w * FRAME_W).toBeLessThan(p.h * FRAME_H); // taller than wide, unless on the floor
         }
       }
       expect(counts.size).toBeGreaterThan(1);
+    }
+  });
+});
+
+// A cycle of the person who falls starts at a multiple of 70 s.
+const CYCLE = 1_800_000_000_000 - (1_800_000_000_000 % 70_000);
+
+describe("the person who falls", () => {
+  it("walks in, falls, lies still, gets up and leaves, and is gone in between", () => {
+    expect(fallerAt(CYCLE + 2_000)?.lying).toBe(0);
+    const falling = fallerAt(CYCLE + 8_500)?.lying ?? -1;
+    expect(falling).toBeGreaterThan(0);
+    expect(falling).toBeLessThan(1);
+    expect(fallerAt(CYCLE + 12_000)?.lying).toBe(1);
+    expect(fallerAt(CYCLE + 21_000)?.lying ?? 0).toBeGreaterThan(0);   // getting up
+    expect(fallerAt(CYCLE + 25_000)?.lying).toBe(0);
+    expect(fallerAt(CYCLE + 45_000)).toBeNull();
+    expect(fallerAt(CYCLE + 12_345)).toEqual(fallerAt(CYCLE + 12_345));
+  });
+
+  it("is wide and low on the floor, tall on their feet, and always inside the frame", () => {
+    const lying = fallerAt(CYCLE + 12_000)!;
+    expect(lying.w * FRAME_W).toBeGreaterThan(lying.h * FRAME_H * 2);
+    const standing = fallerAt(CYCLE + 2_000)!;
+    expect(standing.w * FRAME_W).toBeLessThan(standing.h * FRAME_H);
+    for (let ms = 0; ms < 30_000; ms += 250) {
+      const p = fallerAt(CYCLE + ms)!;
+      expect(p.x).toBeGreaterThanOrEqual(0);
+      expect(p.x + p.w).toBeLessThanOrEqual(1.0001);
+      expect(p.y + p.h).toBeLessThanOrEqual(1.0001);
+    }
+  });
+
+  it("appears on the living room's camera only", () => {
+    expect(peopleAt(3, CYCLE + 12_000).some((p) => p.lying === 1)).toBe(true);
+    for (const camera of [1, 2, 4, 5]) expect(peopleAt(camera, CYCLE + 12_000).some((p) => p.lying)).toBe(false);
+  });
+
+  it("has every joint inside the person's box, standing, falling and lying", () => {
+    for (const ms of [2_000, 8_500, 12_000, 21_000]) {
+      const p = fallerAt(CYCLE + ms)!;
+      for (const [x, y] of Object.values(jointsOf(p, CYCLE + ms))) {
+        expect(x).toBeGreaterThanOrEqual(p.x * FRAME_W - 1);
+        expect(x).toBeLessThanOrEqual((p.x + p.w) * FRAME_W + 1);
+        expect(y).toBeGreaterThanOrEqual(p.y * FRAME_H - 1);
+        expect(y).toBeLessThanOrEqual((p.y + p.h) * FRAME_H + 1);
+      }
+    }
+  });
+
+  it("is alerted just after the fall, on schedule, and the picture shows the person on the floor", () => {
+    const due = nextFallAlertMs(CYCLE + 30_000);
+    expect(due).toBe(CYCLE + 70_000 + FALL_ALERT_AFTER_S * 1000);
+    expect(fallerAt(due)!.lying).toBe(1);
+    expect(nextFallAlertMs(due)).toBe(due + 70_000);            // strictly after
+    expect(lyingPersonAt(CYCLE + 33_333).lying).toBe(1);        // the picture of a past fall
+  });
+
+  it("raises a FALL at the right moment, pending until the pretend VLM confirms it, and never at another moment", () => {
+    const due = nextFallAlertMs(CYCLE);
+    const event = newFallEvent(due)!;
+    expect(event.type).toBe("FALL");
+    expect(event.camera_id).toBe(3);
+    expect(event.verification).toBe("pending");
+    expect(event.bbox[2] * FRAME_W).toBeGreaterThan(event.bbox[3] * FRAME_H);   // the box is wide: the person is on the floor
+    expect(settleVerification(event, () => 0.99, true).verification).toBe("confirmed");
+    expect(newFallEvent(CYCLE + 45_000)).toBeNull();            // nobody in the picture
+  });
+
+  it("is the only source of live FALL events: the random ones never claim a fall", () => {
+    for (let i = 0; i < 60; i++) {
+      const event = newLiveEvent(CYCLE + 2_000 + i * 70_000);
+      if (event) expect(event.type).not.toBe("FALL");
     }
   });
 });

@@ -1,16 +1,69 @@
-# AI-Based Home Surveillance
+# SafeGuard: fall and fight detection on several cameras, at the edge
 
-Detects and tracks people on several cameras at once, raises one `PERSON_DETECTED` event per person with a snapshot,
-shows everything live in a web app and sends Telegram alerts.
+**The problem.** Someone alone at home, or in a care room, falls and cannot get up. A camera sees it, but nobody is watching
+the screen. SafeGuard watches several cameras at once on one GPU, recognises a **fall** (and, in principle, a **fight** or a
+person in a **restricted area**) from the body's skeleton, and alerts within a second or two. It does not identify anyone: it
+reads posture and movement, not faces. Everything runs locally, including the language model that double-checks an alert before
+it reaches your phone.
 
 **[Live demo](https://ngocluong0101.github.io/AI-Based-Home-Surveillance/)**: the real web app in your browser with made-up
-cameras and people, so nothing has to be installed (no GPU, no backend). Add and start cameras, open events, try the wall; a
-new detection arrives every 15-30 s. The code is in `frontend/src/demo/`.
+cameras and people, so nothing has to be installed (no GPU, no backend). Open **Monitoring → Living room**: about every 70 s a
+person walks in, falls and lies on the floor; their skeleton is drawn, a FALL alert arrives and a pretend VLM confirms it a few
+seconds later. It is all drawn by code (`frontend/src/demo/`); **the numbers below are not from the demo.**
 
-- **Engine** (C, NVIDIA DeepStream): N cameras (RTSP or video files) in one GPU pipeline, YOLOv8n + NvDCF tracking.
+## Results
+
+Four numbers define whether this works (definitions: [`eval/DEFINITIONS.md`](eval/DEFINITIONS.md); every number is a file in
+[`eval/results/`](eval/results/) and can be re-measured with [`eval/README.md`](eval/README.md)). Read the last column before
+you trust a number.
+
+| | What it measures | Result | How far to trust it |
+|---|---|---|---|
+| **M1** fall recall | falls caught, per event | skeleton network (ST-GCN): **29.3 of 30** falls; the hand-written rules: 20 of 30 | UR Fall dataset (30 falls, 40 daily-activity sequences), one room, 5-fold cross-validation by sequence, 3 seeds. The alert threshold was picked on the same data, so **optimistic**. **No footage of my own yet.** |
+| **M2** false alarms | alerts with no fall | network: **0.7 of 40** activity sequences; rules: 11 of 40. With the VLM check: 6 of the rules' 11 false alarms removed, **0 of 20 real falls lost** | same dataset and caveats. **False alarms per camera-hour are not measured**: that needs hours of real, ordinary household footage, which I do not have. |
+| **M3** throughput | frames per second per camera with N cameras | **30 fps on every camera at N = 1, 4, 8 and 12** (1080p H.264, pose + fall network + frame ring + video output), on a laptop RTX 4060 8 GB | fake RTSP cameras replaying one crowded clip. With the VLM answering alerts at the same time **8 cameras hold 30 fps; 12 do not fit in 8 GB**: only ~100 MiB are left, and one run in five crashed. The engine now refuses to start when its own estimate of the memory it needs is above what is free; that catches 16 places, but not the borderline 12. |
+| **M4** latency | fall to alert | alert **0.19 s after the network decides** (0.09 s of it is transport); the rule path alerts 1.09 s after it sees the person hit the floor, because it waits to see them stay down. With the VLM check the Telegram message arrives about 4.5 s after the decision (2.5 s waiting for the frames after the fall, 1.9 s for the VLM) | UR Fall clips replayed in real time through the real engine, backend and WebSocket. The dataset's "impact" labels are coarse. Telegram not timed. |
+
+One-hour soak, 4 cameras, everything switched on: 29.8 fps on the slowest camera, 0 restarts, 0 errors, GPU memory flat;
+the engine's RAM grew 936 → 1089 MiB, slowing down but not flat, so **a slow leak is neither shown nor ruled out**
+(`ROADMAP_V2_NHAT_KY.md`, section 11.8).
+
+## Limitations (what this is not)
+
+- **Small, borrowed data.** The only fall data is the public UR Fall dataset (one room, one camera view, volunteers acting
+  falls). The thresholds and the network were tuned there. Until it is tested on my own footage in other rooms, M1 and M2 say
+  little about a real home.
+- **Fights are not shown to work.** The fight rule exists and passes its unit tests, but there is no real fight footage (public
+  datasets were unusable: not downloadable, or licensed against this use), and no fight model. Treat it as a designed feature,
+  not a result.
+- **Pose misses small and hidden people.** The skeleton detector found far fewer people 100-200 px tall (recall 0.02, against
+  0.27 for a plain person detector at the same threshold). A camera that sees people small, or half behind furniture, will miss
+  falls.
+- **A false alarm rate per hour is unknown**, see M2. The VLM removes some false alarms but also needs the frames after a fall,
+  so it adds about 4.5 s before Telegram.
+- **Not tried on a Jetson**, on a real IP camera brand, or for days. The design is meant to port (TensorRT, DeepStream), but
+  nothing here was run on aarch64.
+- **No privacy mode yet.** Snapshots and the live video are full frames. No face recognition is done, but a stored picture is
+  still a picture of a person.
+- **No login.** It is built for one machine in a trusted LAN; do not put it on the internet as it is.
+
+## Write-ups
+
+Three short articles about things that went wrong and what I measured ([`docs/posts/`](docs/posts/)):
+
+1. [Why my detector found 10% fewer people than Ultralytics (and why it was not a bug)](docs/posts/01-why-my-detector-found-10-percent-fewer-people.md)
+2. [A fall rule that scored 0 of 5, then 5 of 5, and why the second number meant little](docs/posts/02-a-fall-rule-that-scored-zero-then-five-out-of-five.md)
+3. [A language model that said "yes" to everyone, and a GPU that ran out of memory](docs/posts/03-a-language-model-that-said-yes-and-a-gpu-that-ran-out-of-memory.md)
+
+## What it is made of
+
+- **Engine** (C, NVIDIA DeepStream, TensorRT): N cameras (RTSP or files) in one GPU pipeline: YOLOv8n-pose → tracking →
+  rules and a small skeleton network (ST-GCN, C++ TensorRT worker) → events; a ring of recent frames for the VLM.
+- **VLM service** (Python, Qwen3-VL-2B, local): looks at a few frames around an alert and answers "fall, lying on purpose,
+  or something else". If it is slow, down or unsure the alert goes out anyway (fail-open).
 - **Backend** (FastAPI + PostgreSQL): cameras, events, live updates over WebSocket, Telegram, snapshot cleanup.
-- **Web app** (React): dashboard, camera wall, live video with boxes, event gallery, camera management.
-- **Runs on one machine in a LAN** with Docker Compose. No login (do not expose it to the internet as it is).
+- **Web app** (React): dashboard, camera wall, live video with skeletons, event gallery, camera management and per-camera rules.
+- **Runs on one machine in a LAN** with Docker Compose.
 
 ## How it works
 
@@ -19,18 +72,22 @@ new detection arrives every 15-30 s. The code is in `frontend/src/demo/`.
         |
         v
  engine container ─────────────────────────────────────────────────────────────┐
- | ds_engine: N sources -> nvstreammux -> nvinfer (YOLOv8n, TensorRT FP16)     |
- |   -> nvtracker (NvDCF) -> pad probe -> event manager per camera -> publisher |
- |   -> nvstreamdemux -> boxes drawn -> H.264 encoder per camera -> RTMP        |
+ | ds_engine: N sources -> nvstreammux -> nvinfer (YOLOv8n-pose, TensorRT FP16)|
+ |   -> nvtracker (NvDCF) -> pad probe -> per camera: fall / fight / zone rules |
+ |        |                    + skeleton window -> ST-GCN worker (TensorRT)    |
+ |        +-> frame ring (JPEG in tmpfs) -> events -> publisher (spool + HTTP)  |
+ |   -> nvstreamdemux -> skeletons drawn -> H.264 encoder per camera -> RTMP    |
  | Engine manager (Python): starts ds_engine and keeps it in step with the list |
  └──────┬─────────────────────────────────────────────────┬────────────────────┘
    events, heartbeats (HTTP + token)                  RTMP video
         v                                                  v
- backend (FastAPI) ── PostgreSQL                    MediaMTX ── WebRTC ──┐
-   │  └─ Telegram                                                       │
-   └─ REST + WebSocket ── nginx ──> browser (React app) <───────────────┘
+ backend (FastAPI) ── PostgreSQL ── VLM service      MediaMTX ── WebRTC ──┐
+   │  └─ Telegram  (event waits <= 8 s for the VLM)                       │
+   └─ REST + WebSocket ── nginx ──> browser (React app) <────────────────┘
 ```
 
+- **Fail-open everywhere.** No model file, a failed model load, a slow or dead VLM, a missing frame: the alert still goes out,
+  marked "not checked". Nothing in the safety path is allowed to swallow a fall.
 - **One process = one pipeline = N cameras.** Batching all cameras into one inference call beats N engines of one camera
   (8 cameras: a quarter of the RAM, a third of the CPU).
 - **The pad probe never blocks.** It copies what it needs and queues it; a publisher thread does HTTP, disk and retries.
