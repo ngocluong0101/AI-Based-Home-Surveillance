@@ -1,0 +1,34 @@
+Soak report ram-A: 60 samples over 0.49 h (2026-11-20T08:38:38Z -> 2026-11-20T09:08:08Z)
+
+Drift (mean of the first third vs the last third of the run after a 10 min warm-up; slope per hour):
+  [OK  ] engine RAM (MiB): 988 -> 1022 (+3.5%, +149.8/h)
+  [OK  ] backend RAM (MiB): 80 -> 83 (+3.5%, +13.4/h)
+  [OK  ] PostgreSQL RAM (MiB): 41 -> 43 (+5.9%, +11.3/h)
+  [OK  ] MediaMTX RAM (MiB): 32 -> 32 (-0.3%, -0.8/h)
+  [OK  ] VLM RAM (MiB): 1653 -> 1648 (-0.3%, -28.3/h)
+  [OK  ] frame ring in tmpfs (MiB): 16 -> 16 (-0.1%, -0.1/h)
+  [OK  ] VRAM, whole GPU (MiB): 6267 -> 6266 (-0.0%, -1.1/h)
+  [OK  ] processes in the engine container: min 3, max 3
+
+Stability:
+  [OK  ] slowest camera: 5th percentile 29.8 fps, worst 29.8 fps (target 30)
+  [OK  ] samples with a camera not RUNNING (after warm-up): 0 of 40
+  [OK  ] container restarts during the run: 0
+  [OK  ] engine (ds_engine) restarts after warm-up: 0
+  [OK  ] samples with an unhealthy container (after warm-up): 0 of 40
+
+Disk and data (expected to grow: one snapshot per event; the janitor keeps SNAPSHOT_RETENTION_DAYS):
+  snapshots: 0 -> 1788 MiB, +3643 MiB/h
+  database: 8 -> 13 MiB, +10 MiB/h
+  events: 9908 in total, 20152/h
+  host free disk: 71.2 -> 69.5 GB
+  GPU utilization: mean 98%, max 100%
+  NVENC utilization: mean 19%, max 31%
+  NVDEC utilization: mean 21%, max 23%
+
+Secrets in the container logs:
+  [OK  ] the database password and INTERNAL_TOKEN do not appear in any log
+  note: VLM load: {  "requests": 181,  "errors": 0,  "every_s": 10.0,  "latency_median_s": 3.79,  "latency_max_s": 5.67 }
+  note: ERROR/Traceback/CRITICAL lines in the backend and engine logs: 0 (see logs-*.txt)
+
+VERDICT: PASS
