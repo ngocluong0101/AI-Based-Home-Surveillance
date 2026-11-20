@@ -44,6 +44,7 @@ import time
 from pathlib import Path
 
 ENGINE_DIR = Path(__file__).resolve().parents[1]
+ENGINE_LOG: str | None = None
 PGIE_NAME = "pgie_yolov8n.txt"   # the nvinfer config of engine/configs to benchmark (--pgie)
 FPS_LINE = re.compile(r"^fps source_id=(\d+) camera_id=(\d+) ([\d.]+) (\w+)")
 FINAL_LINE = re.compile(r"^source_id=\d+ camera_id=(\d+) frames=\d+ .* fps=([\d.]+)$")
@@ -111,7 +112,10 @@ class Engine:
         self.thread.start()
 
     def _read(self) -> None:
+        log = open(ENGINE_LOG, "a", buffering=1) if ENGINE_LOG else None
         for line in self.proc.stdout:
+            if log:
+                log.write(f"[engine {self.index}] {line}")
             m = FPS_LINE.match(line)
             if m:
                 self.samples.append((time.monotonic(), int(m.group(2)), float(m.group(3)), m.group(4)))
@@ -314,9 +318,12 @@ def main() -> int:
                          "per camera. Needs a RTMP server there (MediaMTX) and, in a container, --network host")
     ap.add_argument("--fall-model", metavar="ONNX", help="also run the skeleton network on every camera (fall_net=2: rules + network); needs a pose --pgie")
     ap.add_argument("--frame-ring-dir", metavar="DIR", help="also keep the frame ring for the VLM check (cameras get a fall rule)")
+    ap.add_argument("--engine-log", metavar="FILE", help="append everything the engine prints to FILE (to see why a case died)")
     ap.add_argument("--out", help="write the rows as JSON to this file")
     args = ap.parse_args()
     PGIE_NAME = args.pgie
+    global ENGINE_LOG
+    ENGINE_LOG = args.engine_log
     args.video = str(Path(args.video).resolve())
 
     workdir = Path(tempfile.mkdtemp(prefix="bench_"))

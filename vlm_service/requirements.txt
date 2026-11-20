@@ -1,5 +1,6 @@
 # the VLM service (V2-6): the backend does not need any of this, only the machine that runs `uvicorn vlm_service.app:create_app --factory`
 torch
+torchvision
 transformers>=4.57
 accelerate
 pillow

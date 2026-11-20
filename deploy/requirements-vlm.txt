@@ -1,0 +1,9 @@
+# The VLM service container (deploy/Dockerfile.vlm). Same versions as the ones the service was measured with
+# (ROADMAP_V2_NHAT_KY.md, V2-6). The torch wheel from PyPI brings its own CUDA libraries.
+torch==2.15.0
+torchvision==0.29.2     # the Qwen3-VL video processor imports it
+transformers==5.23.0
+accelerate==1.16.0
+pillow==13.0.0
+fastapi==0.128.5
+uvicorn==0.40.0

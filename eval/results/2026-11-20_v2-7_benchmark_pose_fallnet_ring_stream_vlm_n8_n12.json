@@ -1,0 +1,54 @@
+[
+ {
+  "layout": "single",
+  "source": "rtsp",
+  "cameras": 8,
+  "processes": 1,
+  "stream": true,
+  "ok": true,
+  "fps_cam_worst": 30.0,
+  "fps_cam_best": 30.0,
+  "fps_dip_min": 28.5,
+  "fps_total": 240.0,
+  "reconnecting_lines": 0,
+  "gpu_mean": 99.7,
+  "gpu_max": 100,
+  "enc_mean": 25.9,
+  "dec_mean": 46.1,
+  "vram_mib": 1585,
+  "vram_total_mib": 7246,
+  "cpu_pct_one_core": 190.8,
+  "rss_mib": 1686,
+  "exit_codes": [
+   0
+  ],
+  "fall_model": "fall model: windows submitted=31144 scored=31144 dropped=0 errors=0 batches=3004 mean_batch_us=3093 max_batch_us=120652 queue_peak=113",
+  "window_s": 20.0
+ },
+ {
+  "layout": "single",
+  "source": "rtsp",
+  "cameras": 12,
+  "processes": 1,
+  "stream": true,
+  "ok": false,
+  "fps_cam_worst": 30.2,
+  "fps_cam_best": 31.2,
+  "fps_dip_min": 25.0,
+  "fps_total": 370.0,
+  "reconnecting_lines": 0,
+  "gpu_mean": 84.3,
+  "gpu_max": 100,
+  "enc_mean": 11.4,
+  "dec_mean": 28.3,
+  "vram_mib": 2100,
+  "vram_total_mib": 7778,
+  "cpu_pct_one_core": 106.6,
+  "rss_mib": 2336,
+  "exit_codes": [
+   -11
+  ],
+  "fall_model": null,
+  "window_s": 20.0
+ }
+]

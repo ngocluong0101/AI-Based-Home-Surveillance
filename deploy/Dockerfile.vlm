@@ -1,0 +1,22 @@
+# VLM service (V2-6): POST /verify answers whether a fall or fight really happened, from a few frames.
+# Build from the repository root (the GPU is only needed to RUN it):
+#   docker build -f deploy/Dockerfile.vlm -t surveillance-vlm .
+# The model (Qwen3-VL-2B, ~4.3 GB) is not in the image: HF_HOME is a volume (deploy/compose.yml) and the first
+# start downloads into it. No authentication, like the Engine manager: compose does not publish its port.
+FROM python:3.12-slim
+
+ENV PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    HF_HOME=/models/huggingface
+
+WORKDIR /app
+COPY deploy/requirements-vlm.txt deploy/requirements-vlm.txt
+RUN pip install -r deploy/requirements-vlm.txt
+
+COPY vlm_service vlm_service
+
+# uid 1000 like the other containers: it has to write into the model cache volume
+RUN useradd --uid 1000 --create-home --shell /usr/sbin/nologin app \
+ && mkdir -p /models/huggingface && chown -R app:app /models
+USER app
+EXPOSE 8200
+CMD ["uvicorn", "vlm_service.app:create_app", "--factory", "--host", "0.0.0.0", "--port", "8200"]

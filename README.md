@@ -45,11 +45,13 @@ new detection arrives every 15-30 s. The code is in `frontend/src/demo/`.
 
 ## Quick start (Docker)
 
-Needs Docker with the NVIDIA Container Toolkit and a GPU. Once, on the host, export the model:
+Needs Docker with the NVIDIA Container Toolkit and a GPU (8 GB is enough for 8 cameras plus the VLM, see "VLM and the GPU" below).
+Once, on the host, export the models (the ONNX files are not in the repository):
 
 ```bash
 pip install -r requirements.txt
-python engine/tools/export_yolov8_onnx.py      # yolov8n.pt -> engine/models/yolov8n.onnx
+python engine/tools/export_yolov8_pose_onnx.py   # yolov8n-pose.pt -> engine/models/yolov8n-pose.onnx (skeletons: falls, fights)
+python eval/train/train.py --final && python eval/train/export_onnx.py --out engine/models/stgcn_fall.onnx   # optional fall network
 cp .env.example .env
 ```
 
@@ -63,7 +65,9 @@ docker compose --env-file .env -f deploy/compose.yml up -d --build
 Open `http://<PUBLIC_HOST>:8080`, go to **Cameras → Add camera**, press **Test connection**, **Save**, then **Start**.
 No camera at hand? Put an MP4 in `data/videos/` and use `file:///videos/<name>.mp4`.
 
-The first build pulls the DeepStream image (~32 GB). The first start with a new number of camera places builds a TensorRT
+The first build pulls the DeepStream image (~32 GB) and builds the VLM image (~9 GB; torch). The first start of the `vlm` container
+downloads the model (~4.3 GB) into the `hf-cache` volume (`VLM_HF_CACHE=<host dir>` reuses a model already downloaded, e.g.
+`~/.cache/huggingface`); until it has loaded, alerts go out unchecked. The first start with a new number of camera places builds a TensorRT
 engine (2-3 min; `docker compose logs -f engine`); later starts take seconds.
 
 | Task | Command (prefix: `docker compose --env-file .env -f deploy/compose.yml`) |
@@ -77,8 +81,14 @@ engine (2-3 min; `docker compose logs -f engine`); later starts take seconds.
 | Container | Published | Notes |
 |---|---|---|
 | `frontend` (nginx) | `HTTP_PORT` (8080) | the app; forwards only `/api` (REST + WebSocket), `/internal` answers 404 |
-| `mediamtx` | 8889/tcp, 8189/udp | WebRTC to browsers (`PUBLIC_HOST` goes into its candidates) |
-| `backend`, `db`, `engine`, `backup` | nothing | the engine manager (port 8100, no auth) is reachable only inside Docker |
+| `mediamtx` | 8889/tcp, 8189/udp (`WEBRTC_PORT`, `WEBRTC_UDP_PORT`) | WebRTC to browsers (`PUBLIC_HOST` goes into its candidates) |
+| `vlm`, `backend`, `db`, `engine`, `backup` | nothing | the engine manager (port 8100, no auth) is reachable only inside Docker |
+
+**VLM and the GPU.** `engine` and `vlm` share the one GPU. Measured on an RTX 4060 Laptop (8 GB), 1080p H.264 cameras at 30 fps, pose + fall network
++ frame ring + video, VLM asked every 2 s (`ROADMAP_V2_NHAT_KY.md`, section 11): 8 cameras keep 30 fps (GPU ~100%, VRAM 7.2 GiB); **12 cameras are at the edge**
+(VRAM 7.8 of 8.2 GiB, per-camera FPS dips to 20-25, and one of five runs ended with the engine crashing at stop): plan for 8 with the VLM on 8 GB.
+The ring of recent frames (`/ring`) is a tmpfs volume shared by `engine` (writes) and `backend` (reads). The ST-GCN fall network is loaded
+(`--fall-model`) but a camera only uses it with `fall_net` in its cameras file entry; the app does not set that yet, so cameras use the rules.
 
 Every container restarts by itself (`unless-stopped`) except ones you stopped yourself. Stop the engine gracefully (it flushes
 pending events, up to 45 s); do not kill it. A `file://` camera stops at the end of the file ("Ended"); press Start to replay.
