@@ -21,10 +21,10 @@ you trust a number.
 
 | | What it measures | Result | How far to trust it |
 |---|---|---|---|
-| **M1** fall recall | falls caught, per event | skeleton network (ST-GCN): **27.3 of 30** falls (27-28 over 3 seeds); the hand-written rules: 14 of 30 | UR Fall dataset (30 falls, 40 daily-activity sequences), one room, 5-fold cross-validation by sequence, 3 seeds. The rules' threshold was tuned on 5 of these clips, so the rules' number is **optimistic**. **No footage of my own yet.** |
-| **M2** false alarms | alerts with no fall | network: **0.7 of 40** activity sequences (0-1), plus about 1 stray alert in the 30 fall clips; rules: 6 of 40. With the VLM check: of the rules' 6 false alarms 2 are removed (4 with a looser threshold), **0 of 14 real falls lost**; it caught neither of the network's 2 | same dataset and caveats. **False alarms per camera-hour are not measured**: that needs hours of real, ordinary household footage, which I do not have. |
+| **M1** fall recall | falls caught, per event | skeleton network (ST-GCN, trained on UR Fall + GMDCSA-24, alert threshold 0.95): **28 of 30** falls (27 and 29 in two runs); the hand-written rules: 14 of 30 | UR Fall dataset (30 falls, 40 daily-activity sequences), one room, 5-fold cross-validation by sequence, 2 seeds (GMDCSA-24 is in every training part). The rules' threshold was tuned on 5 of these clips, so the rules' number is **optimistic**. **No footage of my own yet.** |
+| **M2** false alarms | alerts with no fall | network: **1 of 40** activity sequences, plus 1 stray alert in the 30 fall clips; rules: 6 of 40. **The VLM check is a trade, and on other data a bad one:** on UR Fall it removed 2 of the rules' 6 false alarms and lost 0 of 14 real falls, but on GMDCSA-24 it silenced **9 of the network's 56 real alerts (16%)** to remove 3 false ones (details below) | same dataset and caveats. **False alarms per camera-hour are not measured**: that needs hours of real, ordinary household footage, which I do not have. |
 | **M3** throughput | frames per second per camera with N cameras | **30 fps on every camera at N = 1, 4, 8 and 12** (1080p H.264, pose + fall network + frame ring + video output), on a laptop RTX 4060 8 GB | fake RTSP cameras replaying one crowded clip. With the VLM answering alerts at the same time **8 cameras hold 30 fps; 12 do not fit in 8 GB**: only ~100 MiB are left, and one run in five crashed. The engine now refuses to start when its own estimate of the memory it needs is above what is free; that catches 16 places, but not the borderline 12. |
-| **M4** latency | fall to alert | the network alerts **0.19 s after it decides** (0.1 s to see 3 scores in a row, 0.09 s transport), on all 10 trials; the rules alert about 1.1 s after they see the person hit the floor, because they wait to see them stay down, and caught 12 of 15 trials. With the VLM check the Telegram message arrives about 4.5 s after the decision (2.5 s waiting for the frames after the fall, 1.9 s for the VLM) | UR Fall clips replayed in real time through the real engine, backend and WebSocket. The dataset's "impact" labels are coarse. Telegram not timed. |
+| **M4** latency | fall to alert | the network alerts **0.18 s after it decides** (0.1 s to see 3 scores in a row, 0.08 s transport), on all 10 trials; the rules alert about 1.1 s after they see the person hit the floor, because they wait to see them stay down, and caught 12 of 15 trials. With the VLM check the Telegram message arrives about 4.5 s after the decision (2.5 s waiting for the frames after the fall, 1.9 s for the VLM) | UR Fall clips replayed in real time through the real engine, backend and WebSocket. The dataset's "impact" labels are coarse. Telegram not timed. |
 
 **A number that moved.** UR Fall is 4:3 and the engine used to stretch every non-16:9 picture to fill a 16:9 frame, which made people 1.33 times too wide and tilted every body angle. I fixed that (the picture now keeps its shape, with black bars) and re-measured. With the old stretch the network scored 29.3 of 30 falls and the rules 20 of 30 (with 11 of 40 false alarms); with correct geometry 27.3 and 14 (6 of 40). The numbers above are the new ones; the old ones are kept in `eval/results/` from 2026-11-19. The cameras this is meant for are 16:9, where nothing changed.
 
@@ -46,7 +46,17 @@ Training on both datasets helps with the false alarms. I trained one network on 
 | UR Fall (cross-validation), threshold 0.9: falls caught / false alarms | 90% / 1% | 97% / 7.5% |
 | the same at threshold 0.95 | 85% / 1% | 93% / 2.5% |
 
-So the second dataset cut the false alarms on new actors about in half (consistent in both seeds, but 11 versus 5 clips of 81 is a small difference) without losing recall, and at threshold 0.95 UR Fall does not get worse. It is not a test on a new room: the 4 actors of GMDCSA-24 share 3 setups, so the held-out actor was filmed in rooms the network had seen. The network the repository uses by default is still the UR Fall one.
+So the second dataset cut the false alarms on new actors about in half (consistent in both seeds, but 11 versus 5 clips of 81 is a small difference) without losing recall, and at threshold 0.95 UR Fall does not get worse. It is not a test on a new room: the 4 actors of GMDCSA-24 share 3 setups, so the held-out actor was filmed in rooms the network had seen. The network the repository uses now is the second one (UR Fall + GMDCSA-24, threshold 0.95; new cameras start with 0.95, and 0.9 stays available per camera).
+
+**The VLM check on GMDCSA-24.** I asked the VLM about every alert the detectors raised on GMDCSA-24 (6 frames from 2.5 s before to 2 s after the alert, silenced when `p_yes` < 0.1, the deployed setting). An alert counts as true when it is in a fall clip:
+
+| alerts of | alerts (true / false) | false alarms the VLM removes | real alerts it silences |
+|---|---|---|---|
+| the network trained on both datasets, held-out actors, threshold 0.95 | 56 / 3 | 3 of 3 | **9 of 56 (16%)** |
+| the network trained on UR Fall only, threshold 0.9 | 63 / 11 | 10 of 11 | 14 of 63 (22%) |
+| the rules (fall_still_s 1.0) | 48 / 8 | 8 of 8 | 13 of 48 (27%) |
+
+On UR Fall the same check lost 0 real falls; here it loses 16 to 27%. Eight of the nine silenced alerts of the network are one actor's recordings, clear falls ("walking, then falling forward", falling backwards onto a striped floor mat) that the 2B model took for lying down on purpose. With a network this precise (3 false alerts in 59) the check prevents 3 false messages and costs 9 real ones, so **as built it makes the system less safe on this data**. A threshold of 0.02 still silences 7 real alerts of 56. The safe use is to show the VLM's doubt next to the alert without withholding it.
 
 On new people and rooms the network keeps most of its recall but loses most of its precision: the false-alarm rate goes from 2% to 14%, mostly lying down on a bed or sofa on purpose (the dataset's daily-activity clips are full of it). 29 of the 160 clips are 15 fps night recordings (the network learned 30 fps windows; I could not tell the effect of the frame rate from the effect of the poor light, see `ROADMAP_V2_NHAT_KY.md`). The two datasets are counted differently (UR Fall: an alert in the fall's time window; GMDCSA-24: an alert anywhere in the clip), so the columns are a trend, not a like-for-like comparison.
 
@@ -69,7 +79,7 @@ the engine's RAM grew 936 → 1089 MiB, slowing down but not flat, so **a slow l
   0.27 for a plain person detector at the same threshold). A camera that sees people small, or half behind furniture, will miss
   falls.
 - **A false alarm rate per hour is unknown**, see M2. The VLM removes some false alarms but also needs the frames after a fall,
-  so it adds about 4.5 s before Telegram.
+  so it adds about 4.5 s before Telegram, and on GMDCSA-24 it withheld 16% of the real alerts of the network (9 of 56).
 - **Not tried on a real IP camera brand, or for days.** The longest run is one hour with fake cameras (see the soak result above).
 - **No login.** It is built for one machine in a trusted LAN; do not put it on the internet as it is.
 
@@ -265,6 +275,7 @@ uvicorn vlm_service.app:create_app --factory --host 127.0.0.1 --port 8200   # fi
 ```
 The frame ring is what lets the VLM tell a fall from lying down on purpose; without it the VLM gets the single snapshot of the event. Measured on UR Fall
 (one room, 40 daily-activity sequences, **thresholds read off the same data: optimistic; no false-alarms-per-hour figure yet**): see `eval/results/2026-11-20_v2-8_vlm_urfall_padded.txt` (current) and `ROADMAP_V2_NHAT_KY.md` section 10 (first round, before the picture-stretch fix).
+**That result did not hold on other people:** on GMDCSA-24 the check silenced 16 to 27% of the real alerts (table in "Tested on recordings it was not built on", `eval/results/2026-11-22_v2-9_vlm_gmdcsa24.json`). Until that is fixed, treat "no message when the VLM is sure it is not a fall" as the riskiest default of the system.
 
 ## Development without Docker
 

@@ -53,7 +53,7 @@ class Camera(Base):
     # What decides a fall (only with the "fall" rule): 0 the rules, 1 the skeleton network, 2 the network or the rules.
     fall_net: Mapped[int] = mapped_column(SmallInteger, server_default=text("0"))
     # How sure the network has to be (score >= thr) and for how many scores in a row (k) before it calls a fall; only with fall_net 1 or 2.
-    fall_net_thr: Mapped[float] = mapped_column(Float, server_default=text("0.9"))
+    fall_net_thr: Mapped[float] = mapped_column(Float, server_default=text("0.95"))
     fall_net_k: Mapped[int] = mapped_column(SmallInteger, server_default=text("3"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(

@@ -59,7 +59,7 @@ test("the camera form with the fall network settings has no accessibility violat
   const dialog = page.getByRole("dialog", { name: "Edit Living room" });
   await expect(dialog).toBeVisible();
   // the living room has the fall rule and the network "or the rules": the two thresholds are shown
-  await expect(dialog.getByLabel("Network score that counts as a fall")).toHaveValue("0.9");
+  await expect(dialog.getByLabel("Network score that counts as a fall")).toHaveValue("0.95");
   await expect(dialog.getByLabel("Scores in a row needed")).toHaveValue("3");
   await scan(page, "the edit-camera form with the network settings");
 

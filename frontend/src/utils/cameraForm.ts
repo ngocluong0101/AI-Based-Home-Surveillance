@@ -37,7 +37,7 @@ export const emptyForm = (defaults?: { default_conf_threshold: number; default_a
   behaviors: [],
   zones: [],
   fallNet: 0,
-  fallNetThr: "0.9",
+  fallNetThr: "0.95",
   fallNetK: "3",
 });
 

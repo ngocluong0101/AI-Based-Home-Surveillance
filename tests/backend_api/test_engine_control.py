@@ -90,7 +90,7 @@ def test_start_gives_the_manager_the_real_uri_and_stop_takes_it_away(api, manage
     assert rec.run_once()
     assert manager.cameras == [{"id": cam["id"], "uri": RTSP,   # the manager gets the password
                                 "conf_threshold": 0.25, "absence_timeout": 10.0, "ai_enabled": True,
-                                "behaviors": [], "zones": [], "fall_net": 0, "fall_net_thr": 0.9, "fall_net_k": 3}]
+                                "behaviors": [], "zones": [], "fall_net": 0, "fall_net_thr": 0.95, "fall_net_k": 3}]
     st = status(client, cam["id"])
     assert st["engine"]["applied"] is True and st["engine"]["in_engine"] is True and st["engine"]["state"] == "running"
     assert "secret" not in str(st)
@@ -181,7 +181,7 @@ def test_the_settings_of_a_camera_reach_the_manager_with_its_address(api, manage
     rec.run_once()
     assert manager.cameras == [{"id": cam["id"], "uri": "rtsp://h/one", "conf_threshold": 0.6,
                                 "absence_timeout": 30.0, "ai_enabled": False, "behaviors": [], "zones": [], "fall_net": 0,
-                                "fall_net_thr": 0.9, "fall_net_k": 3}]
+                                "fall_net_thr": 0.95, "fall_net_k": 3}]
 
 
 def test_changing_a_setting_restarts_the_engine_once_with_the_new_value(api, manager):

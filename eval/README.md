@@ -100,6 +100,9 @@ python eval/tools/make_pgie_config.py --base pgie_yolov8n_pose.txt --batch 4 --o
 eval/.venv/bin/python eval/crossset/make_dumps.py --set gmdcsa24      # 160 clip, ~3 phút
 eval/.venv/bin/python eval/crossset/make_dumps.py --set airtlab       # 350 clip, ~7 phút
 eval/.venv/bin/python eval/crossset/fall_gmdcsa.py --write eval/results/<ngày>_v2-9_fall_gmdcsa24.json   # luật + ST-GCN, không chỉnh gì
+# VLM on GMDCSA-24 alerts (needs the GPU free; engine dumps must exist):
+eval/.venv/bin/python eval/crossset/alerts_gmdcsa.py     # alerts of rules / UR Fall net / leave-one-actor-out net -> eval/work/crossset/gmdcsa_alerts.json
+eval/.venv/bin/python eval/crossset/vlm_gmdcsa.py        # asks the VLM about each; writes eval/results/<date>_v2-9_vlm_gmdcsa24.json
 eval/.venv/bin/python eval/crossset/fight_airtlab.py --write eval/results/<ngày>_v2-9_fight_airtlab.json  # luật xô xát mặc định
 eval/.venv/bin/python eval/crossset/fight_sweep.py --write eval/results/<ngày>_v2-9_fight_sweep.json      # quét ngưỡng, chọn trên clip lẻ, thử trên clip chẵn
 ```

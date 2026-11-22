@@ -222,8 +222,8 @@ function Form({ camera, onDone }: { camera?: Camera; onDone: () => void }) {
                 {errors.fallNetK && <span className="field-error">{errors.fallNetK}</span>}
               </label>
               <span className="field-hint wide">
-                Higher score or more scores in a row: fewer false alarms, a slightly later alert. 0.9 and 3 are the defaults; 0.95 gave
-                the fewest false alarms on the lab data (UR Fall), which is one room.
+                Higher score or more scores in a row: fewer false alarms, a slightly later alert. 0.95 and 3 are the defaults; 0.9 catches
+                a few more falls and raises noticeably more false alarms (tested on two acted-fall datasets, not on a real home).
               </span>
             </div>
           )}

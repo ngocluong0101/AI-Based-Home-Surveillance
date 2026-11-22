@@ -91,7 +91,7 @@ describe("payloads", () => {
       behaviors: [],
       zones: [],
       fall_net: 0,
-      fall_net_thr: 0.9,
+      fall_net_thr: 0.95,
       fall_net_k: 3,
     });
   });

@@ -1,0 +1,180 @@
+{
+ "rule": {
+  "alerts": 56,
+  "true": 48,
+  "false": 8,
+  "by_thr": {
+   "0.02": {
+    "false_removed": 8,
+    "true_lost": 10
+   },
+   "0.05": {
+    "false_removed": 8,
+    "true_lost": 12
+   },
+   "0.1": {
+    "false_removed": 8,
+    "true_lost": 13
+   },
+   "0.2": {
+    "false_removed": 8,
+    "true_lost": 15
+   },
+   "0.3": {
+    "false_removed": 8,
+    "true_lost": 16
+   },
+   "0.5": {
+    "false_removed": 8,
+    "true_lost": 19
+   },
+   "0.7": {
+    "false_removed": 8,
+    "true_lost": 20
+   },
+   "0.9": {
+    "false_removed": 8,
+    "true_lost": 23
+   }
+  },
+  "clips_after_vlm_0.1": {
+   "fall_clips_with_a_surviving_alert": [
+    35,
+    47
+   ],
+   "adl_clips_with_a_surviving_alert": [
+    0,
+    8
+   ]
+  },
+  "clips_after_vlm_0.5": {
+   "fall_clips_with_a_surviving_alert": [
+    29,
+    47
+   ],
+   "adl_clips_with_a_surviving_alert": [
+    0,
+    8
+   ]
+  }
+ },
+ "net_ur": {
+  "alerts": 74,
+  "true": 63,
+  "false": 11,
+  "by_thr": {
+   "0.02": {
+    "false_removed": 10,
+    "true_lost": 10
+   },
+   "0.05": {
+    "false_removed": 10,
+    "true_lost": 12
+   },
+   "0.1": {
+    "false_removed": 10,
+    "true_lost": 14
+   },
+   "0.2": {
+    "false_removed": 11,
+    "true_lost": 15
+   },
+   "0.3": {
+    "false_removed": 11,
+    "true_lost": 16
+   },
+   "0.5": {
+    "false_removed": 11,
+    "true_lost": 18
+   },
+   "0.7": {
+    "false_removed": 11,
+    "true_lost": 18
+   },
+   "0.9": {
+    "false_removed": 11,
+    "true_lost": 22
+   }
+  },
+  "clips_after_vlm_0.1": {
+   "fall_clips_with_a_surviving_alert": [
+    49,
+    59
+   ],
+   "adl_clips_with_a_surviving_alert": [
+    1,
+    11
+   ]
+  },
+  "clips_after_vlm_0.5": {
+   "fall_clips_with_a_surviving_alert": [
+    45,
+    59
+   ],
+   "adl_clips_with_a_surviving_alert": [
+    0,
+    11
+   ]
+  }
+ },
+ "net_loso": {
+  "alerts": 59,
+  "true": 56,
+  "false": 3,
+  "by_thr": {
+   "0.02": {
+    "false_removed": 2,
+    "true_lost": 7
+   },
+   "0.05": {
+    "false_removed": 3,
+    "true_lost": 7
+   },
+   "0.1": {
+    "false_removed": 3,
+    "true_lost": 9
+   },
+   "0.2": {
+    "false_removed": 3,
+    "true_lost": 11
+   },
+   "0.3": {
+    "false_removed": 3,
+    "true_lost": 13
+   },
+   "0.5": {
+    "false_removed": 3,
+    "true_lost": 16
+   },
+   "0.7": {
+    "false_removed": 3,
+    "true_lost": 16
+   },
+   "0.9": {
+    "false_removed": 3,
+    "true_lost": 20
+   }
+  },
+  "clips_after_vlm_0.1": {
+   "fall_clips_with_a_surviving_alert": [
+    47,
+    56
+   ],
+   "adl_clips_with_a_surviving_alert": [
+    0,
+    3
+   ]
+  },
+  "clips_after_vlm_0.5": {
+   "fall_clips_with_a_surviving_alert": [
+    40,
+    56
+   ],
+   "adl_clips_with_a_surviving_alert": [
+    0,
+    3
+   ]
+  }
+ },
+ "median_latency_s": 0.570291599000484
+}

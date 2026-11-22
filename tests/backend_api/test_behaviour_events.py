@@ -152,9 +152,9 @@ def test_the_fall_network_is_off_by_default_and_takes_0_1_2(client):
         assert client.patch(f"/api/cameras/{cam['id']}", json={"fall_net": value}).json()["fall_net"] == value
 
 
-def test_the_network_thresholds_default_to_the_engines_and_take_their_ranges(client):
+def test_the_network_thresholds_have_their_own_defaults_and_take_their_ranges(client):
     cam = make_camera(client, "thr")
-    assert (cam["fall_net_thr"], cam["fall_net_k"]) == (0.9, 3)
+    assert (cam["fall_net_thr"], cam["fall_net_k"]) == (0.95, 3)
     got = client.patch(f"/api/cameras/{cam['id']}", json={"fall_net_thr": 0.95, "fall_net_k": 1}).json()
     assert (got["fall_net_thr"], got["fall_net_k"]) == (0.95, 1)
     for ok in ({"fall_net_thr": 0}, {"fall_net_thr": 1}, {"fall_net_k": 100}):
@@ -208,7 +208,7 @@ def test_migration_0006_adds_the_fall_network_choice_and_downgrades(database_url
             conn.execute(text("UPDATE cameras SET fall_net = 3 WHERE id = 2"))
 
 
-def test_migration_0007_adds_the_network_thresholds_with_the_engines_defaults_and_downgrades(database_url, db_engine):
+def test_migration_0007_adds_the_network_thresholds_with_defaults_and_downgrades(database_url, db_engine):
     from .conftest import migrate
     with db_engine.begin() as conn:
         conn.execute(text("INSERT INTO cameras (id, name, source_type, source_uri, fall_net_thr, fall_net_k) VALUES (1, 'c', 'file', 'file:///a.mp4', 0.97, 7)"))
@@ -222,8 +222,28 @@ def test_migration_0007_adds_the_network_thresholds_with_the_engines_defaults_an
     with db_engine.begin() as conn:
         conn.execute(text("INSERT INTO cameras (id, name, source_type, source_uri) VALUES (2, 'd', 'file', 'file:///b.mp4')"))
         row = conn.execute(text("SELECT fall_net_thr, fall_net_k FROM cameras WHERE id = 2")).one()
-        assert (row[0], row[1]) == (0.9, 3)
+        assert (row[0], row[1]) == (0.95, 3)   # the default of head (migration 0008 moved it from 0.9)
     for bad in ("fall_net_thr = 1.5", "fall_net_k = 0", "fall_net_k = 101"):
         with pytest.raises(Exception):
             with db_engine.begin() as conn:
                 conn.execute(text(f"UPDATE cameras SET {bad} WHERE id = 2"))
+
+
+def test_migration_0008_moves_the_old_default_threshold_and_keeps_chosen_values(database_url, db_engine):
+    from .conftest import migrate
+    try:
+        migrate(database_url, "0007", downgrade=True)
+        with db_engine.begin() as conn:
+            conn.execute(text("INSERT INTO cameras (id, name, source_type, source_uri, fall_net_thr) VALUES (1, 'old default', 'file', 'file:///a.mp4', 0.9)"))
+            conn.execute(text("INSERT INTO cameras (id, name, source_type, source_uri, fall_net_thr) VALUES (2, 'chosen', 'file', 'file:///b.mp4', 0.97)"))
+            conn.execute(text("INSERT INTO cameras (id, name, source_type, source_uri) VALUES (3, 'untouched', 'file', 'file:///c.mp4')"))
+        migrate(database_url)                                                                    # 0007 -> 0008
+        with db_engine.connect() as conn:
+            got = dict(conn.execute(text("SELECT id, fall_net_thr FROM cameras ORDER BY id")).all())
+        assert got == {1: 0.95, 2: 0.97, 3: 0.95}                                                # the old default moved, a chosen value stayed
+        migrate(database_url, "0007", downgrade=True)                                            # and back
+        with db_engine.connect() as conn:
+            got = dict(conn.execute(text("SELECT id, fall_net_thr FROM cameras ORDER BY id")).all())
+        assert got == {1: 0.9, 2: 0.97, 3: 0.9}
+    finally:
+        migrate(database_url)
