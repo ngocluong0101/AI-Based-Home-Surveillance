@@ -66,7 +66,7 @@ export function verificationNote(e: Pick<PersonEvent, "verification" | "verifica
         label: "Not confirmed",
         tone: "idle",
         detail:
-          (e.notify_status === "sent" ? "The alert had already been sent when the model answered. " : "No message was sent. ") + (e.verification_reason ?? ""),
+          (e.notify_status === "sent" ? "The alert was sent, with a note that the model doubts it. " : "No message was sent. ") + (e.verification_reason ?? ""),
       };
     case "unverified":
       return { label: "Unchecked", tone: "warn", detail: e.verification_reason ?? "The vision model could not decide; the alert was sent as usual." };

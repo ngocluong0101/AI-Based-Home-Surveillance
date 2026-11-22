@@ -100,7 +100,8 @@ def create_app(settings: Settings | None = None, engine_client: EngineClient | N
     app.state.notifier = Notifier(app.state.session_factory, telegram, settings.snapshot_dir,
                                   settings.notify_interval, settings.notify_max_age, announce_update,
                                   store=app.state.app_settings,
-                                  verify_timeout=settings.verify_timeout if settings.vlm_url or vlm_client else 0.0)
+                                  verify_timeout=settings.verify_timeout if settings.vlm_url or vlm_client else 0.0,
+                                  suppress_rejected=settings.vlm_suppress)
     # The VLM check of falls and fights (V2-6): only when a VLM service is configured (or a stand-in is given)
     app.state.vlm_client = vlm_client or (VlmClient(settings.vlm_url, settings.verify_timeout) if settings.vlm_url else None)
     app.state.verifier = None

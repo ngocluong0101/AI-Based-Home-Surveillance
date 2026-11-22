@@ -598,7 +598,6 @@ export function settleVerification(event: PersonEvent, rng: () => number, sure =
     event.verification = "rejected";
     event.verification_score = 0.04;
     event.verification_reason = "the person is sitting on the sofa [ring, 6 frames, 1.8 s]";
-    event.notify_status = "skipped";
   } else {
     event.verification = "unverified";
     event.verification_reason = "VLM unsure. hard to tell from these frames";

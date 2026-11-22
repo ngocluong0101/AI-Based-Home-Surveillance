@@ -116,8 +116,24 @@ def test_the_telegram_message_waits_for_the_verdict_and_then_goes_out(checked, d
     assert client.vlm.calls == [("FALL", 1, 0.0)]       # the snapshot is the only frame without a ring
 
 
-def test_a_rejected_event_is_stored_and_shown_but_not_sent(checked, db_engine):
-    client = checked(FakeVlm("no", 0.02, "the person is sitting on a sofa"))
+def test_a_rejected_event_is_still_sent_with_a_note_by_default(checked, db_engine):
+    """The VLM silenced 16 % of the real falls on GMDCSA-24, so its doubt is a note, not a veto."""
+    client = checked(FakeVlm("no", 0.02, "the person is sitting on a sofa [ring, 6 frames, 1.8 s]"))
+    b = fall()
+    client.post(URL, json=b)
+    client.app.state.verifier.run_once()
+    notify_round(client)
+    assert len(client.tg.alerts) == 1
+    assert "doubts" in client.tg.alerts[0] and "sitting on a sofa" in client.tg.alerts[0] and "[ring" not in client.tg.alerts[0]
+    r = row(db_engine, b["event_id"])
+    assert (r.verification, r.notify_status) == ("rejected", "sent")
+    shown = client.get(f"/api/events/{b['event_id']}").json()
+    assert shown["verification"] == "rejected" and "sofa" in shown["verification_reason"] and shown["type"] == "FALL"
+    assert client.get("/api/events", params={"verification": "rejected"}).json()["total"] == 1
+
+
+def test_a_rejected_event_is_stored_and_shown_but_not_sent_when_suppression_is_on(checked, db_engine):
+    client = checked(FakeVlm("no", 0.02, "the person is sitting on a sofa"), vlm_suppress=True)
     b = fall()
     client.post(URL, json=b)
     client.app.state.verifier.run_once()
@@ -125,8 +141,6 @@ def test_a_rejected_event_is_stored_and_shown_but_not_sent(checked, db_engine):
     assert client.tg.alerts == []
     r = row(db_engine, b["event_id"])
     assert (r.verification, r.notify_status) == ("rejected", "skipped")
-    shown = client.get(f"/api/events/{b['event_id']}").json()
-    assert shown["verification"] == "rejected" and "sofa" in shown["verification_reason"] and shown["type"] == "FALL"
     assert client.get("/api/events", params={"verification": "rejected"}).json()["total"] == 1
 
 

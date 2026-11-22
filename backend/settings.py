@@ -23,6 +23,7 @@ class Settings:
     notify_max_age: float = 600.0           # an alert undeliverable for longer than this is marked failed
     vlm_url: str | None = None              # None = falls and fights are not checked by a VLM
     verify_timeout: float = 8.0             # an alert waits at most this long for the VLM (fail-open)
+    vlm_suppress: bool = False              # True: an alert the VLM rejects is not sent (default: sent, with a note)
     verify_interval: float = 0.5            # seconds between looks for events to check; 0 = no verifier thread
     frame_ring_dir: str | None = None       # the engine's ring of recent frames; None = the snapshot is all the VLM gets
     snapshot_retention_days: int = 7
@@ -47,6 +48,7 @@ class Settings:
             notify_max_age=config.NOTIFY_MAX_AGE,
             vlm_url=config.VLM_URL,
             verify_timeout=config.VERIFY_TIMEOUT,
+            vlm_suppress=config.VLM_SUPPRESS,
             frame_ring_dir=config.FRAME_RING_DIR,
             mediamtx_webrtc_url=config.MEDIAMTX_WEBRTC_URL,
             stream_path_prefix=config.MEDIAMTX_PATH_PREFIX,

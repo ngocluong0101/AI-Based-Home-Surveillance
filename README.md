@@ -22,7 +22,7 @@ you trust a number.
 | | What it measures | Result | How far to trust it |
 |---|---|---|---|
 | **M1** fall recall | falls caught, per event | skeleton network (ST-GCN, trained on UR Fall + GMDCSA-24, alert threshold 0.95): **28 of 30** falls (27 and 29 in two runs); the hand-written rules: 14 of 30 | UR Fall dataset (30 falls, 40 daily-activity sequences), one room, 5-fold cross-validation by sequence, 2 seeds (GMDCSA-24 is in every training part). The rules' threshold was tuned on 5 of these clips, so the rules' number is **optimistic**. **No footage of my own yet.** |
-| **M2** false alarms | alerts with no fall | network: **1 of 40** activity sequences, plus 1 stray alert in the 30 fall clips; rules: 6 of 40. **The VLM check is a trade, and on other data a bad one:** on UR Fall it removed 2 of the rules' 6 false alarms and lost 0 of 14 real falls, but on GMDCSA-24 it silenced **9 of the network's 56 real alerts (16%)** to remove 3 false ones (details below) | same dataset and caveats. **False alarms per camera-hour are not measured**: that needs hours of real, ordinary household footage, which I do not have. |
+| **M2** false alarms | alerts with no fall | network: **1 of 40** activity sequences, plus 1 stray alert in the 30 fall clips; rules: 6 of 40. **The VLM check is a trade, and on other data a bad one:** on UR Fall it removed 2 of the rules' 6 false alarms and lost 0 of 14 real falls, but on GMDCSA-24 it would have silenced **9 of the network's 56 real alerts (16%)** to remove 3 false ones (details below), so a doubted alert is sent anyway with a note | same dataset and caveats. **False alarms per camera-hour are not measured**: that needs hours of real, ordinary household footage, which I do not have. |
 | **M3** throughput | frames per second per camera with N cameras | **30 fps on every camera at N = 1, 4, 8 and 12** (1080p H.264, pose + fall network + frame ring + video output), on a laptop RTX 4060 8 GB | fake RTSP cameras replaying one crowded clip. With the VLM answering alerts at the same time **8 cameras hold 30 fps; 12 do not fit in 8 GB**: only ~100 MiB are left, and one run in five crashed. The engine now refuses to start when its own estimate of the memory it needs is above what is free; that catches 16 places, but not the borderline 12. |
 | **M4** latency | fall to alert | the network alerts **0.18 s after it decides** (0.1 s to see 3 scores in a row, 0.08 s transport), on all 10 trials; the rules alert about 1.1 s after they see the person hit the floor, because they wait to see them stay down, and caught 12 of 15 trials. With the VLM check the Telegram message arrives about 4.5 s after the decision (2.5 s waiting for the frames after the fall, 1.9 s for the VLM) | UR Fall clips replayed in real time through the real engine, backend and WebSocket. The dataset's "impact" labels are coarse. Telegram not timed. |
 
@@ -79,7 +79,7 @@ the engine's RAM grew 936 → 1089 MiB, slowing down but not flat, so **a slow l
   0.27 for a plain person detector at the same threshold). A camera that sees people small, or half behind furniture, will miss
   falls.
 - **A false alarm rate per hour is unknown**, see M2. The VLM removes some false alarms but also needs the frames after a fall,
-  so it adds about 4.5 s before Telegram, and on GMDCSA-24 it withheld 16% of the real alerts of the network (9 of 56).
+  so it adds about 4.5 s before Telegram, and on GMDCSA-24 it would have silenced 16% of the real alerts of the network (9 of 56), so by default it only adds a note to the message.
 - **Not tried on a real IP camera brand, or for days.** The longest run is one hour with fake cameras (see the soak result above).
 - **No login.** It is built for one machine in a trusted LAN; do not put it on the internet as it is.
 
@@ -243,7 +243,7 @@ Under Docker, compose sets paths and URLs itself and takes only those marked *co
 | `ENGINE_COMMAND`, `ENGINE_CONFIG`, `ENGINE_TRACKER_CONFIG`, `ENGINE_RUNTIME_DIR`, `ENGINE_EXTRA_ARGS` | see `.env.example` | how the manager starts the engine. **Falls and fights need the pose model**: export `engine/models/yolov8n-pose.onnx` (`engine/tools/export_yolov8_pose_onnx.py`) and set `ENGINE_CONFIG` to `engine/configs/pgie_yolov8n_pose.txt` (in Docker `/app/engine/configs/pgie_yolov8n_pose.txt`); the first start builds its TensorRT engine (~4 min) |
 | `ENGINE_BACKEND_URL`, `ENGINE_HEARTBEAT_URL` | `http://127.0.0.1:8000/internal/events`, derived | where the engine posts events and heartbeats |
 | `ENGINE_STREAM_URL`, `MEDIAMTX_WEBRTC_URL`, `MEDIAMTX_PATH_PREFIX` | empty = no video, –, `live` | publishing and watching live video |
-| `VLM_URL`, `VERIFY_TIMEOUT`, `FRAME_RING_DIR` | unset, `8`, unset | the VLM check of falls and fights (see below): where the VLM service listens (unset = no check), the most seconds an alert waits for it, and the engine's frame ring (`--frame-ring-dir`; unset = the VLM sees only the event's snapshot) |
+| `VLM_URL`, `VERIFY_TIMEOUT`, `FRAME_RING_DIR`, `VLM_SUPPRESS` | unset, `8`, unset, `false` | the VLM check of falls and fights (see below): where the VLM service listens (unset = no check), the most seconds an alert waits for it, the engine's frame ring (`--frame-ring-dir`; unset = the VLM sees only the event's snapshot), and whether an alert the VLM doubts is withheld (`true`) or sent with a note (`false`) |
 | `HEARTBEAT_STALE_AFTER`, `NOTIFY_MAX_AGE` | `15`, `600` | seconds of silence before a camera counts offline; age after which a pending Telegram alert is dropped |
 | `LOG_LEVEL`, `LOG_FILE`, `LOG_MAX_BYTES`, `LOG_BACKUP_COUNT` | `INFO`, `logs/app.log`, 5 MB, `3` | rotating log file + terminal |
 
@@ -264,8 +264,8 @@ is `skipped` (the other values: `pending`, `sent`, `disabled` = Telegram not set
 
 A fall or fight can be looked at by a small VLM (Qwen3-VL-2B-Instruct, Apache 2.0, run locally, ~4.3 GB of GPU memory) before anybody is alerted. It sees six frames
 from just before to two seconds after the event and chooses what the person does: falls / lies down on purpose / crouches or bends / normal / nobody. **If it is
-sure the event is not a fall (probability of "fall" below 0.1), no Telegram message is sent; the event is still stored and shown, with the reason, under the filter
-"Not confirmed by the VLM".** Anything else - the VLM unsure, down, slow (more than `VERIFY_TIMEOUT`), or no picture - sends the alert as if there were no VLM.
+sure the event is not a fall (probability of "fall" below 0.1), the Telegram message is still sent, with a line "The VLM doubts this alert: <what it saw>", and the event
+is shown under the filter "Not confirmed by the VLM".** Withholding the message is opt-in (`VLM_SUPPRESS=true`), because on GMDCSA-24 the VLM silenced 16% of the real falls (see below). Anything else - the VLM unsure, down, slow (more than `VERIFY_TIMEOUT`), or no picture - sends the alert as if there were no VLM.
 
 ```bash
 pip install -r vlm_service/requirements.txt                       # on the machine with the GPU
@@ -275,7 +275,7 @@ uvicorn vlm_service.app:create_app --factory --host 127.0.0.1 --port 8200   # fi
 ```
 The frame ring is what lets the VLM tell a fall from lying down on purpose; without it the VLM gets the single snapshot of the event. Measured on UR Fall
 (one room, 40 daily-activity sequences, **thresholds read off the same data: optimistic; no false-alarms-per-hour figure yet**): see `eval/results/2026-11-20_v2-8_vlm_urfall_padded.txt` (current) and `ROADMAP_V2_NHAT_KY.md` section 10 (first round, before the picture-stretch fix).
-**That result did not hold on other people:** on GMDCSA-24 the check silenced 16 to 27% of the real alerts (table in "Tested on recordings it was not built on", `eval/results/2026-11-22_v2-9_vlm_gmdcsa24.json`). Until that is fixed, treat "no message when the VLM is sure it is not a fall" as the riskiest default of the system.
+**That result did not hold on other people:** on GMDCSA-24 the check silenced 16 to 27% of the real alerts (table in "Tested on recordings it was not built on", `eval/results/2026-11-22_v2-9_vlm_gmdcsa24.json`). That is why a doubted alert is sent anyway, with a note (`VLM_SUPPRESS=false`, the default).
 
 ## Development without Docker
 

@@ -81,6 +81,7 @@ services:
       # the VLM check of falls and fights; an alert never waits longer than VERIFY_TIMEOUT for it (fail-open)
       VLM_URL: http://vlm:8200
       VERIFY_TIMEOUT: ${VERIFY_TIMEOUT:-8}
+      VLM_SUPPRESS: ${VLM_SUPPRESS:-false}
       FRAME_RING_DIR: /ring
     volumes:
       - snapshots:/var/lib/surveillance/snapshots

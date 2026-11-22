@@ -95,6 +95,9 @@ HEARTBEAT_STALE_AFTER: float = _parse_float(os.getenv("HEARTBEAT_STALE_AFTER"), 
 VLM_URL: Optional[str] = os.getenv("VLM_URL") or None
 VERIFY_TIMEOUT: float = _parse_float(os.getenv("VERIFY_TIMEOUT"), 8.0)
 # Directory where the engine keeps its ring of recent frames (--frame-ring-dir); unset = the VLM sees only the event's snapshot
+# false (default): an alert the VLM doubts ("rejected") is still sent, with a line saying so. true: it is stored but not sent.
+# On GMDCSA-24 the VLM silenced 16 % of the real falls of the network (eval/results/2026-11-22_v2-9_vlm_gmdcsa24.json).
+VLM_SUPPRESS: bool = _parse_bool(os.getenv("VLM_SUPPRESS"), False)
 FRAME_RING_DIR: Optional[str] = os.getenv("FRAME_RING_DIR") or None
 ABSENCE_TIMEOUT: float = _parse_float(os.getenv("ABSENCE_TIMEOUT"), 10.0)
 
@@ -130,6 +133,7 @@ __all__ = [
     "NOTIFY_MAX_AGE",
     "VLM_URL",
     "VERIFY_TIMEOUT",
+    "VLM_SUPPRESS",
     "FRAME_RING_DIR",
     "ENGINE_EXTRA_ARGS",
     "ENGINE_MAX_CAMERAS",

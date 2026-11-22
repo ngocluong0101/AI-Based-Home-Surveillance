@@ -15,7 +15,8 @@ def _clock(moment: datetime) -> str:
 
 
 def behaviour_caption(type_: str, camera_name: str, track_ids: Sequence[int], zone_id: int | None, timestamp: datetime,
-                      occurred_at: datetime | None, score: float, verification: str = "not_required") -> str:
+                      occurred_at: datetime | None, score: float, verification: str = "not_required",
+                      verification_reason: str | None = None) -> str:
     people = " and ".join(f"#{t}" for t in track_ids)
     if type_ == "FALL":
         head, what = "🚨 FALL DETECTED", f"Person {people} fell and has not got up"
@@ -33,6 +34,8 @@ def behaviour_caption(type_: str, camera_name: str, track_ids: Sequence[int], zo
     lines.append(f"Confidence: {score:.2f}")
     if verification == "confirmed":
         lines.append("Checked by the VLM: confirmed")
+    elif verification == "rejected":
+        lines.append("⚠️ The VLM doubts this alert" + (f": {verification_reason.split(' [')[0]}" if verification_reason else ""))
     elif verification in ("unverified", "pending"):
         lines.append("Not checked by the VLM (unavailable, unsure or too slow)")
     return "\n".join(lines)

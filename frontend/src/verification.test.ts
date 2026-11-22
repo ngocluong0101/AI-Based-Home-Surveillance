@@ -15,7 +15,7 @@ describe("what the page says about the VLM's check", () => {
   });
   it("a rejected event says whether the alert had already gone out", () => {
     expect(verificationNote({ ...base, verification: "rejected", notify_status: "skipped", verification_reason: "on the sofa" })!.detail).toBe("No message was sent. on the sofa");
-    expect(verificationNote({ ...base, verification: "rejected", notify_status: "sent", verification_reason: "on the sofa" })!.detail).toMatch(/^The alert had already been sent/);
+    expect(verificationNote({ ...base, verification: "rejected", notify_status: "sent", verification_reason: "on the sofa" })!.detail).toMatch(/^The alert was sent, with a note/);
   });
   it("an unchecked event is a warning, a confirmed one is ok", () => {
     expect(verificationNote({ ...base, verification: "unverified" })!.tone).toBe("warn");

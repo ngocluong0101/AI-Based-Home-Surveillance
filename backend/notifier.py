@@ -5,7 +5,8 @@ or dead Telegram never delays the engine's delivery. The thread sends the pendin
 and records the outcome in `notify_status`:
 
   sent      Telegram accepted it
-  skipped   held back on purpose: alerts are switched off, or the event arrived in the quiet hours (Settings page);
+  skipped   held back on purpose: alerts are switched off, or the event arrived in the quiet hours (Settings page),
+            or the VLM rejected it and VLM_SUPPRESS is on (off by default: a doubted alert is sent with a note);
             the event is stored and shown as usual, only the message is not sent
   disabled  Telegram is not configured (ENABLE_TELEGRAM, token, chat id)
   failed    it stayed undeliverable for longer than `max_age` seconds; an alert that late is noise
@@ -51,7 +52,9 @@ class Notifier:
         on_update: Callable[[uuid.UUID], None] | None = None,
         store: AppSettingsStore | None = None,
         verify_timeout: float = 0.0,
+        suppress_rejected: bool = False,
     ) -> None:
+        self._suppress_rejected = suppress_rejected   # False: a rejected alert is sent with a note (the VLM can be wrong)
         self._verify_timeout = verify_timeout   # a message waits for the VLM at most this long (0 = never waits)
         self._store = store   # the alert rules of the Settings page; None = every event is sent
         self._session_factory = session_factory
@@ -74,7 +77,7 @@ class Notifier:
             rows = db.execute(
                 select(Event.event_id, Event.track_id, Event.confidence, Event.timestamp,
                        Event.snapshot_file, Event.received_at, Event.type, Event.track_ids, Event.zone_id,
-                       Event.occurred_at, Event.verification, Camera.name.label("camera_name"))
+                       Event.occurred_at, Event.verification, Event.verification_reason, Camera.name.label("camera_name"))
                 .join(Camera, Camera.id == Event.camera_id)
                 .where(Event.notify_status == "pending")
                 .where(or_(Event.verification != "pending",
@@ -86,8 +89,8 @@ class Notifier:
         rules = self._store.get() if self._store is not None and rows else None   # one look per round
         now = datetime.now(timezone.utc)
         for row in rows:
-            if row.verification == "rejected":
-                self._mark(row.event_id, "skipped")   # the VLM was sure it was not a fall / fight: stored and shown, not sent
+            if row.verification == "rejected" and self._suppress_rejected:
+                self._mark(row.event_id, "skipped")   # opt-in (VLM_SUPPRESS): stored and shown, not sent
             elif rules is not None and rules.mutes(row.received_at):
                 self._mark(row.event_id, "skipped")
             elif not self._telegram.enabled:
@@ -115,7 +118,8 @@ class Notifier:
             has_photo = path is not None and path.is_file()   # the cleaner may have removed it: send text only
             if row.type != "PERSON_DETECTED":
                 caption = behaviour_caption(row.type, row.camera_name, list(row.track_ids) or [row.track_id], row.zone_id,
-                                            row.timestamp, row.occurred_at, row.confidence, row.verification)
+                                            row.timestamp, row.occurred_at, row.confidence, row.verification,
+                                            row.verification_reason)
                 return bool(self._telegram.send_alert(caption, str(path) if has_photo else None))
             if has_photo:
                 return bool(self._telegram.send_person_detected_photo(event, str(path)))
