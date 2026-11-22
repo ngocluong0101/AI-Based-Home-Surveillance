@@ -8,7 +8,7 @@ recognises the fall within a second or two, has a local vision-language model do
 cameras, no install. Open **Monitoring → Living room**: about every 70 s a person walks in and falls, a FALL alert arrives.
 *(The demo is drawn by code; the numbers below are not from it.)*
 
-<!-- SCREENSHOTS: put your images in docs/images/ and uncomment, see the notes in the reply that came with this README -->
+SCREENSHOTS: 
 <p align="center">
   <img src="docs/images/dashboard.png" width="48%" alt="Dashboard">
   <img src="docs/images/wall.png" width="48%" alt="Wall">
