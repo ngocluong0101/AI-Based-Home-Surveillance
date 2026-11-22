@@ -1,0 +1,2664 @@
+{
+ "dataset": "GMDCSA-24",
+ "clips": 160,
+ "results": {
+  "all clips": {
+   "rule_default": {
+    "falls": [
+     41,
+     79
+    ],
+    "adl": [
+     3,
+     81
+    ]
+   },
+   "rule_1s": {
+    "falls": [
+     47,
+     79
+    ],
+    "adl": [
+     8,
+     81
+    ]
+   },
+   "net_0.9": {
+    "falls": [
+     59,
+     79
+    ],
+    "adl": [
+     11,
+     81
+    ]
+   },
+   "net_0.9_resampled": {
+    "falls": [
+     51,
+     79
+    ],
+    "adl": [
+     9,
+     81
+    ]
+   },
+   "net_0.95_resampled": {
+    "falls": [
+     47,
+     79
+    ],
+    "adl": [
+     1,
+     81
+    ]
+   }
+  },
+  "30 fps clips": {
+   "rule_default": {
+    "falls": [
+     38,
+     68
+    ],
+    "adl": [
+     2,
+     63
+    ]
+   },
+   "rule_1s": {
+    "falls": [
+     44,
+     68
+    ],
+    "adl": [
+     6,
+     63
+    ]
+   },
+   "net_0.9": {
+    "falls": [
+     49,
+     68
+    ],
+    "adl": [
+     8,
+     63
+    ]
+   },
+   "net_0.9_resampled": {
+    "falls": [
+     49,
+     68
+    ],
+    "adl": [
+     8,
+     63
+    ]
+   },
+   "net_0.95_resampled": {
+    "falls": [
+     45,
+     68
+    ],
+    "adl": [
+     1,
+     63
+    ]
+   }
+  },
+  "15 fps clips": {
+   "rule_default": {
+    "falls": [
+     3,
+     11
+    ],
+    "adl": [
+     1,
+     18
+    ]
+   },
+   "rule_1s": {
+    "falls": [
+     3,
+     11
+    ],
+    "adl": [
+     2,
+     18
+    ]
+   },
+   "net_0.9": {
+    "falls": [
+     10,
+     11
+    ],
+    "adl": [
+     3,
+     18
+    ]
+   },
+   "net_0.9_resampled": {
+    "falls": [
+     2,
+     11
+    ],
+    "adl": [
+     1,
+     18
+    ]
+   },
+   "net_0.95_resampled": {
+    "falls": [
+     2,
+     11
+    ],
+    "adl": [
+     0,
+     18
+    ]
+   }
+  },
+  "subject1": {
+   "rule_default": {
+    "falls": [
+     11,
+     16
+    ],
+    "adl": [
+     0,
+     16
+    ]
+   },
+   "rule_1s": {
+    "falls": [
+     11,
+     16
+    ],
+    "adl": [
+     0,
+     16
+    ]
+   },
+   "net_0.9": {
+    "falls": [
+     13,
+     16
+    ],
+    "adl": [
+     2,
+     16
+    ]
+   },
+   "net_0.9_resampled": {
+    "falls": [
+     13,
+     16
+    ],
+    "adl": [
+     2,
+     16
+    ]
+   },
+   "net_0.95_resampled": {
+    "falls": [
+     13,
+     16
+    ],
+    "adl": [
+     0,
+     16
+    ]
+   }
+  },
+  "subject2": {
+   "rule_default": {
+    "falls": [
+     15,
+     25
+    ],
+    "adl": [
+     2,
+     23
+    ]
+   },
+   "rule_1s": {
+    "falls": [
+     17,
+     25
+    ],
+    "adl": [
+     4,
+     23
+    ]
+   },
+   "net_0.9": {
+    "falls": [
+     22,
+     25
+    ],
+    "adl": [
+     4,
+     23
+    ]
+   },
+   "net_0.9_resampled": {
+    "falls": [
+     18,
+     25
+    ],
+    "adl": [
+     2,
+     23
+    ]
+   },
+   "net_0.95_resampled": {
+    "falls": [
+     18,
+     25
+    ],
+    "adl": [
+     0,
+     23
+    ]
+   }
+  },
+  "subject3": {
+   "rule_default": {
+    "falls": [
+     8,
+     21
+    ],
+    "adl": [
+     0,
+     22
+    ]
+   },
+   "rule_1s": {
+    "falls": [
+     10,
+     21
+    ],
+    "adl": [
+     0,
+     22
+    ]
+   },
+   "net_0.9": {
+    "falls": [
+     15,
+     21
+    ],
+    "adl": [
+     2,
+     22
+    ]
+   },
+   "net_0.9_resampled": {
+    "falls": [
+     11,
+     21
+    ],
+    "adl": [
+     2,
+     22
+    ]
+   },
+   "net_0.95_resampled": {
+    "falls": [
+     9,
+     21
+    ],
+    "adl": [
+     1,
+     22
+    ]
+   }
+  },
+  "subject4": {
+   "rule_default": {
+    "falls": [
+     7,
+     17
+    ],
+    "adl": [
+     1,
+     20
+    ]
+   },
+   "rule_1s": {
+    "falls": [
+     9,
+     17
+    ],
+    "adl": [
+     4,
+     20
+    ]
+   },
+   "net_0.9": {
+    "falls": [
+     9,
+     17
+    ],
+    "adl": [
+     3,
+     20
+    ]
+   },
+   "net_0.9_resampled": {
+    "falls": [
+     9,
+     17
+    ],
+    "adl": [
+     3,
+     20
+    ]
+   },
+   "net_0.95_resampled": {
+    "falls": [
+     7,
+     17
+    ],
+    "adl": [
+     0,
+     20
+    ]
+   }
+  },
+  "by_visibility": {
+   "rule_default": {
+    "not_visible": [
+     2,
+     6
+    ],
+    "full_body": [
+     39,
+     73
+    ]
+   },
+   "rule_1s": {
+    "not_visible": [
+     2,
+     6
+    ],
+    "full_body": [
+     45,
+     73
+    ]
+   },
+   "net_0.9": {
+    "not_visible": [
+     4,
+     6
+    ],
+    "full_body": [
+     55,
+     73
+    ]
+   },
+   "net_0.9_resampled": {
+    "not_visible": [
+     4,
+     6
+    ],
+    "full_body": [
+     47,
+     73
+    ]
+   },
+   "net_0.95_resampled": {
+    "not_visible": [
+     4,
+     6
+    ],
+    "full_body": [
+     43,
+     73
+    ]
+   }
+  }
+ },
+ "per_clip": [
+  {
+   "clip": "s1_fall_01",
+   "label": "fall",
+   "subject": "subject1",
+   "fps": 29.6,
+   "desc": "Falling from sitting on the chair to the ground. Left side Fall. Full body not visible.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s1_fall_02",
+   "label": "fall",
+   "subject": "subject1",
+   "fps": 29.7,
+   "desc": "Falling from sitting on the chair to the ground. Left side Fall. Full body not visible.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s1_fall_03",
+   "label": "fall",
+   "subject": "subject1",
+   "fps": 29.7,
+   "desc": "Falling from sitting on the chair to the ground. Left side fall.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s1_fall_04",
+   "label": "fall",
+   "subject": "subject1",
+   "fps": 29.4,
+   "desc": "Falling from sitting on the chair to the ground. Right side fall.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s1_fall_05",
+   "label": "fall",
+   "subject": "subject1",
+   "fps": 29.7,
+   "desc": "Walking to falling. Right side fall.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s1_fall_06",
+   "label": "fall",
+   "subject": "subject1",
+   "fps": 29.7,
+   "desc": "Walking to falling. Right side fall.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s1_fall_07",
+   "label": "fall",
+   "subject": "subject1",
+   "fps": 29.7,
+   "desc": "Walking to falling. Right side fall.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s1_fall_08",
+   "label": "fall",
+   "subject": "subject1",
+   "fps": 29.6,
+   "desc": "Walking to falling. Left side fall.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s1_fall_09",
+   "label": "fall",
+   "subject": "subject1",
+   "fps": 29.2,
+   "desc": "Standing position to falling. Forward Fall. Full body (head) not visible.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s1_fall_10",
+   "label": "fall",
+   "subject": "subject1",
+   "fps": 29.6,
+   "desc": "Standing position to falling. Forward Fall. Full body (right eye) not visible.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s1_fall_11",
+   "label": "fall",
+   "subject": "subject1",
+   "fps": 29.7,
+   "desc": "Standing position to falling. Backward Fall.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s1_fall_12",
+   "label": "fall",
+   "subject": "subject1",
+   "fps": 29.3,
+   "desc": "Standing position to falling. Backward Fall.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s1_fall_13",
+   "label": "fall",
+   "subject": "subject1",
+   "fps": 29.6,
+   "desc": "Standing position to falling. Backward fall. Full body (head) is not visible.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s1_fall_14",
+   "label": "fall",
+   "subject": "subject1",
+   "fps": 29.7,
+   "desc": "Standing position to falling. Backward fall. Full body (both ankles) is not visible.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s1_fall_15",
+   "label": "fall",
+   "subject": "subject1",
+   "fps": 29.7,
+   "desc": "Sitting on the chair (side view) to right side fall.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s1_fall_16",
+   "label": "fall",
+   "subject": "subject1",
+   "fps": 29.7,
+   "desc": "Sitting on the chair (side view) to the left side fall.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s1_adl_01",
+   "label": "adl",
+   "subject": "subject1",
+   "fps": 29.6,
+   "desc": "Sitting on the bed to sleeping right side on the bed. Face towards camera.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s1_adl_02",
+   "label": "adl",
+   "subject": "subject1",
+   "fps": 29.6,
+   "desc": "Sitting on the bed to sleeping left side on the bed. Face towards the camera.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s1_adl_03",
+   "label": "adl",
+   "subject": "subject1",
+   "fps": 29.7,
+   "desc": "Sitting on the bed to sleeping left side on the bed. Face towards the ceiling.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s1_adl_04",
+   "label": "adl",
+   "subject": "subject1",
+   "fps": 29.3,
+   "desc": "From sleeping left side on the bed (Face towards the ceiling) to sitting on the bed.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s1_adl_05",
+   "label": "adl",
+   "subject": "subject1",
+   "fps": 29.8,
+   "desc": "Coming to the bed and reading book in the sitting position. Front view of the subject. One leg folded.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s1_adl_06",
+   "label": "adl",
+   "subject": "subject1",
+   "fps": 29.8,
+   "desc": "Sitting on the bed (front view) to reading the book while supporting towards the wall. Side view.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s1_adl_07",
+   "label": "adl",
+   "subject": "subject1",
+   "fps": 29.7,
+   "desc": "Reading book while sitting on the chair; Front view., Leg straight.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s1_adl_08",
+   "label": "adl",
+   "subject": "subject1",
+   "fps": 29.7,
+   "desc": "Walking in the room.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s1_adl_09",
+   "label": "adl",
+   "subject": "subject1",
+   "fps": 29.4,
+   "desc": "Reading book while walking in the room.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s1_adl_10",
+   "label": "adl",
+   "subject": "subject1",
+   "fps": 29.3,
+   "desc": "Reading book while walking in the room.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s1_adl_11",
+   "label": "adl",
+   "subject": "subject1",
+   "fps": 29.7,
+   "desc": "Walking to sitting on the chair and then reading book.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s1_adl_12",
+   "label": "adl",
+   "subject": "subject1",
+   "fps": 29.7,
+   "desc": "Reading book while sitting on the chair to stand up and keeping the book on the chair and going out of the room.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s1_adl_13",
+   "label": "adl",
+   "subject": "subject1",
+   "fps": 29.7,
+   "desc": "Walking to sitting on the chair (side view).",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s1_adl_14",
+   "label": "adl",
+   "subject": "subject1",
+   "fps": 29.5,
+   "desc": "Sitting on the chair (side view) to walking.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s1_adl_15",
+   "label": "adl",
+   "subject": "subject1",
+   "fps": 29.6,
+   "desc": "Walking to picking a mobile phone from the ground and then sitting on the chair.,",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s1_adl_16",
+   "label": "adl",
+   "subject": "subject1",
+   "fps": 29.5,
+   "desc": "Picking the mobile phone from the ground while sitting on the chair.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s2_fall_01",
+   "label": "fall",
+   "subject": "subject2",
+   "fps": 29.8,
+   "desc": "Day,T-Shirt & Pants,Right side fall on the ground.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s2_fall_02",
+   "label": "fall",
+   "subject": "subject2",
+   "fps": 29.8,
+   "desc": "Day,T-Shirt & Pants,Right side fall on the ground after walking.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s2_fall_03",
+   "label": "fall",
+   "subject": "subject2",
+   "fps": 29.8,
+   "desc": "Day,T-Shirt & Pants,Forward fall on the bed.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s2_fall_04",
+   "label": "fall",
+   "subject": "subject2",
+   "fps": 29.9,
+   "desc": "Day,T-Shirt & Pants,Seeing outside the window then backward fall.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s2_fall_05",
+   "label": "fall",
+   "subject": "subject2",
+   "fps": 29.8,
+   "desc": "Day,T-Shirt & Pants,Left side fall (face hidden by hand).",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s2_fall_06",
+   "label": "fall",
+   "subject": "subject2",
+   "fps": 29.9,
+   "desc": "Day,T-Shirt & Pants,Walking while seeing the mobile phone then fall backward (left hand not fully in the frame).",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s2_fall_07",
+   "label": "fall",
+   "subject": "subject2",
+   "fps": 29.8,
+   "desc": "Day,Full Shirt & Pants,Falling (forward) after trying to pick the bottle from the ground.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s2_fall_08",
+   "label": "fall",
+   "subject": "subject2",
+   "fps": 29.8,
+   "desc": "Day,Full Shirt & Pants,Reading a newspaper in the sitting position on the ground then falling backward.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s2_fall_09",
+   "label": "fall",
+   "subject": "subject2",
+   "fps": 29.8,
+   "desc": "Day,Full Shirt & Pants,Falling backward after walking.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": true,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s2_fall_10",
+   "label": "fall",
+   "subject": "subject2",
+   "fps": 15.0,
+   "desc": "Night,Full Shirt & Jeans,Right side fall then backward.",
+   "slow": true,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": true,
+   "net_0.9_resampled": false,
+   "net_0.95": true,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s2_fall_11",
+   "label": "fall",
+   "subject": "subject2",
+   "fps": 15.0,
+   "desc": "Night,Full Shirt & Jeans,Falling from bed to ground.",
+   "slow": true,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s2_fall_12",
+   "label": "fall",
+   "subject": "subject2",
+   "fps": 15.0,
+   "desc": "Night,Full Shirt & Jeans,Drinking water from the water bottle then falling backward.",
+   "slow": true,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": true,
+   "net_0.9_resampled": false,
+   "net_0.95": true,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s2_fall_13",
+   "label": "fall",
+   "subject": "subject2",
+   "fps": 15.0,
+   "desc": "Night,Full Shirt & Jeans,Falling backward (side view).",
+   "slow": true,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": true,
+   "net_0.9_resampled": false,
+   "net_0.95": true,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s2_fall_14",
+   "label": "fall",
+   "subject": "subject2",
+   "fps": 15.0,
+   "desc": "Night,Full Shirt & Jeans,Falling backward on the bed.",
+   "slow": true,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": true,
+   "net_0.9_resampled": false,
+   "net_0.95": true,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s2_fall_15",
+   "label": "fall",
+   "subject": "subject2",
+   "fps": 29.8,
+   "desc": "Day,\tT-Shirt & Pants 2,Writing while sitting on the bed; then falling on the ground.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s2_fall_16",
+   "label": "fall",
+   "subject": "subject2",
+   "fps": 29.9,
+   "desc": "Day,T-Shirt & Pants 2,Walking then falling forward.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s2_fall_17",
+   "label": "fall",
+   "subject": "subject2",
+   "fps": 29.9,
+   "desc": "Day,T-Shirt & Pants 2,Walking then falling forward.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s2_fall_18",
+   "label": "fall",
+   "subject": "subject2",
+   "fps": 29.9,
+   "desc": "Day,T-Shirt & Pants 2,Picking a water bottle from the ground and drinking water from it then falling forward on the ground.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s2_fall_19",
+   "label": "fall",
+   "subject": "subject2",
+   "fps": 29.8,
+   "desc": "Day,T-Shirt & Pants 2,Eating in standing position then falling forward.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s2_fall_20",
+   "label": "fall",
+   "subject": "subject2",
+   "fps": 29.8,
+   "desc": "Day,T-Shirt & Pants 2,Eating in standing position then falling forward.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s2_fall_21",
+   "label": "fall",
+   "subject": "subject2",
+   "fps": 29.8,
+   "desc": "Day,T-Shirt & Pants 2,Standing then falling sideways.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s2_fall_22",
+   "label": "fall",
+   "subject": "subject2",
+   "fps": 29.8,
+   "desc": "Day,T-Shirt & Pants 2,Walking then falling forward.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s2_fall_23",
+   "label": "fall",
+   "subject": "subject2",
+   "fps": 29.8,
+   "desc": "Day,T-Shirt & Pants 2,Standing then falling sideways.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s2_fall_24",
+   "label": "fall",
+   "subject": "subject2",
+   "fps": 29.8,
+   "desc": "Day\tT-Shirt & Pants 2,Standing from the bed and then falling sideways on the ground.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s2_fall_25",
+   "label": "fall",
+   "subject": "subject2",
+   "fps": 29.9,
+   "desc": "Day,T-Shirt & Pants 2,Standing then falling backward on the ground.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s2_adl_01",
+   "label": "adl",
+   "subject": "subject2",
+   "fps": 29.8,
+   "desc": "Day,Full Shirt & Pant,Talking on the mobile phone while sitting on the bed and walking.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s2_adl_02",
+   "label": "adl",
+   "subject": "subject2",
+   "fps": 29.8,
+   "desc": "Day,Full Shirt & Pant,Picking up a water bottle from the ground and drinking while sitting on the bed.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s2_adl_03",
+   "label": "adl",
+   "subject": "subject2",
+   "fps": 29.8,
+   "desc": "Day,Full Shirt & Pant,Walking; removing dust from the bed using a pillow; and sleeping on the bed.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s2_adl_04",
+   "label": "adl",
+   "subject": "subject2",
+   "fps": 29.8,
+   "desc": "Day,Full Shirt & Pant,Yoga: Standing forward bend (Uttanasana).",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s2_adl_05",
+   "label": "adl",
+   "subject": "subject2",
+   "fps": 29.9,
+   "desc": "Day,Full Shirt & Pant,Throwing a book on the bed; standing up from the ground; walking; and opening the curtain.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s2_adl_06",
+   "label": "adl",
+   "subject": "subject2",
+   "fps": 29.9,
+   "desc": "Day,Full Shirt & Pant,Picking up the mobile phone from the ground; placing it on the bed; and sitting on the bed.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": true,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s2_adl_07",
+   "label": "adl",
+   "subject": "subject2",
+   "fps": 29.9,
+   "desc": "Day,Full Shirt & Pant,Exercising (Moving both hands up and down).",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s2_adl_08",
+   "label": "adl",
+   "subject": "subject2",
+   "fps": 29.9,
+   "desc": "Day,Full Shirt & Pant,Exercising (Stretching thigh and trying to touch the ground:Pyramid Pose).",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s2_adl_09",
+   "label": "adl",
+   "subject": "subject2",
+   "fps": 29.8,
+   "desc": "Day,Full Shirt & Paint,Standing up from a sitting position on the bed and then sitting on the ground.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s2_adl_10",
+   "label": "adl",
+   "subject": "subject2",
+   "fps": 29.9,
+   "desc": "Day,Full Shirt & Paint,Standing up from the ground and closing the curtain.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s2_adl_11",
+   "label": "adl",
+   "subject": "subject2",
+   "fps": 29.8,
+   "desc": "Day,Full Shirt; T-shirt & Pant,Removing the shirt and hanging it on the hanger.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s2_adl_12",
+   "label": "adl",
+   "subject": "subject2",
+   "fps": 29.9,
+   "desc": "Day,T-shirt and Pant,Going to bed and sleeping (belly facing downwards).",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s2_adl_13",
+   "label": "adl",
+   "subject": "subject2",
+   "fps": 29.9,
+   "desc": "Day,T-shirt and Pant,Sitting on the ground and reading a book.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s2_adl_14",
+   "label": "adl",
+   "subject": "subject2",
+   "fps": 15.0,
+   "desc": "Night,Full Shirt & Jeans,Walking and reading something while sitting on the bed.",
+   "slow": true,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s2_adl_15",
+   "label": "adl",
+   "subject": "subject2",
+   "fps": 15.0,
+   "desc": "Night,Full Shirt & Jeans,Reading a newspaper while sitting on the bed and placing a pillow on the lap.",
+   "slow": true,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s2_adl_16",
+   "label": "adl",
+   "subject": "subject2",
+   "fps": 15.0,
+   "desc": "Night,Full Shirt & Jeans,Reading a newspaper, throwing the newspaper, and sleeping.",
+   "slow": true,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": false,
+   "net_0.9_resampled": true,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s2_adl_17",
+   "label": "adl",
+   "subject": "subject2",
+   "fps": 15.0,
+   "desc": "Night,Full Shirt & Jeans,Standing up from bed; walking; and checking the dress on the hanger.",
+   "slow": true,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s2_adl_18",
+   "label": "adl",
+   "subject": "subject2",
+   "fps": 15.0,
+   "desc": "Night,Full Shirt & Jeans,Walking; opening the window; and looking outside.",
+   "slow": true,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": true,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s2_adl_19",
+   "label": "adl",
+   "subject": "subject2",
+   "fps": 15.0,
+   "desc": "Night,Full Shirt & Jeans,Sitting on the ground and writing in a notebook.",
+   "slow": true,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s2_adl_20",
+   "label": "adl",
+   "subject": "subject2",
+   "fps": 15.0,
+   "desc": "Night,Full Shirt & Jeans,Standing up; picking up a water bottle; and drinking water while sitting on the ground.",
+   "slow": true,
+   "rule_default": false,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": false,
+   "net_0.95": true,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s2_adl_21",
+   "label": "adl",
+   "subject": "subject2",
+   "fps": 15.0,
+   "desc": "Night,Full Shirt & Jeans,Picking up a pen from the ground and walking.",
+   "slow": true,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": true,
+   "net_0.9_resampled": false,
+   "net_0.95": true,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s2_adl_22",
+   "label": "adl",
+   "subject": "subject2",
+   "fps": 15.0,
+   "desc": "Night,Full Shirt & Jeans,Exercising (Push-up) and sitting.",
+   "slow": true,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s2_adl_23",
+   "label": "adl",
+   "subject": "subject2",
+   "fps": 15.0,
+   "desc": "Night,Full Shirt & Jeans,Eating biscuits while sitting on the bed with legs folded.",
+   "slow": true,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_fall_01",
+   "label": "fall",
+   "subject": "subject3",
+   "fps": 29.9,
+   "desc": "Day,Full T-shirt & Trouser,falling forward.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": true,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_fall_02",
+   "label": "fall",
+   "subject": "subject3",
+   "fps": 29.9,
+   "desc": "Day,Full T-shirt & Trouser,Falling on the bed (forward).",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_fall_03",
+   "label": "fall",
+   "subject": "subject3",
+   "fps": 29.8,
+   "desc": "Day,Full T-shirt & Trouser,Falling backward on the floor.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_fall_04",
+   "label": "fall",
+   "subject": "subject3",
+   "fps": 29.9,
+   "desc": "Day,Full T-shirt & Trouser,Walking and then falling backward on the floor.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_fall_05",
+   "label": "fall",
+   "subject": "subject3",
+   "fps": 29.9,
+   "desc": "Day,Full T-shirt & Trouser,Falling slowly from standing position to the floor.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s3_fall_06",
+   "label": "fall",
+   "subject": "subject3",
+   "fps": 29.9,
+   "desc": "Day,Full T-shirt & Trouser,Falling (backward) on the floor from the sitting position.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_fall_07",
+   "label": "fall",
+   "subject": "subject3",
+   "fps": 29.8,
+   "desc": "Day,Full T-shirt & Trouser,Falling on the floor from the standing position.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s3_fall_08",
+   "label": "fall",
+   "subject": "subject3",
+   "fps": 29.4,
+   "desc": "Day,Full T-shirt & Trouser,Falling on the right side onto the floor from a standing position.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_fall_09",
+   "label": "fall",
+   "subject": "subject3",
+   "fps": 29.9,
+   "desc": "Day,Full T-shirt & Trouser,Reading the book while sitting on the ground; then falling backward.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s3_fall_10",
+   "label": "fall",
+   "subject": "subject3",
+   "fps": 29.9,
+   "desc": "Day,Full shirt & Trouser,Falling forward on the bed.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_fall_11",
+   "label": "fall",
+   "subject": "subject3",
+   "fps": 29.8,
+   "desc": "Day,Kurta & Trouser,Eating in standing position then falling forward.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s3_fall_12",
+   "label": "fall",
+   "subject": "subject3",
+   "fps": 29.8,
+   "desc": "Day,Full T-shirt & Trouser,Falling backward from the bed.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s3_fall_13",
+   "label": "fall",
+   "subject": "subject3",
+   "fps": 29.9,
+   "desc": "Day,Full T-shirt & Trouser,Writing something in a notebook while sitting position on the floor; then falling backward.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_fall_14",
+   "label": "fall",
+   "subject": "subject3",
+   "fps": 29.8,
+   "desc": "Day,Full T-shirt, Shirt  & Trouser,Falling backward on the floor while removing the shirt and trying to hang it on the hangar.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s3_fall_15",
+   "label": "fall",
+   "subject": "subject3",
+   "fps": 15.0,
+   "desc": "Night,Full T-shirt (different) & Trouser,Trying to drink water from the water bottle and then falling on the floor.",
+   "slow": true,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s3_fall_16",
+   "label": "fall",
+   "subject": "subject3",
+   "fps": 15.0,
+   "desc": "Night,Full T-shirt (different) & Trouser,Walking and then falling left side on the floor.",
+   "slow": true,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": true,
+   "net_0.9_resampled": false,
+   "net_0.95": true,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_fall_17",
+   "label": "fall",
+   "subject": "subject3",
+   "fps": 15.0,
+   "desc": "Night,Full T-shirt (different) & Trouser;Reading newspaper then falling Backward on the bed.",
+   "slow": true,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": true,
+   "net_0.9_resampled": false,
+   "net_0.95": true,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_fall_18",
+   "label": "fall",
+   "subject": "subject3",
+   "fps": 15.0,
+   "desc": "Night,Full T-shirt (different) & Trouser,Sitting on the bed; then falling on the floor.",
+   "slow": true,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": true,
+   "net_0.9_resampled": false,
+   "net_0.95": true,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_fall_19",
+   "label": "fall",
+   "subject": "subject3",
+   "fps": 15.1,
+   "desc": "Night,Full T-shirt (different) & Trouser,Falling on the floor from the standing position.",
+   "slow": true,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": false,
+   "net_0.95": true,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_fall_20",
+   "label": "fall",
+   "subject": "subject3",
+   "fps": 15.1,
+   "desc": "Night,Full T-shirt (different) & Trouser,Walking then falling forward on the floor.",
+   "slow": true,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s3_fall_21",
+   "label": "fall",
+   "subject": "subject3",
+   "fps": 29.9,
+   "desc": "Day,Kurta & Trouser,Drinking in standing position then falling sideways.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s3_adl_01",
+   "label": "adl",
+   "subject": "subject3",
+   "fps": 29.8,
+   "desc": "Day,Full T-shirt & Trouser,Writing something in the notebook while sitting on the bed.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_adl_02",
+   "label": "adl",
+   "subject": "subject3",
+   "fps": 29.9,
+   "desc": "Day,Full T-shirt & Trouser,Exercise (Hand up & down).",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_adl_03",
+   "label": "adl",
+   "subject": "subject3",
+   "fps": 29.8,
+   "desc": "Day,Full T-shirt & Trouser,Getting up from the sleeping position from the bed; Putting a mask on the face; walking.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_adl_04",
+   "label": "adl",
+   "subject": "subject3",
+   "fps": 29.9,
+   "desc": "Day,Full T-shirt & Trouser,Picking a book from the floor and putting it on the bed; sitting on the bed.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s3_adl_05",
+   "label": "adl",
+   "subject": "subject3",
+   "fps": 29.8,
+   "desc": "Day,Full T-shirt & Trouser,Exercising (hand down & up with body bending).",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_adl_06",
+   "label": "adl",
+   "subject": "subject3",
+   "fps": 29.8,
+   "desc": "Day,Full T-shirt & Trouser,Exercising then sitting down on the floor.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_adl_07",
+   "label": "adl",
+   "subject": "subject3",
+   "fps": 29.9,
+   "desc": "Day,Full T-shirt & Trouser,Exercising (sitting and standing).",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_adl_08",
+   "label": "adl",
+   "subject": "subject3",
+   "fps": 29.8,
+   "desc": "Day,Full T-shirt & Trouser,Sitting to sleeping on the floor.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_adl_09",
+   "label": "adl",
+   "subject": "subject3",
+   "fps": 29.8,
+   "desc": "Day,Full T-shirt & Trouser,Sleeping on the floor to sitting and then standing.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_adl_10",
+   "label": "adl",
+   "subject": "subject3",
+   "fps": 29.8,
+   "desc": "Day,Full shirt & Trouser,Opening the window curtain and the window.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_adl_11",
+   "label": "adl",
+   "subject": "subject3",
+   "fps": 29.9,
+   "desc": "Day,Full shirt & Trouser,Closing the window curtain and the window.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_adl_12",
+   "label": "adl",
+   "subject": "subject3",
+   "fps": 15.0,
+   "desc": "Night,Full T-shirt 2 & Trouser,Changing pages of a book while sitting on the bed; standing.",
+   "slow": true,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_adl_13",
+   "label": "adl",
+   "subject": "subject3",
+   "fps": 15.0,
+   "desc": "Night,Full T-shirt (different) & Trouser,Sitting on the floor.",
+   "slow": true,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_adl_14",
+   "label": "adl",
+   "subject": "subject3",
+   "fps": 15.0,
+   "desc": "Night,Full T-shirt (different) & Trouser,Sitting on the floor & drinking water from the water bottle.",
+   "slow": true,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_adl_15",
+   "label": "adl",
+   "subject": "subject3",
+   "fps": 15.0,
+   "desc": "Night,Full T-shirt (different) & Trouser,Reading newspaper while sitting on the floor.",
+   "slow": true,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_adl_16",
+   "label": "adl",
+   "subject": "subject3",
+   "fps": 29.8,
+   "desc": "Day,Kurta & Trouser,Eating while sitting on the ground.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_adl_17",
+   "label": "adl",
+   "subject": "subject3",
+   "fps": 15.0,
+   "desc": "Night,Full T-shirt (different) & Trouser,Drinking water from a water bottle while sitting on the bed Putting the water bottle on the bed.",
+   "slow": true,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_adl_18",
+   "label": "adl",
+   "subject": "subject3",
+   "fps": 15.0,
+   "desc": "Night,Full T-shirt (different) & Trouser,Walking; sitting on the bed and eating biscuits.",
+   "slow": true,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_adl_19",
+   "label": "adl",
+   "subject": "subject3",
+   "fps": 15.0,
+   "desc": "Night,Full T-shirt (different) & Trouser,Picking the pen from the floor and putting it on the bed.",
+   "slow": true,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_adl_20",
+   "label": "adl",
+   "subject": "subject3",
+   "fps": 15.0,
+   "desc": "Night,Full T-shirt (different) & Trouser,Talking on the phone while sitting on the bed.",
+   "slow": true,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_adl_21",
+   "label": "adl",
+   "subject": "subject3",
+   "fps": 29.8,
+   "desc": "Day,Kurta & Trouser,Drinking while sitting on the bed.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s3_adl_22",
+   "label": "adl",
+   "subject": "subject3",
+   "fps": 29.8,
+   "desc": "Day,Kurta & Trouser,Writing while sitting on the bed.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s4_fall_01",
+   "label": "fall",
+   "subject": "subject4",
+   "fps": 29.8,
+   "desc": "Day (Lights On),Full Shirt & Pant,Standing on the bed to falling (LS) on the bed.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s4_fall_02",
+   "label": "fall",
+   "subject": "subject4",
+   "fps": 29.9,
+   "desc": "Day (Lights On),Full Shirt & Pant,Falling (LS) from the bed to the floor.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s4_fall_03",
+   "label": "fall",
+   "subject": "subject4",
+   "fps": 29.8,
+   "desc": "Day (Lights Off),Full Shirt & Pant,Walking then falling (forward) view 1.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s4_fall_04",
+   "label": "fall",
+   "subject": "subject4",
+   "fps": 29.9,
+   "desc": "Day (Lights Off),Full Shirt & Pant,Walking then falling (forward) view 2.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s4_fall_05",
+   "label": "fall",
+   "subject": "subject4",
+   "fps": 29.8,
+   "desc": "Day (Lights Off),Full Shirt & Pant,Falling (RS) on the bed from sitting on the bed.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s4_fall_06",
+   "label": "fall",
+   "subject": "subject4",
+   "fps": 29.9,
+   "desc": "Day (Lights Off),Full Shirt & Pant,Falling (LS) on the bed from sitting on the bed then falling (RS) to the floor.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s4_fall_07",
+   "label": "fall",
+   "subject": "subject4",
+   "fps": 29.8,
+   "desc": "Day (Lights Off),Full Shirt & Pant,Walking then falling (LS) on the floor.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s4_fall_08",
+   "label": "fall",
+   "subject": "subject4",
+   "fps": 29.9,
+   "desc": "Day (Lights Off),Full Shirt & Pant,Falling backward on the bed from sitting on the bed.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s4_fall_09",
+   "label": "fall",
+   "subject": "subject4",
+   "fps": 29.8,
+   "desc": "Day (Lights On),Full Shirt & Pant,Falling backward on the bed from sitting on the bed.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s4_fall_10",
+   "label": "fall",
+   "subject": "subject4",
+   "fps": 29.9,
+   "desc": "Day (Lights On),Full Shirt & Pant,Reading a book while sitting on the chair then falling (FW) on the ground.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s4_fall_11",
+   "label": "fall",
+   "subject": "subject4",
+   "fps": 29.8,
+   "desc": "Day (Lights On),Full Shirt & Pant,Walking then falling (FW: only waist to toe is visible after falling).",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s4_fall_12",
+   "label": "fall",
+   "subject": "subject4",
+   "fps": 29.8,
+   "desc": "Day (Lights On),T-Shirt & Pant,Falling (FW)to the floor from sitting on the bed.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s4_fall_13",
+   "label": "fall",
+   "subject": "subject4",
+   "fps": 29.8,
+   "desc": "Day (Lights On),T-Shirt & Pant,Falling (sideways) on the bed from sitting on the bed.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s4_fall_14",
+   "label": "fall",
+   "subject": "subject4",
+   "fps": 29.9,
+   "desc": "Day (Lights On),T-Shirt & Pant,Falling (RS) on the bed from sitting on the bed then falling (LS) to the floor.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": true,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s4_fall_15",
+   "label": "fall",
+   "subject": "subject4",
+   "fps": 29.9,
+   "desc": "Day (Lights On),T-Shirt & Pant,Falling (FW) on the floor from sitting on the bed.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": true,
+   "net_0.95_resampled": true
+  },
+  {
+   "clip": "s4_fall_16",
+   "label": "fall",
+   "subject": "subject4",
+   "fps": 29.8,
+   "desc": "Day (Lights On),T-Shirt & Pant,Walking then falling (FW) on the floor.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s4_fall_17",
+   "label": "fall",
+   "subject": "subject4",
+   "fps": 29.9,
+   "desc": "Day (Lights On),T-Shirt & Pant,Falling (LS) on the bed from sitting on the bed.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s4_adl_01",
+   "label": "adl",
+   "subject": "subject4",
+   "fps": 29.8,
+   "desc": "Day (Lights Off),Full Shirt & Pant,Wiping the face with a handkerchief while sitting on the bed; cleaning the goggles and putting them on.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s4_adl_02",
+   "label": "adl",
+   "subject": "subject4",
+   "fps": 29.8,
+   "desc": "Day (Lights Off),Full Shirt & Pant,Talking on the mobile phone while walking.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s4_adl_03",
+   "label": "adl",
+   "subject": "subject4",
+   "fps": 29.8,
+   "desc": "Day (Lights Off),Full Shirt & Pant,Reading a book while sitting on the bed.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s4_adl_04",
+   "label": "adl",
+   "subject": "subject4",
+   "fps": 29.8,
+   "desc": "Day (Lights Off),Full Shirt & Pant,Using a laptop while sitting on the bed.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s4_adl_05",
+   "label": "adl",
+   "subject": "subject4",
+   "fps": 29.9,
+   "desc": "Day (Lights Off),Full Shirt & Pant,Doing exercise (push-up); view 1.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s4_adl_06",
+   "label": "adl",
+   "subject": "subject4",
+   "fps": 29.8,
+   "desc": "Day (Lights Off),Full Shirt & Pant,Doing exercise (push-up); view 2.",
+   "slow": false,
+   "rule_default": true,
+   "rule_1s": true,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s4_adl_07",
+   "label": "adl",
+   "subject": "subject4",
+   "fps": 29.8,
+   "desc": "Day (Lights Off),Full Shirt & Pant,Doing exercise (push-up); view 3.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": true,
+   "net_0.9_resampled": true,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s4_adl_08",
+   "label": "adl",
+   "subject": "subject4",
+   "fps": 29.8,
+   "desc": "Day (Lights Off),Full Shirt & Pant,Sleeping to sitting; putting on the goggles and drinking water.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s4_adl_09",
+   "label": "adl",
+   "subject": "subject4",
+   "fps": 29.8,
+   "desc": "Day (Lights Off),Full Shirt & Pant,Reading a book and checking the mobile phone while sitting on the bed.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s4_adl_10",
+   "label": "adl",
+   "subject": "subject4",
+   "fps": 29.8,
+   "desc": "Day (Lights Off),Full Shirt & Pant,Walking then sleeping on the bed after removing the goggles.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": true,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s4_adl_11",
+   "label": "adl",
+   "subject": "subject4",
+   "fps": 29.8,
+   "desc": "Day (Lights Off),Full Shirt & Pant,Copying content from a book into a notebook while sitting on the floor.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s4_adl_12",
+   "label": "adl",
+   "subject": "subject4",
+   "fps": 29.9,
+   "desc": "Day (Lights Off),Full Shirt & Pant,Stopping copying from a book and drinking water while sitting on the floor.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s4_adl_13",
+   "label": "adl",
+   "subject": "subject4",
+   "fps": 29.9,
+   "desc": "Day (Lights On),Full Shirt & Pant,Writing while sitting on the chair.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s4_adl_14",
+   "label": "adl",
+   "subject": "subject4",
+   "fps": 29.9,
+   "desc": "Day (Lights On),Full Shirt & Pant,Sitting in the chair to standing on the floor; then picking up the water bottle and drinking water from it.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s4_adl_15",
+   "label": "adl",
+   "subject": "subject4",
+   "fps": 29.8,
+   "desc": "Day (Lights On),Full Shirt & Pant,Sitting to sleeping on the bed.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s4_adl_16",
+   "label": "adl",
+   "subject": "subject4",
+   "fps": 29.8,
+   "desc": "Day (Lights On),Full Shirt & Pant,Sitting on the bed; removing the goggles; then sleeping.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s4_adl_17",
+   "label": "adl",
+   "subject": "subject4",
+   "fps": 29.9,
+   "desc": "Day (Lights On),Full Shirt & Pant,Picking up the book from the floor and putting it on the bed.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": true,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s4_adl_18",
+   "label": "adl",
+   "subject": "subject4",
+   "fps": 29.9,
+   "desc": "Day (Lights On),Full Shirt & Pant,Wiping the face with a handkerchief; putting on the goggles; then reading a book.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s4_adl_19",
+   "label": "adl",
+   "subject": "subject4",
+   "fps": 29.9,
+   "desc": "Day (Lights On),Full Shirt & Pant,Walking; then picking up the biscuit jar and eating biscuits from it after sitting on the bed.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  },
+  {
+   "clip": "s4_adl_20",
+   "label": "adl",
+   "subject": "subject4",
+   "fps": 29.8,
+   "desc": "Day (Lights On),Full Shirt & Pant,Eating biscuits then picking up the water bottle from the floor and drinking the water from it after sitting on the bed; keeping the bottle on the floor.",
+   "slow": false,
+   "rule_default": false,
+   "rule_1s": false,
+   "net_0.9": false,
+   "net_0.9_resampled": false,
+   "net_0.95": false,
+   "net_0.95_resampled": false
+  }
+ ]
+}

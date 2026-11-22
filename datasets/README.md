@@ -33,5 +33,15 @@ NTU https://rose1.ntu.edu.sg/dataset/actionRecognition/ · MOT17 https://motchal
 **Hệ quả quan trọng cho kế hoạch:** với dữ liệu xô xát, hai nguồn công khai lớn nhất hoặc không tải được (RWF-2000) hoặc không xin được (NTU RGB+D).
 Phần lớn dữ liệu xô xát/ngã có thể phải **tự quay** (có người đồng ý, đóng kịch an toàn) — đã nêu ở V2-4, nay là điều chắc chắn hơn là tùy chọn.
 
+## Cross-dataset evaluation (V2-9, 2026-11-22): licences READ before downloading
+
+| Bộ dữ liệu | Điều khoản đã đọc | Dùng để | Tải về |
+|---|---|---|---|
+| **GMDCSA-24** (Alam et al., Data in Brief 2024): 79 clip ngã + 81 sinh hoạt, 4 người, 3 phòng, 720p/480p, ~30 và 15 fps | **CC BY 4.0** (Zenodo, `access_right: open`) và MIT (GitHub, file LICENSE); chỉ cần ghi nguồn | đo ngã trên dữ liệu chưa từng thấy (`eval/crossset/fall_gmdcsa.py`) | Zenodo record 12921216 (v2.0, 1,1 GB) → `datasets/_downloads/gmdcsa24/` |
+| **AIRTLab** (Bianculli et al., Data in Brief 33, 2020): 350 clip 1080p 30 fps, 230 bạo lực + 120 không (ôm, đập tay chào...), 2 camera, 1 phòng, 2-4 diễn viên nghiệp dư | repo GitHub **không có file license**; README ghi "freely released for research and educational purposes", yêu cầu trích dẫn | đo luật xô xát (`eval/crossset/fight_airtlab.py`, `fight_sweep.py`); chỉ để đo, không phân phối lại | `git clone` repo `airtlab/A-Dataset-for-Automatic-Violence-Detection-in-Videos` → `datasets/_downloads/airtlab/repo/` |
+
+Chưa tải (chưa xác minh điều khoản): CAUCAFall (Mendeley, license trên trang từng phiên), Multicam (chỉ thấy bản lưu trữ của trang gốc), CCTV-Fights (NTU ROSE Lab, phải đăng ký, điều khoản chưa đọc; cùng nhóm đã từ chối dự án cá nhân với NTU RGB+D).
+Dump của engine cho các bộ này nằm ở `eval/work/crossset/` (không commit). Mọi con số công bố phải trích dẫn hai bài báo trên.
+
 Quy tắc chung: ghi nguồn + license mỗi khi thêm bộ dữ liệu; không đưa dữ liệu (kể cả một vài khung hình) vào repo hoặc trang demo; trích dẫn đúng bài báo
 trong README khi công bố số liệu.

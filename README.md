@@ -28,18 +28,32 @@ you trust a number.
 
 **A number that moved.** UR Fall is 4:3 and the engine used to stretch every non-16:9 picture to fill a 16:9 frame, which made people 1.33 times too wide and tilted every body angle. I fixed that (the picture now keeps its shape, with black bars) and re-measured. With the old stretch the network scored 29.3 of 30 falls and the rules 20 of 30 (with 11 of 40 false alarms); with correct geometry 27.3 and 14 (6 of 40). The numbers above are the new ones; the old ones are kept in `eval/results/` from 2026-11-19. The cameras this is meant for are 16:9, where nothing changed.
 
+**Tested on recordings it was not built on.** UR Fall is where the network was trained and the rules tuned, so those numbers are the best case. I ran the same system, with nothing retuned, on [GMDCSA-24](https://zenodo.org/records/12921216) (4 actors, 3 home setups, 720p and 480p, 160 clips) and on [AIRTLab](https://github.com/airtlab/A-Dataset-for-Automatic-Violence-Detection-in-Videos) (350 clips of acted fights and look-alikes). These are clip-level counts (did the detector raise an alert anywhere in the clip), with 95% confidence intervals; the dataset papers are cited at the end of this section.
+
+| | UR Fall (built and tuned here, cross-validated) | GMDCSA-24 (never seen) |
+|---|---|---|
+| network (ST-GCN), falls caught | 27.3 of 30 (91%) | **59 of 79 (75%**, CI 64-83%) |
+| network, false alarms in daily-activity clips | 0.7 of 40 (2%) | **11 of 81 (14%**, CI 8-23%) |
+| rules (tuned on UR Fall), falls caught | 14 of 30 (47%) | 47 of 79 (59%, CI 48-70%) |
+| rules, false alarms | 6 of 40 (15%) | 8 of 81 (10%, CI 5-18%) |
+
+On new people and rooms the network keeps most of its recall but loses most of its precision: the false-alarm rate goes from 2% to 14%, mostly lying down on a bed or sofa on purpose (the dataset's daily-activity clips are full of it). 29 of the 160 clips are 15 fps night recordings (the network learned 30 fps windows; I could not tell the effect of the frame rate from the effect of the poor light, see `ROADMAP_V2_NHAT_KY.md`). The two datasets are counted differently (UR Fall: an alert in the fall's time window; GMDCSA-24: an alert anywhere in the clip), so the columns are a trend, not a like-for-like comparison.
+
+**Fights: the rule does not work.** On AIRTLab it reports **202 of 230 (88%)** violent clips and also **111 of 120 (92%)** clips of hugs, high fives, greetings and hand gestures made to look like fights. I then tried 30 pairs of thresholds: no pair separates them (the best one, chosen on half of the clips, reports 39% of violent and 18% of non-violent clips on the other half). "A hand moves fast inside another person's box" is true of a hug as much as of a punch. Fight detection needs a different signal or a learned model; the current rule is not a result.
+
+Data: Alam et al., *GMDCSA24: A dataset for human fall detection in videos*, Data in Brief, 2024 (CC BY 4.0); Bianculli et al., *A dataset for automatic violence detection in videos*, Data in Brief 33, 2020, doi:10.1016/j.dib.2020.106587 ("freely released for research and educational purposes"). The clips are not in this repository.
+
 One-hour soak, 4 cameras, everything switched on: 29.8 fps on the slowest camera, 0 restarts, 0 errors, GPU memory flat;
 the engine's RAM grew 936 → 1089 MiB, slowing down but not flat, so **a slow leak is neither shown nor ruled out**
 (`ROADMAP_V2_NHAT_KY.md`, section 11.8).
 
 ## Limitations (what this is not)
 
-- **Small, borrowed data.** The only fall data is the public UR Fall dataset (one room, one camera view, volunteers acting
-  falls). The thresholds and the network were tuned there. Until it is tested on my own footage in other rooms, M1 and M2 say
-  little about a real home.
-- **Fights are not shown to work.** The fight rule exists and passes its unit tests, but there is no real fight footage (public
-  datasets were unusable: not downloadable, or licensed against this use), and no fight model. Treat it as a designed feature,
-  not a result.
+- **Small, borrowed, acted data.** The network was trained and the rules tuned on UR Fall (one room, one camera view, volunteers
+  acting falls); the check on GMDCSA-24 (4 actors, 3 setups) is also acted. Nobody fell for real at home. Until it is tested on my
+  own footage, M1 and M2 say little about a real home.
+- **Fights do not work yet.** The fight rule passes its unit tests but, on acted fights (AIRTLab), it cannot tell a fight from a hug
+  (88% of violent clips reported, 92% of non-violent ones too). There is no fight model. Treat fight detection as unfinished.
 - **Pose misses small and hidden people.** The skeleton detector found far fewer people 100-200 px tall (recall 0.02, against
   0.27 for a plain person detector at the same threshold). A camera that sees people small, or half behind furniture, will miss
   falls.

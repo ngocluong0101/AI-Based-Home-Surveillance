@@ -1,0 +1,134 @@
+{
+ "dataset": "AIRTLab (Bianculli et al. 2020)",
+ "clips": 350,
+ "config": {
+  "fall": true,
+  "fight": true,
+  "zones": false,
+  "vis_min": 0.5,
+  "forget_s": 5.0,
+  "fall_down_deg": 60.0,
+  "fall_up_deg": 40.0,
+  "fall_drop_window_s": 1.5,
+  "fall_hip_drop_min": 0.5,
+  "fall_still_s": 2.0,
+  "fall_settle_s": 1.0,
+  "fall_hip_window_s": 0.8,
+  "fall_move_max": 1.0,
+  "fall_lying_aspect": 0.9,
+  "fall_stand_back_s": 0.5,
+  "fall_lost_s": 1.0,
+  "fall_cooldown_s": 10.0,
+  "fall_min_torso_px": 20.0,
+  "fall_net": 0,
+  "fall_net_thr": 0.9,
+  "fall_net_k": 3,
+  "fight_speed": 3.0,
+  "fight_decay_s": 2.0,
+  "fight_threshold_s": 0.4,
+  "fight_rearm": 0.1,
+  "fight_cooldown_s": 10.0,
+  "fight_max_dt_s": 0.5,
+  "zone_dwell_s": 3.0,
+  "zone_exit_s": 1.0,
+  "zone_rearm_s": 10.0
+ },
+ "overrides": {},
+ "both cameras": {
+  "violent_reported": 202,
+  "violent": 230,
+  "nonviolent_reported": 111,
+  "nonviolent": 120
+ },
+ "cam1 (phone, front)": {
+  "violent_reported": 105,
+  "violent": 115,
+  "nonviolent_reported": 55,
+  "nonviolent": 60
+ },
+ "cam2 (fisheye action camera)": {
+  "violent_reported": 97,
+  "violent": 115,
+  "nonviolent_reported": 56,
+  "nonviolent": 60
+ },
+ "violent_with_under_10_frames_of_two_people": 0,
+ "per_action": {
+  "non-violent/greet": [
+   64,
+   66
+  ],
+  "non-violent/hug": [
+   32,
+   32
+  ],
+  "non-violent/handgestures": [
+   23,
+   30
+  ],
+  "non-violent/jump": [
+   18,
+   18
+  ],
+  "non-violent/highfive": [
+   12,
+   12
+  ],
+  "non-violent/walk": [
+   4,
+   4
+  ],
+  "non-violent/friendly punch": [
+   2,
+   2
+  ],
+  "non-violent/handshake": [
+   2,
+   2
+  ],
+  "violent/fight": [
+   92,
+   92
+  ],
+  "violent/club": [
+   61,
+   72
+  ],
+  "violent/punch": [
+   40,
+   46
+  ],
+  "violent/push": [
+   44,
+   44
+  ],
+  "violent/kick": [
+   40,
+   42
+  ],
+  "violent/slap": [
+   33,
+   36
+  ],
+  "violent/stab": [
+   27,
+   30
+  ],
+  "violent/gunshot": [
+   24,
+   28
+  ],
+  "violent/choke": [
+   25,
+   26
+  ],
+  "violent/walk": [
+   1,
+   2
+  ],
+  "violent/jump": [
+   2,
+   2
+  ]
+ }
+}

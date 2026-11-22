@@ -92,6 +92,19 @@ nice -n 10 eval/.venv/bin/python eval/e2e/latency.py --clips fall-01,fall-02,fal
 ```
 Ngoài ra kiểm tra `docker ps -a | grep m4-` sau khi chạy (container `m4-latency-pg`, `m4-rtsp-*`, `m4-engine-*` phải tự mất; nếu một lần chạy bị ngắt giữa chừng thì `docker rm -f` chúng).
 
+## V2-9 — đo trên dữ liệu công khai chưa từng thấy (GMDCSA-24, AIRTLab)
+
+Điều khoản từng bộ: `datasets/README.md`. Dữ liệu tải vào `datasets/_downloads/<tên>/` (không commit). Engine chạy bốn clip một lần rồi tách dump:
+```bash
+python eval/tools/make_pgie_config.py --base pgie_yolov8n_pose.txt --batch 4 --out eval/work/pgie_pose_b4.txt      # một lần
+eval/.venv/bin/python eval/crossset/make_dumps.py --set gmdcsa24      # 160 clip, ~3 phút
+eval/.venv/bin/python eval/crossset/make_dumps.py --set airtlab       # 350 clip, ~7 phút
+eval/.venv/bin/python eval/crossset/fall_gmdcsa.py --write eval/results/<ngày>_v2-9_fall_gmdcsa24.json   # luật + ST-GCN, không chỉnh gì
+eval/.venv/bin/python eval/crossset/fight_airtlab.py --write eval/results/<ngày>_v2-9_fight_airtlab.json  # luật xô xát mặc định
+eval/.venv/bin/python eval/crossset/fight_sweep.py --write eval/results/<ngày>_v2-9_fight_sweep.json      # quét ngưỡng, chọn trên clip lẻ, thử trên clip chẵn
+```
+Mức **clip** (không có thời điểm trong nhãn của hai bộ). Mô hình `eval/work/train/stgcn_T48.pt` chỉ học UR Fall.
+
 ## V2-5 — ST-GCN: dữ liệu → train → ONNX → TensorRT C++
 
 ```bash
