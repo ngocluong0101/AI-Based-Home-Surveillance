@@ -37,6 +37,17 @@ you trust a number.
 | rules (tuned on UR Fall), falls caught | 14 of 30 (47%) | 47 of 79 (59%, CI 48-70%) |
 | rules, false alarms | 6 of 40 (15%) | 8 of 81 (10%, CI 5-18%) |
 
+Training on both datasets helps with the false alarms. I trained one network on UR Fall and GMDCSA-24 together (GMDCSA-24 only says "this clip has a fall", not when, so the training picks the most fall-like moment in each fall clip, a multiple-instance setup) and tested it leaving one actor out at a time, with a UR Fall-only network trained the same way as the control (2 seeds each, clip level):
+
+| | UR Fall network | UR Fall + GMDCSA-24 network |
+|---|---|---|
+| GMDCSA-24, a new actor, alert threshold 0.9: falls caught / false alarms | 73% / 14% (11 of 81 clips) | **73% / 6%** (5 of 81) |
+| the same at threshold 0.95 | 67% / 7% | 68% / 4% |
+| UR Fall (cross-validation), threshold 0.9: falls caught / false alarms | 90% / 1% | 97% / 7.5% |
+| the same at threshold 0.95 | 85% / 1% | 93% / 2.5% |
+
+So the second dataset cut the false alarms on new actors about in half (consistent in both seeds, but 11 versus 5 clips of 81 is a small difference) without losing recall, and at threshold 0.95 UR Fall does not get worse. It is not a test on a new room: the 4 actors of GMDCSA-24 share 3 setups, so the held-out actor was filmed in rooms the network had seen. The network the repository uses by default is still the UR Fall one.
+
 On new people and rooms the network keeps most of its recall but loses most of its precision: the false-alarm rate goes from 2% to 14%, mostly lying down on a bed or sofa on purpose (the dataset's daily-activity clips are full of it). 29 of the 160 clips are 15 fps night recordings (the network learned 30 fps windows; I could not tell the effect of the frame rate from the effect of the poor light, see `ROADMAP_V2_NHAT_KY.md`). The two datasets are counted differently (UR Fall: an alert in the fall's time window; GMDCSA-24: an alert anywhere in the clip), so the columns are a trend, not a like-for-like comparison.
 
 **Fights: the rule does not work.** On AIRTLab it reports **202 of 230 (88%)** violent clips and also **111 of 120 (92%)** clips of hugs, high fives, greetings and hand gestures made to look like fights. I then tried 30 pairs of thresholds: no pair separates them (the best one, chosen on half of the clips, reports 39% of violent and 18% of non-violent clips on the other half). "A hand moves fast inside another person's box" is true of a hug as much as of a punch. Fight detection needs a different signal or a learned model; the current rule is not a result.

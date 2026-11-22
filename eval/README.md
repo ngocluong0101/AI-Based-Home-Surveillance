@@ -104,6 +104,11 @@ eval/.venv/bin/python eval/crossset/fight_airtlab.py --write eval/results/<ngày
 eval/.venv/bin/python eval/crossset/fight_sweep.py --write eval/results/<ngày>_v2-9_fight_sweep.json      # quét ngưỡng, chọn trên clip lẻ, thử trên clip chẵn
 ```
 Mức **clip** (không có thời điểm trong nhãn của hai bộ). Mô hình `eval/work/train/stgcn_T48.pt` chỉ học UR Fall.
+Huấn luyện trên cả hai bộ (MIL vì GMDCSA-24 chỉ có nhãn cả clip) và kiểm bằng "bỏ một người ra làm test" + UR Fall CV, có đối chứng chạy cùng quy trình (~45 phút):
+```bash
+eval/.venv/bin/python eval/crossset/train_mixed.py --write eval/results/<ngày>_v2-9_fall_mixed_training.json --final eval/work/train/stgcn_T48_mixed.pt
+eval/.venv/bin/python eval/train/export_onnx.py eval/work/train/stgcn_T48_mixed.pt --out engine/models/stgcn_fall_mixed.onnx
+```
 
 ## V2-5 — ST-GCN: dữ liệu → train → ONNX → TensorRT C++
 
