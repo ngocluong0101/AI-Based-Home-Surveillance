@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { useEffect, useRef, type RefObject } from "react";
 
 const FOCUSABLE =
@@ -21,9 +25,8 @@ export function trapTarget<T>(items: T[], current: T | null, shift: boolean): T 
 }
 
 /**
- * What a modal (drawer or dialog) owes the keyboard while it is open: focus goes into it, Tab and Shift+Tab stay
- * inside it, Escape closes it, and when it closes the focus returns to what had it before (the button that
- * opened it). Without this a keyboard user tabs on into the page behind the backdrop.
+ * What a modal (drawer or dialog) owes the keyboard while open: focus goes into it, Tab and Shift+Tab stay inside, Escape closes it,
+ * and on close the focus returns to the button that opened it.
  */
 export function useModal(open: boolean, ref: RefObject<HTMLElement | null>, onEscape: () => void): void {
   // The newest callback without re-running the effect: callers pass a new function on every render, and running it

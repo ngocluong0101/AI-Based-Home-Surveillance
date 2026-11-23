@@ -1,17 +1,16 @@
 /*
- * nvdsinfer_yolov8_pose_parser.cpp - parser for the YOLOv8-pose ONNX (engine/tools/export_yolov8_pose_onnx.py),
- * loaded by nvinfer with
- *     network-type=3, output-instance-mask=1, cluster-mode=4,
- *     parse-bbox-instance-mask-func-name=NvDsInferParseYoloV8Pose, custom-lib-path=libnvds_yolov8_parser.so
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
+ * nvdsinfer_yolov8_pose_parser.cpp - parser for the YOLOv8-pose ONNX (engine/tools/export_yolov8_pose_onnx.py), loaded by nvinfer with
+ * network-type=3, output-instance-mask=1, cluster-mode=4, parse-bbox-instance-mask-func-name=NvDsInferParseYoloV8Pose,
+ * custom-lib-path=libnvds_yolov8_parser.so
  *
- * Why the "instance mask" interface: it is the one place where nvinfer lets a parser hand a per-object array of
- * floats to the metadata (NvDsObjectMeta.mask_params). The pose has no mask; the 17 keypoints travel in that
- * array instead: 17 x (x_rel, y_rel, visibility), relative to the box (see yolov8_pose_decode.h). The decoding is
- * in that header; this file only adapts it to the nvinfer types. NMS is done here (cluster-mode 4 = none is the
- * only mode nvinfer accepts for instance masks).
- *
- * nvinfer frees the array with delete[], so it is allocated with new[]. The NMS IoU is 0.45 like the detector
- * config; the environment variable DS_POSE_NMS_IOU (0.05-1.0) changes it for an experiment.
+ * The "instance mask" interface is the one place where nvinfer lets a parser attach a per-object float array
+ * (NvDsObjectMeta.mask_params), so the 17 keypoints travel there as (x_rel, y_rel, visibility) relative to the box. The decoding
+ * is in yolov8_pose_decode.h. NMS is done here (nvinfer accepts only cluster-mode 4 for instance masks). nvinfer frees the array
+ * with delete[], so it is allocated with new[]. NMS IoU is 0.45; DS_POSE_NMS_IOU (0.05-1.0) changes it for an experiment.
  */
 #include <cstdlib>
 #include <cstring>

@@ -1,4 +1,7 @@
-"""Lock the test split: write eval/labels/test.lock with a hash of every test label file. `run_eval.py --final` refuses to run if the
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Lock the test split: write eval/labels/test.lock with a hash of every test label file. `run_eval.py --final` refuses to run if the
 test labels changed since (or if there is no lock), so a threshold cannot be tuned on the test set by accident or by "fixing a label".
 
     eval/.venv/bin/python eval/e2e/lock_test.py            # after the last test label is written and you stopped tuning

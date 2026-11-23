@@ -1,4 +1,8 @@
-"""The Settings page: GET/PATCH /api/settings, the alert rules, the snapshot retention, what a new camera starts with."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+The Settings page: GET/PATCH /api/settings, the alert rules, the snapshot retention, what a new camera starts with.
+"""
 
 import os
 import time

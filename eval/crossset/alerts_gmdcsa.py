@@ -1,10 +1,10 @@
-"""The ALERTS (with their times) that the detectors raise on GMDCSA-24, for the VLM check of eval/crossset/vlm_gmdcsa.py.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-Three sources, each one an alert list per clip:
-  rule      the hand-written rules, fall_still_s 1.0 (the value tuned on UR Fall)
-  net_ur    the network trained on UR Fall only (eval/work/train/ur_only_models/stgcn_T48_ur_only.pt), threshold 0.9, 3 scores in a row: a network that has not seen GMDCSA-24
-  net_loso  the network that is now in use (UR Fall + GMDCSA-24), threshold 0.95, retrained leaving one actor out at a time and asked about the actor it did not see:
-            its alerts are alerts of a network that has not seen that actor (same protocol as train_mixed.py E1, one seed)
+The ALERTS (with times) that the detectors raise on GMDCSA-24, for the VLM check of eval/crossset/vlm_gmdcsa.py. One alert list per clip, from:
+  rule      the hand-written rules, fall_still_s 1.0 (tuned on UR Fall)
+  net_ur    the network trained on UR Fall only (eval/work/train/ur_only_models/stgcn_T48_ur_only.pt), threshold 0.9, 3 scores in a row
+  net_loso  the network now in use (UR Fall + GMDCSA-24), threshold 0.95, retrained leaving one actor out and asked about that actor
 
 Output: eval/work/crossset/gmdcsa_alerts.json {"fps": {clip: fps}, "frames": {clip: n}, "alerts": {source: {clip: [end frame, ...]}}}.
 

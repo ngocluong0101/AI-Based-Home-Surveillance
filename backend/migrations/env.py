@@ -1,4 +1,8 @@
-"""Alembic environment. The URL is taken from config.attributes["url"] (tests), else DATABASE_URL."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Alembic environment. The URL is taken from config.attributes["url"] (tests), else DATABASE_URL.
+"""
 
 from __future__ import annotations
 

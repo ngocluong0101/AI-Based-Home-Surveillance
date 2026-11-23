@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 #include "test_util.h"
 #include "vram.h"
 

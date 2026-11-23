@@ -1,11 +1,11 @@
-"""The pictures the VLM is shown for an event (V2-6): a few frames from just before to just after it.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-The engine keeps a ring of recent frames per camera (`--frame-ring-dir`, files `ring_cam<id>_<epoch ms>.jpg`, a few per second, the oldest
-removed after ~15 s). Here the ones around the event are picked: from `occurred_at - before` to `timestamp + after`, `n` of them spread evenly.
-The `after` matters: a skeleton-network alert comes DURING the fall, and a VLM that sees only the first half of it says "nobody fell" (12 of 30 real
-falls lost at threshold 0.5 with 0.5 s after, none with 2 s: eval/vlm, ROADMAP_V2_NHAT_KY 10.3). So the verifier waits `after` seconds.
-Without a ring (not configured, or the engine did not write one) the event's own snapshot is the only frame; the VLM can still look at
-it, but cannot tell a fall from lying down on purpose as well as with a few frames.
+The frames the VLM is shown for an event (V2-6): `n` frames spread evenly from `occurred_at - before` to `timestamp + after`.
+
+The engine keeps a ring of recent JPEGs per camera (`--frame-ring-dir`, `ring_cam<id>_<epoch ms>.jpg`, oldest removed after ~15 s).
+`after` matters: a skeleton-network alert comes DURING the fall, and with only 0.5 s after it the VLM missed 12 of 30 real falls
+(none with 2 s; eval/vlm). Without a ring, the event's own snapshot is the only frame.
 """
 
 from __future__ import annotations

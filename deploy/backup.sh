@@ -1,10 +1,10 @@
 #!/bin/sh
-# Periodic backup of the surveillance database (service "backup" of deploy/compose.yml).
-#
-# Every BACKUP_INTERVAL_SECONDS it writes $BACKUP_DIR/surveillance-<UTC time>.dump (pg_dump custom format,
-# restore it with pg_restore) and keeps the newest BACKUP_KEEP files. A dump is written under a temporary
-# name, checked by reading its table of contents back, and only then renamed, so a half-written or broken
-# file never takes the place of a good one. The connection comes from the PG* environment variables.
+# @author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+# Periodic backup of the surveillance database (service "backup" of deploy/compose.yml). Every BACKUP_INTERVAL_SECONDS it writes
+# $BACKUP_DIR/surveillance-<UTC time>.dump (pg_dump custom format, restore with pg_restore) and keeps the newest BACKUP_KEEP files.
+# A dump is written under a temporary name, checked by reading its table of contents, and only then renamed, so a broken file never
+# replaces a good one. The connection comes from the PG* environment variables.
 set -eu
 
 dir=${BACKUP_DIR:-/backups}

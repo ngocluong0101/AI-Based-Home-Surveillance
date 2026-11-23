@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 // The made-up world of the demo: rooms, and people who walk through them. Everything is a function of (camera, time), so the
 // live picture, the "people now" count and the snapshots of past events all agree, and nothing has to be stored.
 

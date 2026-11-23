@@ -1,8 +1,10 @@
 /*
- * config.h - the command line (--camera, --cameras-file, --config, ...) and the cameras file.
- *
- * The options are plain globals: they are filled in once, by config_load(), before any thread exists, and
- * only read afterwards (the one exception, the trailing slash of --stream-url, is cut inside config_load()).
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
+ * config.h - the command line and the cameras file. The options are globals filled once by config_load() before any thread
+ * exists, and only read afterwards.
  */
 #ifndef DS_CONFIG_H
 #define DS_CONFIG_H
@@ -45,9 +47,8 @@ extern gboolean fall_model_ready;
 extern GHashTable *file_settings;
 
 /*
- * Parse the command line, check every option, read --cameras-file, and put the "ID=URI" specs into `specs`
- * (--camera ones first, then the file's). Returns FALSE after printing why; the caller exits with
- * EXIT_BAD_ARGS and frees `specs`.
+ * Parse and check the command line, read --cameras-file, and put the "ID=URI" specs into `specs` (--camera first, then the
+ * file's). Returns FALSE after printing why; the caller exits with EXIT_BAD_ARGS and frees `specs`.
  */
 gboolean config_load(int *argc, char ***argv, GPtrArray *specs);
 

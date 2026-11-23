@@ -1,10 +1,9 @@
-"""Keeps the engine manager's camera list equal to what the database says should run.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-The database is the truth: a camera runs when it is enabled, not deleted and its desired_state is
-'running'. A background thread compares that list (as a revision hash) with the revision the manager
-reports and pushes the list when they differ. This also repairs everything by itself: a manager that
-was down when a camera was started, or that was restarted and forgot its list, gets the list on the
-next round, so the API calls never have to wait for the manager.
+Keeps the engine manager's camera list equal to what the database says should run (enabled, not deleted, desired_state
+'running'). A background thread compares a revision hash with the manager's and pushes the list when they differ, which also
+repairs a manager that was down or restarted, so the API calls never wait for the manager.
 """
 
 from __future__ import annotations

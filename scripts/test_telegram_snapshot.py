@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""Test script: save a dummy snapshot and attempt to send Telegram notification.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-Run locally to reproduce snapshot/save/send issues and view logs.
+Save a dummy snapshot and try to send it through Telegram, to debug snapshot/send problems.
 """
 from __future__ import annotations
 

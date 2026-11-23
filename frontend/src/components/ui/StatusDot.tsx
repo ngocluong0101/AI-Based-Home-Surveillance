@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import type { Tone } from "../../utils/health";
 
 /** A coloured dot; `pulse` adds the ring that says "this is live". */

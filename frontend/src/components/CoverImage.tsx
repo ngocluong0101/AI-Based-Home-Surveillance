@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { ImageOff } from "lucide-react";
 import { useState } from "react";
 

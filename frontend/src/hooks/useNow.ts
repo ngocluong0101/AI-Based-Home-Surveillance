@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { useEffect, useState } from "react";
 
 /** Date.now(), refreshed every `ms`: keeps "5 min ago" labels moving. */

@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { describe, expect, it } from "vitest";
 import { eventsQuery } from "./api";
 import { VERIFICATION_FILTERS, verificationNote } from "./utils/eventType";

@@ -1,19 +1,18 @@
-"""Telegram alerts, sent from a background thread (ROADMAP 3.8).
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-`POST /internal/events` only stores the event (notify_status 'pending') and wakes this thread, so a slow
-or dead Telegram never delays the engine's delivery. The thread sends the pending events oldest first
-and records the outcome in `notify_status`:
+Telegram alerts, sent from a background thread (ROADMAP 3.8).
+
+`POST /internal/events` only stores the event (notify_status 'pending') and wakes this thread, so a slow Telegram never delays
+the engine. Pending events are sent oldest first and `notify_status` records the outcome:
 
   sent      Telegram accepted it
-  skipped   held back on purpose: alerts are switched off, or the event arrived in the quiet hours (Settings page),
-            or the VLM rejected it and VLM_SUPPRESS is on (off by default: a doubted alert is sent with a note);
-            the event is stored and shown as usual, only the message is not sent
-  disabled  Telegram is not configured (ENABLE_TELEGRAM, token, chat id)
-  failed    it stayed undeliverable for longer than `max_age` seconds; an alert that late is noise
+  skipped   held back on purpose: alerts off, quiet hours, or the VLM rejected it and VLM_SUPPRESS is on
+  disabled  Telegram is not configured
+  failed    undeliverable for longer than `max_age` seconds (an alert that late is noise)
 
-While Telegram fails, the event stays 'pending' and is tried again with a growing pause (1 s doubling to
-60 s), one event at a time, so a down service is not hammered. Nothing here can lose or change the event
-itself.
+While Telegram fails the event stays 'pending' and is retried with a growing pause (1 s doubling to 60 s). The event itself is
+never lost or changed.
 """
 
 from __future__ import annotations

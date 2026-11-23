@@ -1,4 +1,7 @@
-"""PyTorch -> ONNX for the engine (V2-5.4), with a check that the two agree.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+PyTorch -> ONNX for the engine (V2-5.4), with a check that the two agree.
 
     eval/.venv/bin/python eval/train/export_onnx.py eval/work/train/stgcn_T48.pt --out engine/models/stgcn_fall.onnx
 

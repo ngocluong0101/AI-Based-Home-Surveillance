@@ -1,18 +1,19 @@
-"""V2-1: why does the engine find fewer people than Ultralytics? Same network, same decoded frames, different pipelines.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-For each MOT17 sequence (video made by eval/tools/encode_h264.sh, engine run with --dump-detections):
-  engine          the dump of ds_engine (stage "det": what nvinfer reports, threshold 0.25, NMS IoU 0.45)
-  ultra_default   Ultralytics PyTorch with its default NMS IoU 0.7
+V2-1: why does the engine find fewer people than Ultralytics? Same network, same decoded frames, different pipelines.
+
+For each MOT17 sequence (video from eval/tools/encode_h264.sh, engine run with --dump-detections):
+  engine          the dump of ds_engine (stage "det", threshold 0.25, NMS IoU 0.45)
+  ultra_default   Ultralytics with its default NMS IoU 0.7
   ultra_iou045    Ultralytics with the engine's NMS IoU 0.45
-  ort_nearest     Python replica of the engine (nearest-neighbour resize, zero padding), ONNX Runtime FP32
+  ort_nearest     Python replica of the engine (nearest resize, zero padding), ONNX Runtime FP32
   ort_linear      the same with bilinear resize
-  ort_rect114_iou045 / _iou07   replica with Ultralytics' preprocessing (rectangular 640x384 letterbox, pad 114, bilinear)
-                  and NMS IoU 0.45 / 0.7: separates "how the picture is prepared" from "how the boxes are chosen"
-  engine_<tag>    another run of the engine, e.g. engine_rect384 (input 640x384 instead of 640x640), from its dump
-  ultra_1280      Ultralytics at 1280 input (NMS IoU 0.45): how much does a larger network input help small people?
-It prints, per pipeline: detections, recall/precision against the MOT ground truth, recall by pedestrian height,
-and the agreement with the engine (common / only in the pipeline / only in the engine, with the share of those
-that sit just above the threshold, i.e. boxes that could flip with a tiny numeric difference).
+  ort_rect114_iou045 / _iou07   replica with Ultralytics' preprocessing (rectangular 640x384 letterbox, pad 114, bilinear) and NMS 0.45 / 0.7
+  engine_<tag>    another engine run, e.g. engine_rect384 (input 640x384)
+  ultra_1280      Ultralytics at 1280 input: does a larger input help small people?
+Per pipeline it prints detections, recall/precision against the MOT ground truth, recall by pedestrian height, and agreement with the
+engine (common / only in the pipeline / only in the engine, with the share just above the threshold, i.e. boxes that could flip).
 
     python eval/detection/compare_pipelines.py --seqs 02 04 09
 """

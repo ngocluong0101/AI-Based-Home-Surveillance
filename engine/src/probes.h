@@ -1,4 +1,8 @@
 /*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
  * probes.h - the pad probes: they run on GStreamer streaming threads and must return fast (no network, no
  * heavy disk work); they only copy values out of the DeepStream metadata and hand them on.
  */

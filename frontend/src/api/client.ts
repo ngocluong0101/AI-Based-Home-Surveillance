@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { DEMO } from "../demo/flag";
 
 export class ApiError extends Error {

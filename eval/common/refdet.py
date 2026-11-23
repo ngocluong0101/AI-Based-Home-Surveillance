@@ -1,4 +1,7 @@
-"""Reference detectors for V2-1: the same network run outside the engine, on the frames of a video.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Reference detectors for V2-1: the same network run outside the engine, on the frames of a video.
 
 All functions return one (boxes xywh, scores) pair per frame, in pixels of the video frame, and read the video
 one frame at a time (a 1080p video does not fit in memory).

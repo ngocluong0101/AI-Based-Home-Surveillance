@@ -1,12 +1,15 @@
-"""V2-1: AP of the person detector, same network, different pipelines, on the same 1000 COCO val2017 images.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-Pipelines (all see the SAME decoded pixels, except the first one):
+V2-1: AP of the person detector, same network, different pipelines, on the same 1000 COCO val2017 images.
+
+Pipelines (all see the SAME decoded pixels, except the first):
   ultra_original   Ultralytics PyTorch FP32 on the original image files (the "official" number; reference only)
-  ultra_default    Ultralytics PyTorch FP32 on the decoded video frames, default NMS IoU 0.7
-  ultra_iou045     the same with NMS IoU 0.45 (what the engine config uses)
-  ort_nearest      Python replica of the engine (nearest-neighbour resize, zero padding, parser logic, NMS 0.45), ONNX Runtime FP32
+  ultra_default    Ultralytics FP32 on the decoded video frames, NMS IoU 0.7
+  ultra_iou045     the same with NMS IoU 0.45 (the engine config)
+  ort_nearest      Python replica of the engine (nearest resize, zero padding, parser logic, NMS 0.45), ONNX Runtime FP32
   ort_linear       the same with bilinear resize (what Ultralytics uses)
-  engine_trt       the engine itself: TensorRT FP16 inside DeepStream (the dump written by ds_engine --dump-detections)
+  engine_trt       the engine itself: TensorRT FP16 in DeepStream (dump of ds_engine --dump-detections)
 
 Prepare the inputs first:
   python eval/detection/make_coco_video.py --n 1000
@@ -16,10 +19,9 @@ Prepare the inputs first:
       --tracker-config /work/engine/configs/tracker_nvdcf.yml --camera 1=file:///work/eval/work/coco/coco1000.mp4 \
       --dump-detections /work/eval/work/coco/ds_dump.csv --fps-interval 0
 
-AP is computed with pycocotools (bbox, category person, all 1000 images, so images without people count their false
-positives). "at 0.25" columns are the operating point of the engine: detections with score >= 0.25, matched to the
-non-crowd ground truth at IoU 0.5 (crowd regions are not ignored here, so precision is a little pessimistic; compare
-pipelines with each other, not with a paper).
+AP uses pycocotools (bbox, person, all 1000 images). "at 0.25" columns are the engine's operating point: score >= 0.25 matched to
+non-crowd ground truth at IoU 0.5 (crowd regions are not ignored, so precision is a little pessimistic: compare pipelines with
+each other, not with a paper).
 """
 import argparse
 import contextlib

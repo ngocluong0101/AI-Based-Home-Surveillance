@@ -1,4 +1,8 @@
-"""Request and response bodies."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Request and response bodies.
+"""
 
 from __future__ import annotations
 

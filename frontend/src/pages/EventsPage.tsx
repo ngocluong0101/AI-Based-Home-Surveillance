@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { Bell, ChevronLeft, ChevronRight, FilterX, LayoutGrid, List } from "lucide-react";
 import { useState } from "react";
 import { ConfidenceBar } from "../components/ConfidenceBar";

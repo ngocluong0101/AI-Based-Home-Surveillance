@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 // Types mirror backend/schemas.py.
 
 export type CameraState = "RUNNING" | "RECONNECTING" | "ENDED";

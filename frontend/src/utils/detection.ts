@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import type { Camera } from "../types";
 
 /** "10 s", "1 min 30 s", "2 h": a duration in seconds as a person reads it. */

@@ -1,13 +1,14 @@
-"""V2-2: how many people does the pose model find compared with the detection model, and what does the score threshold do?
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-The pose model (YOLOv8n-pose) is trained on people with annotated keypoints, so its scores for small, far or half-hidden
-people are lower than the detection model's. This runs both networks (ONNX Runtime FP32, the engine's preprocessing, input
-640x384, NMS 0.45) on a MOT17 video and prints, for several thresholds, the detections, the precision and the recall by
+V2-2: how many people does the pose model find compared with the detection model, and what does the score threshold do?
+Pose scores for small, far or half-hidden people are lower than the detector's. This runs both networks (ONNX Runtime FP32, the
+engine's preprocessing, input 640x384, NMS 0.45) on a MOT17 video and prints, per threshold, detections, precision and recall by
 pedestrian height against the MOT ground truth.
 
     nice -n 19 eval/.venv/bin/python eval/pose/threshold_sweep.py --seq 09 --threads 4
-Needs the video eval/work/mot17/MOT17-<seq>.mp4 (see eval/README.md) and engine/models/yolov8n_h384.onnx (copy of yolov8n.onnx).
-It uses the CPU only; do not run it while a benchmark is running.
+Needs eval/work/mot17/MOT17-<seq>.mp4 (see eval/README.md) and engine/models/yolov8n_h384.onnx (copy of yolov8n.onnx). CPU only; do
+not run it during a benchmark.
 """
 import argparse
 import json

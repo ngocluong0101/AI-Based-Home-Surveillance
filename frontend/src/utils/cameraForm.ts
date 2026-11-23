@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import type { BehaviorName, Camera, CameraCreate, CameraUpdate, ConnectionCheckBody, FallNet } from "../types";
 import { sameZones, zoneErrors, zonesOf, type ZoneDraft } from "./zones";
 

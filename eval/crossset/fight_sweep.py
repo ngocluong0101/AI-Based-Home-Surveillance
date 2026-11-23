@@ -1,9 +1,11 @@
-"""Can ANY thresholds of the fight rule tell AIRTLab's fights from its hugs, high fives and greetings? (V2-9)
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-The rule (src/events/behavior.py, FIGHT) has two thresholds that matter: how fast a hand or foot must move (fight_speed, torso lengths per second) and how
-much contact time must pile up (fight_threshold_s). Every clip is loaded once and the rule replayed for each pair on a grid. To keep the answer honest the
-clips are split by their NUMBER (the two cameras of one performance always go together): the operating point is chosen on the odd numbers and judged on
-the even ones. Still one room and the same actors in both halves, so even the held-out half is optimistic about a new house.
+Can ANY thresholds of the fight rule tell AIRTLab's fights from its hugs, high fives and greetings? (V2-9)
+
+The two thresholds that matter: fight_speed (torso lengths per second) and fight_threshold_s (contact time). Every clip is loaded once and
+the rule replayed for each pair on a grid. Clips are split by NUMBER (the two cameras of one performance go together): the operating
+point is chosen on odd numbers and judged on even ones. Same room and actors in both halves, so even that is optimistic.
 
     eval/.venv/bin/python eval/crossset/fight_sweep.py --write eval/results/<date>_v2-9_fight_sweep.json
 """

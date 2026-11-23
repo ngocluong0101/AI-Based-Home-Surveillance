@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 /* stgcn.cpp - see stgcn.h. TensorRT 10 C++ API: ONNX -> FP16 engine (cached) -> enqueueV3 on one stream. */
 #include "stgcn.h"
 

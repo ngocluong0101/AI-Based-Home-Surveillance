@@ -1,5 +1,9 @@
-"""Behaviour labels (eval/DEFINITIONS.md section 2): one JSON per clip in eval/labels/. Loading validates; a bad label stops the run,
-because a mistake here silently changes every number that comes after it."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Behaviour labels (eval/DEFINITIONS.md section 2): one JSON per clip in eval/labels/. Loading validates; a bad label stops the run,
+because a mistake here silently changes every number that comes after it.
+"""
 import json
 from dataclasses import dataclass, field
 from pathlib import Path

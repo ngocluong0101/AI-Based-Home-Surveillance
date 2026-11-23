@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { describe, expect, it } from "vitest";
 import { describeDetail } from "./api/client";
 import { parseHash } from "./hooks/useHashRoute";

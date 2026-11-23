@@ -1,4 +1,8 @@
-"""Read the CSV written by `ds_engine --dump-detections` (engine/src/dump.c)."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Read the CSV written by `ds_engine --dump-detections` (engine/src/dump.c).
+"""
 from pathlib import Path
 
 import numpy as np

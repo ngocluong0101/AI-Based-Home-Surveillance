@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { Gauge, Users } from "lucide-react";
 import type { StreamInfo } from "../types";
 

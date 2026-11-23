@@ -1,4 +1,8 @@
-"""The Settings page: what is changed at run time (backend/app_settings.py), plus a few read-only facts."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+The Settings page: what is changed at run time (backend/app_settings.py), plus a few read-only facts.
+"""
 
 from __future__ import annotations
 

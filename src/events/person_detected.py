@@ -1,4 +1,8 @@
-"""PERSON_DETECTED event management."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+PERSON_DETECTED event management.
+"""
 
 from __future__ import annotations
 

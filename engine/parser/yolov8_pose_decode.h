@@ -1,17 +1,14 @@
 /*
- * yolov8_pose_decode.h - turn the output tensor of the YOLOv8-pose ONNX (engine/tools/export_yolov8_pose_onnx.py)
- * into people with 17 keypoints each. Plain C++11, no DeepStream types, so it can be tested on the host
- * (make -C engine/parser test).
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
+ * yolov8_pose_decode.h - turn the output tensor of the YOLOv8-pose ONNX into people with 17 keypoints. Plain C++11, no DeepStream
+ * types, so it is tested on the host (make -C engine/parser test).
  *
- * The tensor of one frame is [56, anchors], channel by channel:
- *   row 0..3   cx, cy, w, h of the box, in pixels of the network input
- *   row 4      person score (a probability; the pose model has the one class "person")
- *   row 5..55  17 keypoints, each x, y (network input pixels), visibility (a probability)
- *
- * Keypoints are returned RELATIVE TO THE BOX that is returned: x_rel = (x - left) / width, same for y. nvinfer
- * moves the box from the network input to the frame (scale and the padding of the letterbox); a point written
- * relative to that box follows it without this code having to know how the frame was resized. Points outside
- * the box give values below 0 or above 1, which is fine.
+ * One frame is [56, anchors], channel by channel: rows 0..3 = cx, cy, w, h (network-input pixels), row 4 = person score, rows 5..55 =
+ * 17 keypoints x, y (pixels), visibility. Keypoints are returned RELATIVE TO THE RETURNED BOX (x_rel = (x - left) / width), so they
+ * follow the box when nvinfer scales it to the frame, without this code knowing the letterbox. Points outside the box fall outside 0..1.
  */
 #ifndef DS_YOLOV8_POSE_DECODE_H
 #define DS_YOLOV8_POSE_DECODE_H

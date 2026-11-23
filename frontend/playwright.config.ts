@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { defineConfig } from "@playwright/test";
 
 // End-to-end tests: the real frontend (Vite dev server) against the real backend and engine manager, see e2e/stack.py.

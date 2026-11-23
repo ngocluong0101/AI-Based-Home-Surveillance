@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { CircleCheck, CircleX } from "lucide-react";
 import type { ConnectionCheckResult } from "../types";
 

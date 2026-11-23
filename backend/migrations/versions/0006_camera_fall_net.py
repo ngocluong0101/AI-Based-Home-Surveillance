@@ -1,7 +1,10 @@
-"""which detector decides a fall on a camera: the rules, the skeleton network (ST-GCN), or both
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-`cameras.fall_net`: 0 = the rules only (what every camera did until now), 1 = the network decides, 2 = the network or the rules.
-It only matters on a camera with the "fall" rule; the engine falls back to the rules when it has no network model.
+which detector decides a fall on a camera: the rules, the skeleton network (ST-GCN), or both
+
+`cameras.fall_net`: 0 = rules only (every camera until now), 1 = the network, 2 = the network or the rules. Only matters on a camera
+with the "fall" rule; the engine falls back to the rules when it has no model.
 
 Revision ID: 0006
 Revises: 0005

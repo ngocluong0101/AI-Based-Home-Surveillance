@@ -1,5 +1,9 @@
-"""Tests of the evaluation helpers in eval/ (V2-1). They need no GPU, no dataset and no network; the MOT metric
-test needs the `motmetrics` package, which lives in eval/.venv, so it is skipped elsewhere."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Tests of the evaluation helpers in eval/ (V2-1). They need no GPU, no dataset and no network; the MOT metric
+test needs the `motmetrics` package, which lives in eval/.venv, so it is skipped elsewhere.
+"""
 import numpy as np
 import pytest
 

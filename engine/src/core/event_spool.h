@@ -1,18 +1,14 @@
 /*
- * event_spool.h - the file the publisher parks events in while the backend cannot be reached
- * (ROADMAP 2.6).
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
+ * event_spool.h - the file the publisher parks events in while the backend cannot be reached (ROADMAP 2.6).
  *
- * Pure C (stdio + POSIX). One JSON event per line (JSON-lines), appended in arrival order and read
- * back in the same order. Nothing is lost on a crash or restart: the file is flushed to disk after
- * every append and opening an existing spool resumes with its content. The backend ignores an event
- * it already has (same event_id), so an event that was delivered but not yet removed from the spool
- * when the engine died is simply sent again.
- *
- * Not thread safe: the publisher thread is its only user.
- *
- * The read position is kept in memory; the consumed part of the file is released only when the
- * whole spool has been delivered (the file is then truncated). The file size is therefore capped
- * as a whole, which is enough because events are rare and a reachable backend empties it quickly.
+ * Pure C. One JSON event per line, appended and read back in order, flushed to disk after every append, so nothing is lost on a
+ * crash. The backend ignores an event it already has (same event_id), so one delivered but not yet removed is simply sent again.
+ * Not thread safe: only the publisher thread uses it. The read position is in memory and the file is truncated only when the whole
+ * spool has been delivered, so the size cap applies to the file as a whole.
  */
 #ifndef EVENT_SPOOL_H
 #define EVENT_SPOOL_H
@@ -33,9 +29,8 @@ void event_spool_close(EventSpool *s);   /* NULL is allowed */
 int event_spool_append(EventSpool *s, const char *line);
 
 /*
- * Copy the oldest undelivered line (newline stripped, NUL terminated) into `line`, without
- * removing it. Returns 1 if there is one, 0 if the spool is empty, -1 on an I/O error. Blank lines
- * and lines longer than cap - 1 bytes cannot be sent and are skipped; they count in
+ * Copy the oldest undelivered line (newline stripped, NUL terminated) into `line` without removing it. Returns 1 if there is
+ * one, 0 if the spool is empty, -1 on an I/O error. Blank lines and lines longer than cap - 1 are skipped and counted in
  * event_spool_skipped().
  */
 int event_spool_peek(EventSpool *s, char *line, size_t cap);

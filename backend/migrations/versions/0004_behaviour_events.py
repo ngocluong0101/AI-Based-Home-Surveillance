@@ -1,9 +1,10 @@
-"""behaviour events (falls, fights, restricted areas) and the per-camera rules
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-`events` learns what kind of event it is beyond PERSON_DETECTED: the people involved (a fight has two), the zone of a
-restricted-area event and when the behaviour BEGAN (a fall is reported two seconds after the impact; `timestamp` is the report,
-`occurred_at` the moment the person hit the floor). Older rows get track_ids = [] (the API then answers [track_id]) and no
-zone or occurred_at. `cameras` gets which rules run (`behaviors`) and the zones (`zones`).
+behaviour events (falls, fights, restricted areas) and the per-camera rules
+
+`events` gets the people involved (`track_ids`), the zone of a restricted-area event and `occurred_at` (when the behaviour BEGAN;
+`timestamp` is the report). Older rows get track_ids = [] and no zone or occurred_at. `cameras` gets `behaviors` and `zones`.
 
 Revision ID: 0004
 Revises: 0003

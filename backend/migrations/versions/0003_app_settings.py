@@ -1,8 +1,10 @@
-"""app_settings, and 'skipped' as a notify_status
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-`app_settings` holds what is changed from the web app (alerts on or off, quiet hours, snapshot retention, what a new
-camera starts with). `skipped` is a notify_status for an event whose alert was held back on purpose (alerts switched
-off, or received during the quiet hours): the event is stored and shown, no Telegram message was sent.
+app_settings, and 'skipped' as a notify_status
+
+`app_settings` holds what is changed from the web app (alerts on/off, quiet hours, snapshot retention, new-camera defaults).
+`skipped` = the alert was held back on purpose (alerts off or quiet hours): the event is stored and shown, no Telegram message sent.
 
 Revision ID: 0003
 Revises: 0002

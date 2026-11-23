@@ -1,9 +1,9 @@
-"""Fixtures for the backend tests: a PostgreSQL server of their own.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-The tests never touch an existing server. They start a throwaway cluster (initdb + pg_ctl from the
-installed PostgreSQL, listening on a unix socket in a temp directory) and remove it afterwards. To use
-another server set TEST_DATABASE_URL to a database whose name ends with _test: its tables are emptied
-before every test.
+Fixtures for the backend tests: a PostgreSQL server of their own. They start a throwaway cluster (initdb + pg_ctl, unix socket
+in a temp directory) and remove it afterwards, never touching an existing server. To use another server set TEST_DATABASE_URL to
+a database whose name ends with _test: its tables are emptied before every test.
 """
 
 from __future__ import annotations

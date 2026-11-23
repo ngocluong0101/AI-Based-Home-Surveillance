@@ -1,4 +1,7 @@
-"""POST /api/cameras/test-connection and the RTSP probe behind it (ROADMAP 6.2).
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+POST /api/cameras/test-connection and the RTSP probe behind it (ROADMAP 6.2).
 
 The probe is tried against a small RTSP server that lives in this file: it can ask for a Basic or Digest login,
 answer 404, stay silent, speak HTTP, or describe any codec. The SPS vectors are real ones, written by x264.

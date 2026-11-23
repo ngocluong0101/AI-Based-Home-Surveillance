@@ -1,19 +1,18 @@
 #!/bin/bash
+# @author: Ngoc Luong <ngocluongg0101@gmail.com>
+
 # check_reload.sh - does the running engine apply new per-camera settings when it gets SIGHUP?
 #
-# An offline test tool, not part of the product. It starts the real engine (DeepStream container, GPU) on three
-# cameras that all play the same long video, and changes the cameras file while the engine runs:
+# Offline test tool. Starts the real engine (DeepStream container, GPU) on three cameras playing the same long video and changes
+# the cameras file while it runs:
+#   A  defaults                      the reference event rate
+#   B  cam 1 absence_timeout=0.2, cam 2 conf_threshold=0.9, cam 3 ai_enabled=false, then SIGHUP
+#   C  a broken file + SIGHUP        refused, B keeps going
+#   D  a file with a fourth camera   refused ("needs a restart"), B keeps going
+#   E  defaults again + SIGHUP       the rates of A come back
 #
-#   phase A  every camera on defaults                          the reference rate of events per camera
-#   phase B  cam 1 absence_timeout=0.2, cam 2 conf_threshold=0.9, cam 3 ai_enabled=false, then SIGHUP
-#            -> cam 1 raises more events, cam 2 almost none, cam 3 none and no "people" in the heartbeat
-#   phase C  a broken file + SIGHUP                            -> refused, phase B keeps going
-#   phase D  a file with a fourth camera + SIGHUP              -> refused ("needs a restart"), phase B keeps going
-#   phase E  everything back to defaults + SIGHUP              -> the rates of phase A come back
-#
-# Usage, from anywhere:  engine/tools/check_reload.sh [VIDEO]      (default: data/videos/soak_loop.mp4, a long file)
-# Needs engine/build/ds_engine, the TensorRT engine for 3 cameras and a free GPU. Output: a table of events per
-# window and the "reload:" lines of the engine; the files stay in a temporary directory that is printed at the end.
+# Usage: engine/tools/check_reload.sh [VIDEO]   (default data/videos/soak_loop.mp4). Needs engine/build/ds_engine, the TensorRT
+# engine for 3 cameras and a free GPU. Prints events per window and the engine's "reload:" lines.
 set -u
 REPO=$(cd "$(dirname "$0")/../.." && pwd)
 VIDEO=$(readlink -f "${1:-$REPO/data/videos/soak_loop.mp4}")

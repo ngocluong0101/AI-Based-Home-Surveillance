@@ -1,21 +1,15 @@
 #!/bin/bash
-# check_dynamic.sh - can cameras be added to and taken out of the RUNNING engine (SIGHUP, --max-cameras)?
+# @author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+# check_dynamic.sh - can cameras be added to and removed from the RUNNING engine (SIGHUP, --max-cameras)?
 #
-# An offline test tool, not part of the product. It starts the real engine (DeepStream container, GPU) with room
-# for 4 cameras and changes the cameras file while it runs. Every camera plays the same long video.
+# Offline test tool. Starts the real engine (DeepStream container, GPU) with room for 4 cameras, all playing the same long video,
+# and changes the cameras file while it runs: A cameras 1, 2; B + camera 3 (1 and 2 do not stop); C + camera 4 (full); D - camera 1;
+# E + camera 5 (takes the free slot); F + camera 6 (refused: no free place, nothing else changes).
 #
-#   A  cameras 1, 2                     the engine starts
-#   B  + camera 3                       3 starts producing events, 1 and 2 do not stop
-#   C  + camera 4                       the engine is full
-#   D  - camera 1                       1 stops, the others go on
-#   E  + camera 5                       takes the free slot
-#   F  + camera 6                       refused: no free place (nothing else changes)
-#
-# STREAM=1 also publishes every camera (--stream-url) to a MediaMTX container started here, and checks which
-# paths the media server saw; the default is detection only.
-# Usage, from anywhere:  [STREAM=1] engine/tools/check_dynamic.sh [VIDEO]       (default: data/videos/soak_loop.mp4)
-# Needs engine/build/ds_engine, the TensorRT engine for 4 cameras and a free GPU. Prints a table; the files stay
-# in a temporary directory that is printed at the end.
+# STREAM=1 also publishes every camera (--stream-url) to a MediaMTX container started here and checks which paths it saw.
+# Usage: [STREAM=1] engine/tools/check_dynamic.sh [VIDEO]   (default data/videos/soak_loop.mp4). Needs engine/build/ds_engine, the
+# TensorRT engine for 4 cameras and a free GPU. Prints a table; files stay in a temporary directory that is printed at the end.
 set -u
 REPO=$(cd "$(dirname "$0")/../.." && pwd)
 VIDEO=$(readlink -f "${1:-$REPO/data/videos/soak_loop.mp4}")

@@ -1,3 +1,7 @@
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+"""
+
 import uuid
 from datetime import datetime, timedelta, timezone
 

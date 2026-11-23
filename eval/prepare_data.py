@@ -1,11 +1,13 @@
-"""Download and unpack the datasets V2-1 needs into datasets/ (COCO val2017 + person annotations, MOT17 train).
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Download and unpack the datasets V2-1 needs into datasets/ (COCO val2017 + person annotations, MOT17 train).
 
     python eval/prepare_data.py            # about 7 GB of downloads, ~10 GB unpacked
     python eval/prepare_data.py --only coco
 
-Safe to run again: finished downloads are skipped, an interrupted one is resumed (curl -C -). COCO is fetched over
-plain http because https://images.cocodataset.org did not answer from this machine. Read datasets/README.md for the
-licenses first: the data may be used for evaluation here but must not be redistributed or committed.
+Safe to rerun (finished downloads are skipped, interrupted ones resumed). COCO uses plain http because https://images.cocodataset.org
+did not answer from this machine. Read datasets/README.md for the licenses: evaluation use only, never redistribute or commit.
 """
 import argparse
 import subprocess

@@ -1,15 +1,14 @@
-"""Push to browsers over the WebSocket (ROADMAP 3.7).
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-The endpoints that learn something (a new event, a heartbeat) are plain `def` functions that run in
-FastAPI's thread pool, while the WebSocket handlers run on the event loop. `Hub.publish` is the bridge:
-callable from any thread, it hands the message to the loop, which puts it into a small queue per
-connected client. A client that cannot keep up is dropped, so a stuck browser never holds memory or
-slows down `POST /internal/events`.
+Push to browsers over the WebSocket (ROADMAP 3.7).
 
-Messages are `{"type": "event.created", "data": {...EventOut...}}` and
-`{"type": "camera.status", "data": {"camera_id", "reporting", "state", "fps", "last_frame_age",
-"heartbeat_age", "people"}}`. Nothing is replayed: a client that connects later reads the current state with
-the REST API.
+`Hub.publish` is callable from any thread (the endpoints run in FastAPI's thread pool) and hands the message to the event loop,
+which puts it into a small queue per client. A client that cannot keep up is dropped, so a stuck browser never slows
+`POST /internal/events`.
+
+Messages are `{"type": "event.created", "data": EventOut}` and `{"type": "camera.status", "data": {camera_id, reporting, state,
+fps, last_frame_age, heartbeat_age, people}}`. Nothing is replayed: a late client reads the current state with REST.
 """
 
 from __future__ import annotations
@@ -89,11 +88,8 @@ class Hub:
 
 
 class CameraStatusPublisher:
-    """Turns heartbeats into `camera.status` messages.
-
-    A message goes out for every camera in each heartbeat (so a screen gets the frame rate every few
-    seconds) and once more, with `reporting: false`, when a camera that was reporting stops: it left
-    the heartbeat, or the heartbeats themselves stopped (found by `check_stale`, run on a timer).
+    """Turns heartbeats into `camera.status` messages: one per camera per heartbeat, and one more with `reporting: false` when a camera
+    stops reporting (left the heartbeat, or the heartbeats stopped, found by `check_stale`).
     """
 
     def __init__(self, store: HeartbeatStore, hub: Hub) -> None:

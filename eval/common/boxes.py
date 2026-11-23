@@ -1,4 +1,8 @@
-"""Small box helpers shared by the evaluation scripts. Boxes are numpy arrays of [left, top, width, height]."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Small box helpers shared by the evaluation scripts. Boxes are numpy arrays of [left, top, width, height].
+"""
 import numpy as np
 
 

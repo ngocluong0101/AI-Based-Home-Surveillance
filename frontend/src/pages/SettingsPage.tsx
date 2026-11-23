@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import type { LucideIcon } from "lucide-react";
 import { Bell, HardDrive, Loader2, Send, Server, SlidersHorizontal } from "lucide-react";
 import { useState, type ReactNode } from "react";

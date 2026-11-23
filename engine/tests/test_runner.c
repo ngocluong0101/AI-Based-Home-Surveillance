@@ -1,9 +1,10 @@
 /*
- * Test runner for the pure-C code (engine/src/core/), which does not depend on DeepStream.
- *
- * To add a test: write a `void test_xxx(void)` that uses CHECK(...) (test_util.h) in
- * tests/<name>.c, declare it here and add it to the TESTS table. The exit code is non-zero
- * if any test fails.
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
+ * Test runner for the pure-C code (engine/src/core/). To add a test: write `void test_xxx(void)` with CHECK(...) (test_util.h) in
+ * tests/<name>.c, declare it here and add it to the TESTS table. Exit code is non-zero if any test fails.
  */
 #include <stdio.h>
 

@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { expect, test } from "@playwright/test";
 import { engineNote, makeCamera, reset, startCamera } from "./helpers";
 

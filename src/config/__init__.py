@@ -1,4 +1,7 @@
-"""Application configuration loaded from environment variables.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Application configuration loaded from environment variables.
 
 This module reads `.env` (via python-dotenv if available) and exposes
 typed configuration values with sensible defaults for non-sensitive keys.
@@ -56,10 +59,8 @@ TELEGRAM_CHAT_ID: Optional[str] = os.getenv("TELEGRAM_CHAT_ID") or None
 DATABASE_URL: Optional[str] = os.getenv("DATABASE_URL") or None
 INTERNAL_TOKEN: Optional[str] = os.getenv("INTERNAL_TOKEN") or None
 
-# Engine manager (ROADMAP 3.5). ENGINE_COMMAND is split like a shell would; when the engine runs in the
-# DeepStream container it is the whole `docker run ... ds_engine` prefix (mount the runtime directory,
-# the snapshot directory and the config files at the same absolute paths inside it, and pass
-# `-e DS_ENGINE_TOKEN` through).
+# Engine manager (ROADMAP 3.5). ENGINE_COMMAND is split like a shell would; in the DeepStream container it is the whole `docker run ...
+# ds_engine` prefix (mount the runtime, snapshot and config directories at the same absolute paths and pass `-e DS_ENGINE_TOKEN`).
 ENGINE_COMMAND: str = os.getenv("ENGINE_COMMAND") or "engine/build/ds_engine"
 ENGINE_CONFIG: str = os.getenv("ENGINE_CONFIG") or "engine/configs/pgie_yolov8n.txt"
 ENGINE_TRACKER_CONFIG: str = os.getenv("ENGINE_TRACKER_CONFIG") or "engine/configs/tracker_nvdcf.yml"
@@ -77,11 +78,9 @@ ENGINE_STREAM_URL: str = os.getenv("ENGINE_STREAM_URL") or ""
 MEDIAMTX_WEBRTC_URL: Optional[str] = os.getenv("MEDIAMTX_WEBRTC_URL") or None   # e.g. http://192.168.1.20:8889
 MEDIAMTX_PATH_PREFIX: str = os.getenv("MEDIAMTX_PATH_PREFIX") or "live"
 ENGINE_EXTRA_ARGS: str = os.getenv("ENGINE_EXTRA_ARGS") or ""
-# Room for this many cameras in the running engine: cameras can be added and removed without restarting it
-# while there are at most this many (more than that restarts it with a bigger batch). Each place costs a
-# little GPU and memory even when empty (about +2% GPU and +65 MiB VRAM per place measured for 4 cameras in a
-# batch of 12), and needs a TensorRT engine of that batch size (built on first use, ~150 s). 0 = exactly the
-# cameras that run; then only a change of settings is applied without a restart.
+# Places for cameras in the running engine: cameras can be added or removed without a restart while there are at most this
+# many. Each place costs a little GPU/VRAM even when empty and needs a TensorRT engine of that batch size (~150 s on first
+# use). 0 = exactly the cameras that run.
 ENGINE_MAX_CAMERAS: int = _parse_int(os.getenv("ENGINE_MAX_CAMERAS"), 8)
 # Where the backend finds the manager; unset = the backend does not manage an engine
 ENGINE_MANAGER_URL: Optional[str] = os.getenv("ENGINE_MANAGER_URL") or None

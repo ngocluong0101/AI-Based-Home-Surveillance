@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { Plus, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 import {
@@ -13,9 +17,9 @@ import {
 import type { ZoneKind } from "../types";
 
 /**
- * Draw the zones of a camera on its picture. "Add" puts a rectangle in the middle; drag a corner (or move it with the arrow keys)
- * to put it where it belongs; "Add point" / "Remove point" change how many corners a zone has. Coordinates are relative to the
- * frame, so they do not depend on the resolution of the camera. `background` is a snapshot of the camera, when there is one.
+ * Draw the zones of a camera on its picture. "Add" puts a rectangle in the middle; drag a corner (or use the arrow keys) to move it;
+ * "Add point" / "Remove point" change the number of corners. Coordinates are relative to the frame. `background` is a snapshot of the
+ * camera, when there is one.
  */
 export function ZoneEditor({
   zones,

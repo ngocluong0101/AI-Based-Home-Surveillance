@@ -1,9 +1,10 @@
-"""Python replica of what the engine does around the YOLOv8n network, to compare pipelines on identical pixels.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-preprocess  = nvinfer: scale to fit 640x640 keeping the aspect ratio, centred (symmetric padding), RGB, /255
-postprocess = engine/parser/nvdsinfer_yolov8_parser.cpp + nvinfer clustering: person score >= threshold and person
-              the best class of the anchor, then greedy NMS (IoU threshold), at most `topk` boxes.
-The resize filter is a parameter, because which one nvinfer really uses is one of the things V2-1 measures.
+Python replica of what the engine does around the YOLOv8n network, to compare pipelines on identical pixels.
+preprocess = nvinfer: scale to fit 640x640 keeping the aspect ratio, centred, RGB, /255. postprocess = the parser + nvinfer
+clustering: person score >= threshold and person the best class of the anchor, greedy NMS, at most `topk` boxes. The resize
+filter is a parameter because which one nvinfer uses is one of the things V2-1 measures.
 """
 import cv2
 import numpy as np

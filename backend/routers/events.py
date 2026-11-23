@@ -1,4 +1,8 @@
-"""Event API (ROADMAP 3.4)."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Event API (ROADMAP 3.4).
+"""
 
 from __future__ import annotations
 

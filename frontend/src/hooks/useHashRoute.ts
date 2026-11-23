@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { useCallback, useEffect, useState } from "react";
 
 export type Page = "dashboard" | "wall" | "monitoring" | "events" | "cameras" | "settings";

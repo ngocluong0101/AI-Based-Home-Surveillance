@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 /* Host test of yolov8_pose_decode.h: g++ only, no DeepStream. make -C engine/parser test */
 #include <cmath>
 #include <cstdio>

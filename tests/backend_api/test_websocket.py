@@ -1,4 +1,8 @@
-"""WS /api/ws: event.created and camera.status pushed to browsers (ROADMAP 3.7)."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+WS /api/ws: event.created and camera.status pushed to browsers (ROADMAP 3.7).
+"""
 
 import asyncio
 import queue

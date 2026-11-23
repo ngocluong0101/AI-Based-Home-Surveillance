@@ -1,16 +1,18 @@
-"""Asks the VLM whether a FALL or FIGHT really happened (ROADMAP_V2 V2-6), from a background thread.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-`POST /internal/events` stores a FALL / FIGHT as `verification = pending` (when a VLM is configured) and wakes this thread. For each pending
-event it picks the frames around the moment (backend/frames.py), asks the VLM service and records the answer:
+Asks the VLM whether a FALL or FIGHT really happened (V2-6), from a background thread.
+
+`POST /internal/events` stores a FALL / FIGHT as `verification = pending` and wakes this thread. For each pending event it picks
+the frames around the moment (backend/frames.py), asks the VLM service and records the answer:
 
   yes     -> confirmed
-  no      -> rejected      the VLM was sure (the service only says "no" above its own confidence threshold): no Telegram message
-  unsure  -> unverified    the alert goes out as it would without a VLM
-  error / no frames / too old -> unverified   FAIL-OPEN: nothing that goes wrong here may swallow a real fall
+  no      -> rejected      the VLM was sure (the service only says "no" above its own threshold)
+  unsure  -> unverified    the alert goes out as without a VLM
+  error / no frames / too old -> unverified   FAIL-OPEN: nothing here may swallow a real fall
 
-The Notifier holds the Telegram message of a pending event, but never longer than `timeout` seconds since the event arrived; this thread also
-gives up on an event older than that. A verdict that arrives after the message was sent is still recorded (the page then says so).
-One event at a time: the VLM has one GPU and a queue of alerts is a queue of at most a few per hour.
+The Notifier holds the Telegram message of a pending event for at most `timeout` seconds. A verdict that arrives later is still
+recorded. One event at a time: the VLM has one GPU.
 """
 
 from __future__ import annotations

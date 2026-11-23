@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { AnimatePresence, motion } from "motion/react";
 import { Activity, Bell, Camera as CameraIcon, CircleAlert, Play, Square, Users, Video, Wifi } from "lucide-react";
 import { CoverImage } from "../components/CoverImage";

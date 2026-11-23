@@ -1,4 +1,8 @@
-"""SIGHUP on the running engine: the settings of the cameras change without a restart."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+SIGHUP on the running engine: the settings of the cameras change without a restart.
+"""
 
 import pytest
 

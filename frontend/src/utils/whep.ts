@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 // Minimal WHEP (WebRTC-HTTP egress) client for MediaMTX: one POST with the SDP offer, the answer comes back.
 
 const GATHER_TIMEOUT_MS = 2000;

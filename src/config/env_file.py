@@ -1,4 +1,7 @@
-"""Read and update the local `.env` file without losing its comments or unrelated keys.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Read and update the local `.env` file without losing its comments or unrelated keys.
 
 `src/config` still reads `.env` once at startup, so values written here take effect
 the next time the application starts.
@@ -57,11 +60,8 @@ def _format_value(value: str) -> str:
 
 
 def write_env_values(path: Path, updates: Mapping[str, str]) -> None:
-    """Set the given keys in `path`, keeping every other line as it was.
-
-    Existing assignments of a key are replaced in place (all of them, if repeated);
-    keys not in the file are appended. The file is rewritten through a temporary
-    file with mode 0600, because `.env` usually holds bot tokens.
+    """Set the given keys in `path`, keeping every other line. Existing assignments of a key are replaced in place (all, if repeated);
+    missing keys are appended. Written through a temporary file with mode 0600 because `.env` usually holds bot tokens.
     """
     new_lines = {key: f"{key}={_format_value(value)}" for key, value in updates.items()}
     seen: set[str] = set()

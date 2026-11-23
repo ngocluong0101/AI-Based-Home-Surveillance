@@ -1,11 +1,13 @@
 /*
- * dump.h - --dump-detections FILE: write what the detector and the tracker found, frame by frame, to a CSV
- * file, so that an offline script can measure it (AP against ground truth, MOTA/IDF1 of the tracker,
- * agreement with another detector). It is a measuring tool, not part of the normal run.
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
+ * dump.h - --dump-detections FILE: write what the detector and tracker found, frame by frame, to CSV for offline measurement
+ * (AP, MOTA/IDF1...). A measuring tool, not part of the normal run.
  *
- * The probes only format the rows of one frame into a string and push it to a queue; a writer thread does
- * the file I/O, so the probes stay fast. The queue is not bounded: this is for offline runs of a few minutes,
- * where the writer keeps up easily; do not leave it on for a camera that runs for days.
+ * Probes only format a frame's rows into a string and queue it; a writer thread does the file I/O. The queue is unbounded: meant
+ * for offline runs of a few minutes, not for a camera that runs for days.
  */
 #ifndef DS_DUMP_H
 #define DS_DUMP_H

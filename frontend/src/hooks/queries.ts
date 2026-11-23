@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { keepPreviousData, useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "../api";
 import type { AppSettingsUpdate, Camera, CameraStatus, CameraUpdate, EventFilters, EventStatus, LiveStatus, PersonEvent } from "../types";
@@ -67,9 +71,8 @@ export const useEvents = (filters: EventFilters) =>
   });
 
 /**
- * The newest snapshot of a camera (and when it was taken): the cover of its card.
- * Looks at the last few events because the newest one may have no image (the file was cleaned up or never written).
- * Same query key family as the event lists, so a new event refreshes it.
+ * The newest snapshot of a camera (and when it was taken): the cover of its card. Looks at the last few events because the newest may
+ * have no image. Same query key family as the event lists, so a new event refreshes it.
  */
 export function useLatestSnapshot(cameraId: number, enabled = true): { url: string | null; at: string | null; pending: boolean } {
   const q = useQuery({

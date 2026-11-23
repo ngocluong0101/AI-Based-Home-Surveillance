@@ -1,11 +1,13 @@
 /*
- * behavior.h - the behaviour rules of this project (ROADMAP_V2 V2-3): falls, fights and people in restricted areas, from the
- * skeletons and boxes of the people a tracker follows. C port of src/events/behavior.py, which is the specification and
- * explains every rule; both are run against the same vectors (tests/vectors/behavior_*.json).
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
+ * behavior.h - the behaviour rules (V2-3): falls, fights and people in restricted areas. C port of src/events/behavior.py (the
+ * specification, which explains every rule); both run the same vectors (tests/vectors/behavior_*.json).
  *
- * Pure C, no DeepStream or GLib, no clock of its own: the caller passes `now_ns` (in the engine stream_start + the PTS of
- * the frame). One Behavior per camera, used from one thread (the pad probe). Numbers are doubles on purpose: the vectors are
- * compared with the Python version, which computes in doubles.
+ * Pure C, no DeepStream or GLib, no clock: the caller passes `now_ns`. One Behavior per camera, used from one thread. Numbers are
+ * doubles on purpose: the vectors are compared with the Python version.
  */
 #ifndef BEHAVIOR_H
 #define BEHAVIOR_H
@@ -88,10 +90,9 @@ void behavior_set_config(Behavior *b, const BehaviorConfig *cfg);
 int behavior_set_zones(Behavior *b, const BehaviorZone *zones, size_t n);
 
 /*
- * Process one frame (the people in the order they should be reported) at now_ns and write the events it raises to out
- * (out_cap places; the rest are dropped but the state is still updated). Returns the number written, or -1 when memory ran
- * out (the state of that frame may be partly updated; the next call goes on).
- * Order of the events: for each person its restricted-area events, then its fall; then the fights, by pairs (i < j).
+ * Process one frame (people in the order they should be reported) at now_ns and write the events it raises to out (out_cap
+ * places; the rest are dropped but the state is still updated). Returns the number written, or -1 when memory ran out.
+ * Event order: per person its restricted-area events, then its fall; then the fights, by pairs (i < j).
  */
 int behavior_process(Behavior *b, const BehaviorPerson *people, size_t n, int64_t now_ns, BehaviorEvent *out, size_t out_cap);
 

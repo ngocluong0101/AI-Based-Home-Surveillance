@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 #ifndef TEST_UTIL_H
 #define TEST_UTIL_H
 

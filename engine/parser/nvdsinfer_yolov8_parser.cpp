@@ -1,14 +1,14 @@
 /*
- * nvdsinfer_yolov8_parser.cpp - bbox parser for the YOLOv8 ONNX exported by
- * engine/tools/export_yolov8_onnx.py, loaded by nvinfer (custom-lib-path +
- * parse-bbox-func-name=NvDsInferParseYoloV8).
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
+ * nvdsinfer_yolov8_parser.cpp - bbox parser for the YOLOv8 ONNX of engine/tools/export_yolov8_onnx.py, loaded by nvinfer
+ * (custom-lib-path + parse-bbox-func-name=NvDsInferParseYoloV8), called once per frame of the batch.
  *
- * nvinfer calls it once per frame of the batch. The output tensor `output0` of one frame is
- * [4 + num_classes, anchors] stored channel by channel (for yolov8n at 640: [84, 8400]):
- *   row 0..3  : cx, cy, w, h of the box, in pixels of the network input
- *   row 4..   : one score per class (already a probability, no objectness)
- * Only the `person` class is reported. Like Ultralytics, an anchor counts as a person only when
- * person is its best class. There is no NMS here: nvinfer clusters the boxes (cluster-mode=2).
+ * `output0` of one frame is [4 + num_classes, anchors] channel by channel (yolov8n at 640: [84, 8400]): rows 0..3 = cx, cy, w, h
+ * in network-input pixels, then one probability per class. Only `person` is reported, and only when it is the anchor's best class
+ * (like Ultralytics). No NMS here: nvinfer clusters the boxes (cluster-mode=2).
  */
 #include <algorithm>
 #include <cstring>

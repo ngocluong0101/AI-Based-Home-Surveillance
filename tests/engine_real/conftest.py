@@ -1,8 +1,9 @@
-"""Fixtures for the tests that run the real engine on the GPU.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-They are skipped unless RUN_GPU_TESTS=1: they need Docker with the NVIDIA runtime, a built engine/build/ds_engine
-and the GPU to themselves (about 15 minutes for the whole directory), and they must not run by accident next to
-a soak test or a benchmark. Run them with:   RUN_GPU_TESTS=1 pytest tests/engine_real -v
+Fixtures for the tests that run the real engine on the GPU. Skipped unless RUN_GPU_TESTS=1: they need Docker with the NVIDIA
+runtime, a built engine/build/ds_engine and the GPU to themselves (~15 minutes), so they must not run next to a soak test or
+benchmark. Run:   RUN_GPU_TESTS=1 pytest tests/engine_real -v
 """
 
 from __future__ import annotations

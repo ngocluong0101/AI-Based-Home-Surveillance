@@ -1,4 +1,8 @@
 /*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
  * sources.c - the camera slots and their life in the running pipeline. A slot holds one camera (SourceCtx);
  * there are as many slots as nvstreammux has batch places. See sources.h.
  */
@@ -11,10 +15,9 @@
 #include "stream_out.h"
 
 /*
- * Put a camera into a free slot: its settings, its EventManager and fresh counters. `spec` is "ID=URI";
- * `settings` is the camera-id -> CameraSettings table of the cameras file (NULL for a --camera camera).
- * The slot is not active yet. Prints why (never the address) and returns FALSE if the spec is bad or
- * the camera id is already in use. Call with app->slot_lock held once the pipeline runs.
+ * Put a camera into a free slot: settings, EventManager, fresh counters. `spec` is "ID=URI"; `settings` is the cameras-file
+ * table (NULL for --camera). The slot is not active yet. Returns FALSE (without printing the address) if the spec is bad or the
+ * camera id is in use. Call with app->slot_lock held once the pipeline runs.
  */
 static gboolean slot_fill(AppCtx *app, SourceCtx *src, const gchar *spec, gboolean from_file,
                           const GHashTable *settings)
@@ -169,10 +172,10 @@ void free_sources(AppCtx *app)
     app->num_sources = 0;
 }
 
-/* The source whose bin contains the element that posted `msg`, or NULL (nvinfer, the muxer...).
- * `debug` is the debug text of the message, or NULL. A message that is handled late may come from an
- * element that the bin already took apart (it has no parent then), and only the element path in the
- * debug text, ".../GstDsNvUriSrcBin:source-<id>/...", still says where it came from. */
+/*
+ * The source whose bin contains the element that posted `msg`, or NULL. `debug` is the message's debug text (or NULL): a message handled
+ * late may come from an element the bin already took apart, and then only the path ".../GstDsNvUriSrcBin:source-<id>/..." tells where.
+ */
 SourceCtx *source_of_message(AppCtx *app, GstMessage *msg, const gchar *debug)
 {
     GstObject *obj = GST_MESSAGE_SRC(msg) != NULL ? gst_object_ref(GST_MESSAGE_SRC(msg)) : NULL;
@@ -200,13 +203,10 @@ SourceCtx *source_of_message(AppCtx *app, GstMessage *msg, const gchar *debug)
 }
 
 /*
- * An RTSP source lost its camera: an error on the bus, no frame for --rtsp-timeout seconds, or the
- * stream ended. The engine only notes it (state RECONNECTING, a log line, a new time anchor for the
- * events): nvurisrcbin, told to with rtsp-reconnect-interval, restarts its RTSP client by itself
- * until the camera answers. (Switching the whole bin off and on does not work: it then adds its
- * "vsrc_0" pad a second time and fails.) Only this source is affected; the others keep running
- * because nvstreammux, with live-source set, batches whatever frames it has after a timeout.
- * Called from the main thread.
+ * An RTSP source lost its camera (bus error, no frame for --rtsp-timeout, or end of stream). The engine only notes it (state
+ * RECONNECTING, a log line, a new time anchor): nvurisrcbin reconnects by itself (rtsp-reconnect-interval). Switching the bin off
+ * and on does not work (it adds its "vsrc_0" pad twice). Other sources keep running because nvstreammux has live-source set.
+ * Main thread.
  */
 void rtsp_reconnect(SourceCtx *src, const char *why)
 {
@@ -263,17 +263,13 @@ static gboolean add_source(AppCtx *app, SourceCtx *src);
 static void detach_source(AppCtx *app, SourceCtx *src);
 
 /*
- * SIGHUP: read the cameras file again and bring the running engine in line with it, without stopping the
- * pipeline:
- *  - a camera that is in the file but not running is added (to a free slot: the engine has as many as
- *    --max-cameras, or as many cameras as it started with);
- *  - a running camera that left the file, or whose address changed, is taken out (the second case is a
- *    removal plus an addition);
- *  - the settings (conf_threshold, absence_timeout, ai_enabled) of every camera that stays are updated.
- * It is all or nothing for the list: if the file does not parse, names a camera twice, takes a camera id
- * a --camera camera has, needs more slots than are free or the engine writes --output, nothing at all is
- * changed and the engine says why (the engine manager restarts it for those). Cameras given with --camera
- * are not in the file and are left alone. Messages never contain an address.
+ * SIGHUP: read the cameras file again and bring the running pipeline in line with it:
+ * - a camera in the file but not running is added to a free slot;
+ * - a running camera that left the file, or whose address changed, is removed (a change is a removal plus an addition);
+ * - the settings of every camera that stays are updated.
+ * All or nothing for the list: if the file does not parse, repeats a camera, takes an id of a --camera camera, needs more slots
+ * than are free, or --output is on, nothing changes and the engine says why (the manager then restarts it). Messages never
+ * contain an address.
  */
 gboolean on_reload(gpointer data)
 {
@@ -439,10 +435,8 @@ static void on_source_pad_added(GstElement *bin, GstPad *new_pad, gpointer user_
 }
 
 /*
- * Put the source bin of a camera into the pipeline: nvurisrcbin, and the muxer pad "sink_<source_id>" it is
- * linked to when it has found its video (on_source_pad_added). The bin starts with the pipeline, or with
- * add_source() when the pipeline already runs. Returns FALSE (after printing why) on error; detach_source()
- * undoes whatever was done.
+ * Put the source bin of a camera into the pipeline: nvurisrcbin, and the muxer pad "sink_<source_id>" it links to once it has
+ * video (on_source_pad_added). Returns FALSE on error; detach_source() undoes whatever was done.
  */
 gboolean attach_source(AppCtx *app, GstElement *pipeline, SourceCtx *src)
 {
@@ -474,9 +468,8 @@ gboolean attach_source(AppCtx *app, GstElement *pipeline, SourceCtx *src)
 }
 
 /*
- * The encoding branch of a slot, once. It stays in the pipeline when the camera goes: nvstreamdemux cannot
- * give the same pad out twice, so the next camera of the slot uses the branch that is there (its encoder idles
- * meanwhile). Returns TRUE and sets *built when it had to be made.
+ * The encoding branch of a slot, built once. It stays in the pipeline when the camera goes (nvstreamdemux cannot give the same
+ * pad out twice), and the slot's next camera reuses it. Returns TRUE and sets *built when it had to be made.
  */
 gboolean attach_branch(AppCtx *app, GstElement *pipeline, SourceCtx *src, gboolean *built)
 {
@@ -515,9 +508,8 @@ static gboolean add_source(AppCtx *app, SourceCtx *src)
 }
 
 /*
- * Take a camera out of the running pipeline and free its slot (main thread). Safe on a camera that is only
- * partly added. The muxer pad is released the way NVIDIA's runtime add/delete sample does: the source is
- * stopped, the pad gets a flush-stop, then it is released. The stream branch stays (see attach_branch).
+ * Take a camera out of the running pipeline and free its slot (main thread); safe on a partly added camera. The muxer pad is
+ * released as in NVIDIA's runtime add/delete sample: stop the source, flush-stop the pad, release it. The stream branch stays.
  */
 static void detach_source(AppCtx *app, SourceCtx *src)
 {

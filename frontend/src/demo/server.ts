@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 // A backend that lives in the browser, for the public demo: the same routes and answers as backend/ (see src/api), over made-up
 // cameras and events kept in memory. A reload starts over. Nothing here is ever sent anywhere.
 import { ApiError } from "../api/client";

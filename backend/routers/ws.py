@@ -1,4 +1,8 @@
-"""WebSocket for the browser (ROADMAP 3.7). Server to client only; what the client sends is ignored."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+WebSocket for the browser (ROADMAP 3.7). Server to client only; what the client sends is ignored.
+"""
 
 from __future__ import annotations
 

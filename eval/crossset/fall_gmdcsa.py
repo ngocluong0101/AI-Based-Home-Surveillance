@@ -1,16 +1,18 @@
-"""Falls on a dataset the system has never seen: GMDCSA-24 (V2-9). Everything was built and tuned on UR Fall (one room, 30 fps, 640x480); this runs it,
-unchanged, on 4 other actors in 3 home setups, 720p and 480p, 30 and 15 fps.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Falls on a dataset the system has never seen: GMDCSA-24 (V2-9). Everything was built and tuned on UR Fall (one room, 30 fps, 640x480);
+this runs it unchanged on 4 other actors in 3 home setups, 720p and 480p, 30 and 15 fps.
 
     eval/.venv/bin/python eval/crossset/make_dumps.py --set gmdcsa24
     eval/.venv/bin/python eval/crossset/fall_gmdcsa.py --write eval/results/<date>_v2-9_fall_gmdcsa24.json
 
-Two detectors, both used as they were: the hand-written rules (fall_still_s 2.0 = the default, and 1.0 = the value tuned on five UR Fall clips) and the ST-GCN
-(the final checkpoint eval/work/train/stgcn_T48.pt, trained on all UR Fall sequences and on nothing else; threshold 0.9 and 3 scores in a row, the deployed
-defaults). CLIP level: a clip is "reported" when the detector raises a fall anywhere in it. The dataset has no frame-level times, so this is "did it notice
-a fall in these seconds", the same simplification as AIRTLab. A fall clip not reported is a miss; an ADL clip reported is a false alarm.
+Two detectors as they were: the rules (fall_still_s 2.0 = default and 1.0 = tuned on five UR Fall clips) and the ST-GCN (final UR Fall
+checkpoint eval/work/train/stgcn_T48.pt, threshold 0.9, 3 scores in a row). CLIP level: a clip is "reported" when the detector raises a
+fall anywhere in it (the dataset has no frame-level times). A fall clip not reported is a miss; an ADL clip reported is a false alarm.
 
-15 fps: the network learned windows of 48 frames at 30 fps (1.6 s). On a 15 fps clip the same 48 frames last 3.2 s, so it is scored twice: as it is, and with the
-window resampled to 1.6 s (the skeleton window with speed 0.5, what a deployed engine would do after reading the camera's frame rate).
+15 fps: the network learned 48-frame windows at 30 fps (1.6 s), so a 15 fps clip is scored twice: as it is, and with the window
+resampled to 1.6 s (speed 0.5, what an engine would do after reading the frame rate).
 """
 import argparse
 import json

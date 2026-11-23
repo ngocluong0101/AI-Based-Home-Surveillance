@@ -1,8 +1,8 @@
-"""Hand-written checks of the behaviour rules (src/events/behavior.py).
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-The vectors (test_behavior_vectors.py) are generated from the engine, so they prove that C and Python agree, not that the
-rules are right. These tests state the expected behaviour in words, on the same scenarios, and do not depend on the
-generated numbers except through the timing the definitions of eval/DEFINITIONS.md call for.
+Hand-written checks of the behaviour rules (src/events/behavior.py). The vectors are generated from the engine, so they prove that
+C and Python agree, not that the rules are right; these tests state the expected behaviour in words, on the same scenarios.
 """
 import importlib.util
 import json

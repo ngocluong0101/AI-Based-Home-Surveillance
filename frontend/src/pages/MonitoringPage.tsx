@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { AnimatePresence, motion } from "motion/react";
 import { Camera as CameraIcon, CircleAlert, Clock, UserRound } from "lucide-react";
 import { EventItem } from "../components/EventItem";

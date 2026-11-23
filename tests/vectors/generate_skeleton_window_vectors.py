@@ -1,10 +1,13 @@
-"""Writes tests/vectors/skeleton_windows.json: raw skeleton histories and the window eval/train/skeleton.py builds from them. The C function
-pose_history_skeleton_window() (engine/src/core/pose.c) must give the same numbers (engine/tests/test_skel_window.c), so the network is fed
-the same input at run time as in training.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Writes tests/vectors/skeleton_windows.json: raw skeleton histories and the window eval/train/skeleton.py builds from them.
+pose_history_skeleton_window() (engine/src/core/pose.c) must give the same numbers (engine/tests/test_skel_window.c), so the
+network sees the same input at run time as in training.
 
     eval/.venv/bin/python tests/vectors/generate_skeleton_window_vectors.py
 
-Cases are made from a walking-then-falling skeleton with holes and missing frames added on purpose, plus real windows from UR Fall if the dumps exist.
+Cases: a walking-then-falling skeleton with holes and missing frames added on purpose, plus real UR Fall windows if the dumps exist.
 """
 import json
 import sys

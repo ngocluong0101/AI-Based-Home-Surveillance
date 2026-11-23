@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { verificationNote } from "../utils/eventType";
 import { Check, ImageOff, RotateCcw, Video } from "lucide-react";
 import { useState } from "react";

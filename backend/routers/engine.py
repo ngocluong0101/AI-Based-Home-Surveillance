@@ -1,4 +1,8 @@
-"""What the web app needs to know about the engine as a whole (not about one camera)."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+What the web app needs to know about the engine as a whole (not about one camera).
+"""
 
 from __future__ import annotations
 
@@ -15,11 +19,8 @@ router = APIRouter(prefix="/api/engine", tags=["engine"])
 
 @router.get("", response_model=EngineSummary)
 def engine_summary(request: Request, db: Session = Depends(get_db)) -> EngineSummary:
-    """How many cameras should run, how many places the running engine has, and whether one more camera fits.
-
-    A camera is added to or removed from the running engine without a restart as long as the list fits in its
-    places; a longer list restarts it once (all cameras lose the picture for a few seconds). `room` tells the web
-    app which of the two the next camera will be.
+    """How many cameras should run, how many places the running engine has, and whether one more camera fits (`room`).
+    Within the places a camera is added without a restart; beyond them the engine restarts once.
     """
     wanted = desired_cameras(db)
     reconciler = request.app.state.reconciler

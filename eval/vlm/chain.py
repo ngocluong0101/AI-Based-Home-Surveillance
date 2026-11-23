@@ -1,4 +1,7 @@
-"""One real run of the whole V2-6 chain: ds_engine (pose, rules, snapshot, frame ring) -> backend -> PostgreSQL -> the real VLM service (Qwen3-VL on the GPU).
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+One real run of the whole V2-6 chain: ds_engine (pose, rules, snapshot, frame ring) -> backend -> PostgreSQL -> the real VLM service (Qwen3-VL on the GPU).
 For each clip: what the event looked like after the VLM answered. Telegram is off. Uses the throwaway PostgreSQL container of the tests (v2-test-pg).
 
     eval/.venv/bin/python eval/vlm/chain.py fall-09 adl-10 adl-34

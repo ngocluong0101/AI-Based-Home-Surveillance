@@ -1,4 +1,8 @@
-"""GET /api/cameras/{id}/stream and the engine's --stream-url (ROADMAP 4.3)."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+GET /api/cameras/{id}/stream and the engine's --stream-url (ROADMAP 4.3).
+"""
 
 from .helpers import make_camera
 from .test_heartbeat import beat, cam

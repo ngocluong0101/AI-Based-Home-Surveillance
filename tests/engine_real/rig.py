@@ -1,9 +1,9 @@
-"""A test rig around the REAL ds_engine: the DeepStream container, the GPU, a fake backend that records what the
-engine sends, and (for the video tests) a MediaMTX container.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-Nothing here is a mock of the engine. The tests change the cameras file while it runs, send it SIGHUP, and look at
-what it did through the same channels the product uses: the events and heartbeats it POSTs, its own output, and
-the streams that arrive at the media server.
+A test rig around the REAL ds_engine: the DeepStream container, the GPU, a fake backend that records what the engine sends and,
+for the video tests, a MediaMTX container. Nothing mocks the engine: the tests change the cameras file while it runs, send it
+SIGHUP, and look at the events, heartbeats, output and streams the product itself produces.
 """
 
 from __future__ import annotations

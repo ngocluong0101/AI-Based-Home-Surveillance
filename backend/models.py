@@ -1,4 +1,8 @@
-"""Tables (ROADMAP 3.2). Per-frame metadata is deliberately not stored."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Tables (ROADMAP 3.2). Per-frame metadata is deliberately not stored.
+"""
 
 from __future__ import annotations
 

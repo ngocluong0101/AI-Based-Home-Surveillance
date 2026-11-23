@@ -1,14 +1,14 @@
-"""V2-2: accuracy of the pose model (COCO keypoint AP, OKS) in the engine against the same network run outside it.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-Same 1000 COCO val2017 images as V2-1 (eval/detection/make_coco_video.py), decoded from the same H.264 video, so every
-pipeline sees the same pixels (except the first one). Pipelines:
+V2-2: accuracy of the pose model (COCO keypoint AP, OKS) in the engine against the same network outside it, on the same 1000 COCO
+val2017 images as V2-1, decoded from the same H.264 video (so every pipeline sees the same pixels, except the first). Pipelines:
   ultra_pose_original   Ultralytics PyTorch FP32 on the original image files (reference)
   ultra_pose_video      the same on the decoded video frames, NMS IoU 0.7 (Ultralytics default)
-  ultra_pose_iou045     the same with NMS IoU 0.45 (what the engine's pose parser uses)
-  ort_pose              Python replica of the engine (nvinfer preprocessing + the parser logic), ONNX Runtime FP32
-  engine_trt_pose       the engine itself: TensorRT FP16 in DeepStream, keypoints read from the dump
-Each is scored with pycocotools twice: keypoints (OKS) and boxes, so that the pose model can also be compared with the
-detection-only model (V2-1: engine box AP 0.457).
+  ultra_pose_iou045     the same with NMS IoU 0.45 (the engine's pose parser)
+  ort_pose              Python replica of the engine (nvinfer preprocessing + parser logic), ONNX Runtime FP32
+  engine_trt_pose       the engine itself: TensorRT FP16 in DeepStream, keypoints from the dump
+Each is scored with pycocotools twice, keypoints (OKS) and boxes, so the pose model can be compared with the detection-only model.
 
 Prepare the engine dump first:
   eval/.venv/bin/python eval/tools/make_pgie_config.py --base pgie_yolov8n_pose.txt --batch 1 --threshold 0.001 --out eval/work/pgie_pose_b1_t0001.txt

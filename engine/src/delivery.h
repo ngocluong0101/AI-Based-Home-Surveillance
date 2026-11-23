@@ -1,7 +1,10 @@
 /*
- * delivery.h - the publisher thread: it takes what the probes and the heartbeat timer put into the queue and
- * does the slow things they must not do: write snapshot files, POST events and heartbeats to the backend
- * (libcurl), keep events in the spool file while the backend is down. See delivery.c.
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
+ * delivery.h - the publisher thread: takes what the probes and heartbeat timer queue and does the slow work they must not do
+ * (write snapshots, POST events and heartbeats with libcurl, keep events in the spool while the backend is down).
  */
 #ifndef DS_DELIVERY_H
 #define DS_DELIVERY_H

@@ -1,13 +1,11 @@
-"""EngineManager: keeps one ds_engine process running for the cameras it was told about.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-One process serves all cameras (one batched pipeline), so the camera list is the process's command
-line: when the list changes the process is stopped (SIGTERM, so it prints its summary and flushes its
-spool) and started again with the new list; when the process dies it is started again after a growing
-delay. The manager is told *what* should run (set_cameras); it does not know about the database.
+EngineManager: keeps one ds_engine process running for the cameras it was told about (`set_cameras`).
 
-RTSP URLs hold passwords, so they never go into the command line (`ps` would show them): they are
-written to a file readable by the owner only and given to the engine with --cameras-file.
-The backend token reaches the engine through the environment variable DS_ENGINE_TOKEN, for the same reason.
+One process serves all cameras, so the camera list is its command line: when the list changes the process is stopped (SIGTERM)
+and started again; when it dies it is restarted after a growing delay. RTSP URLs hold passwords, so they go into a file readable
+by the owner only (--cameras-file), and the backend token goes through DS_ENGINE_TOKEN, never through `ps`.
 """
 
 from __future__ import annotations
@@ -109,13 +107,9 @@ _PATH_KEYS = ("onnx-file", "model-file", "proto-file", "labelfile-path", "custom
 def write_engine_config(base: Path, out_dir: Path, batch: int) -> tuple[Path, Path | None]:
     """Write a copy of the nvinfer config `base` for `batch` cameras; return (copy, TensorRT engine file).
 
-    A TensorRT engine is built for one maximum batch size and nvinfer keeps one file per size, named
-    <onnx file>_b<N>_gpu0_fp16.engine, next to the ONNX file. The config names a single engine file, and
-    when it does not match the number of cameras nvinfer builds a new engine at EVERY start (~150 s).
-    So the copy points model-engine-file at the file of this batch size: the first start with N cameras
-    builds it (nvinfer saves it there), later ones just load it. Paths are made absolute because the copy
-    lives elsewhere. A config without onnx-file is copied as it is (no way to name the engine).
-    Delete the *_b*_*.engine files when the ONNX model is exported again: nvinfer does not check them.
+    nvinfer keeps one engine file per batch size (<onnx>_b<N>_gpu0_fp16.engine). The copy points model-engine-file at the file
+    for this batch size, so only the first start with N cameras builds it (~150 s). Paths become absolute. A config without
+    onnx-file is copied as it is. Delete the *_b*_*.engine files after exporting the ONNX again: nvinfer does not check them.
     """
     lines = base.read_text(encoding="utf-8").splitlines()
     onnx = None

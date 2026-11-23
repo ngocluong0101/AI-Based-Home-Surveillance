@@ -1,4 +1,8 @@
-"""Logging configuration for AI-Based-Home-Surveillance."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Logging configuration for AI-Based-Home-Surveillance.
+"""
 
 from __future__ import annotations
 
@@ -11,12 +15,8 @@ from src.config import LOG_LEVEL, LOG_FILE, LOG_MAX_BYTES, LOG_BACKUP_COUNT
 
 
 def setup_logging(level: Optional[str] = None, log_file: Optional[str] = None) -> None:
-    """Configure root logging for the application.
-
-    `level` overrides the config `LOG_LEVEL` if provided, `log_file` the config `LOG_FILE` (two programs
-    must not rotate the same file, so each of them names its own). Logs go to both the
-    terminal and a rotating file (`LOG_FILE`, default `logs/app.log`) so
-    history survives restarts when running headless/as a service.
+    """Configure root logging to the terminal and a rotating file. `level` and `log_file` override LOG_LEVEL and LOG_FILE
+    (two programs must not rotate the same file).
     """
     level_name = (level or LOG_LEVEL or "INFO").upper()
     try:

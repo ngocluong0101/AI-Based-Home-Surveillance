@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import type { LucideIcon } from "lucide-react";
 import { AlertTriangle } from "lucide-react";
 import type { ReactNode } from "react";

@@ -1,11 +1,14 @@
-"""Stage 1 of the end-to-end evaluation: run the real engine (pose model, NvDCF) over each labelled clip and keep its dump.
-One clip at a time, `nice`d: the GPU is shared with the V1 stack on this laptop. A clip that already has a dump is skipped.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Stage 1 of the end-to-end evaluation: run the real engine (pose model, NvDCF) over each labelled clip and keep its dump. One clip at a
+time, `nice`d (the GPU is shared with the V1 stack). A clip that already has a dump is skipped.
 
     eval/.venv/bin/python eval/e2e/make_dumps.py --splits val,test
     eval/.venv/bin/python eval/e2e/make_dumps.py --only hallway_03 --force
 
-Clips are looked up in datasets/own/clips/ (your own recordings), then eval/work/urfall/ (public UR Fall clips, split 'dev').
-Needs eval/work/pgie_pose_b1.txt: `eval/.venv/bin/python eval/tools/make_pgie_config.py --base pgie_yolov8n_pose.txt --batch 1 --out eval/work/pgie_pose_b1.txt`.
+Clips are looked up in datasets/own/clips/ (own recordings), then eval/work/urfall/ (split 'dev'). Needs eval/work/pgie_pose_b1.txt:
+`eval/.venv/bin/python eval/tools/make_pgie_config.py --base pgie_yolov8n_pose.txt --batch 1 --out eval/work/pgie_pose_b1.txt`.
 """
 import argparse
 import subprocess

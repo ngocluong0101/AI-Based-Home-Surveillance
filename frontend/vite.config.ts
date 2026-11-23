@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 

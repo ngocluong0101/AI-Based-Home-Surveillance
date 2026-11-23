@@ -1,11 +1,13 @@
 /*
- * rtsp_test_server.c - a tiny RTSP "camera" for testing the engine's reconnect (ROADMAP 2.7).
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
+ * rtsp_test_server.c - a tiny RTSP "camera" for testing the engine's reconnect (ROADMAP 2.7): serves the H.264 video of an MP4 in
+ * real time at rtsp://127.0.0.1:PORT/MOUNT. Stop and restart it to make the camera go away and come back. An offline test tool,
+ * built with `make rtsp-test-server` (needs gst-rtsp-server).
  *
- * Serves the H.264 video of an MP4 file, in real time, at rtsp://127.0.0.1:PORT/MOUNT. Stop it
- * (Ctrl-C / kill) and start it again to make the camera go away and come back. Not part of the
- * product: an offline test tool, built with `make rtsp-test-server` (needs gst-rtsp-server).
- *
- *   build/rtsp_test_server FILE.mp4 [PORT [MOUNT]]      (defaults 8554 and /cam)
+ * build/rtsp_test_server FILE.mp4 [PORT [MOUNT]]      (defaults 8554 and /cam)
  */
 #include <gst/gst.h>
 #include <gst/rtsp-server/rtsp-server.h>

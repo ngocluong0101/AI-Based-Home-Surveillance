@@ -1,14 +1,16 @@
-"""Export YOLOv8 weights (.pt) to ONNX with a dynamic batch dimension, for DeepStream's nvinfer.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-Offline tool: run it once on the dev machine. It is not part of the frame-processing path.
+Export YOLOv8 weights (.pt) to ONNX with a dynamic batch dimension, for DeepStream's nvinfer.
+
+Offline tool, run once on the dev machine:
 
     python engine/tools/export_yolov8_onnx.py
     python engine/tools/export_yolov8_onnx.py --weights yolov8n.pt --output engine/models/yolov8n.onnx
 
-The exported network takes `images` [batch, 3, imgsz, imgsz] (RGB, 0..1) and returns `output0`
-[batch, 4 + num_classes, anchors]: for each anchor the box (cx, cy, w, h in input pixels) followed by
-one score per class. For yolov8n at 640 that is [batch, 84, 8400]. NMS is not part of the model; the
-custom parser in engine/parser/ reads this tensor and nvinfer runs the NMS.
+The network takes `images` [batch, 3, imgsz, imgsz] (RGB, 0..1) and returns `output0` [batch, 4 + num_classes, anchors]
+(box cx, cy, w, h in input pixels, then one score per class; [batch, 84, 8400] for yolov8n at 640). NMS is not in the model:
+the parser in engine/parser/ reads the tensor and nvinfer runs the NMS.
 """
 import argparse
 import shutil
@@ -19,7 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n", 1)[1].splitlines()[0])
     parser.add_argument("--weights", type=Path, default=REPO_ROOT / "yolov8n.pt")
     parser.add_argument("--output", type=Path, default=REPO_ROOT / "engine" / "models" / "yolov8n.onnx")
     parser.add_argument("--imgsz", type=int, default=640, help="square network input size (default 640)")

@@ -1,4 +1,7 @@
-"""HTTP face of the engine manager (ROADMAP 3.5). It controls a program, so it listens on the loopback
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+HTTP face of the engine manager (ROADMAP 3.5). It controls a program, so it listens on the loopback
 interface only and has no authentication:
 
     uvicorn engine_manager.service:create_app --factory --host 127.0.0.1 --port 8100

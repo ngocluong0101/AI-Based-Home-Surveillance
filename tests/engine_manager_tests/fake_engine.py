@@ -1,15 +1,14 @@
-"""Stands in for ds_engine in the manager tests.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-Records how it was started in $FAKE_ENGINE_DIR/run-<n>.json (argv, whether DS_ENGINE_TOKEN was set, and
-the cameras file with its mode), prints a line that has a password in it, then behaves as FAKE_MODE says:
+Stands in for ds_engine in the manager tests. Records how it was started in $FAKE_ENGINE_DIR/run-<n>.json (argv, whether
+DS_ENGINE_TOKEN was set, the cameras file and its mode), prints a line with a password in it, then behaves as FAKE_MODE says:
   run (default)  wait for SIGTERM, print "Stopping", exit 0
   crash          exit 3 after a moment
   finish         exit 0 at once (every source ended)
   stubborn       ignore SIGTERM
-In every mode but stubborn it also takes SIGHUP like the real engine (a reload of the settings): it copies the cameras
-file as it is at that moment to $FAKE_ENGINE_DIR/hup-<n>.json (n counts the signals), so a test can see that the file
-was already rewritten when the signal arrived. It then prints what the real engine prints: "reload: done, ..." or, when
-FAKE_RELOAD_FAIL is set, "reload: nothing applied, ..." (the engine could not do what the file asks).
+Except in stubborn mode it also handles SIGHUP like the real engine: it copies the cameras file as it is at that moment to
+$FAKE_ENGINE_DIR/hup-<n>.json and prints "reload: done, ..." (or "reload: nothing applied, ..." when FAKE_RELOAD_FAIL is set).
 """
 import json
 import os

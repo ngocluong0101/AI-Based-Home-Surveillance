@@ -1,14 +1,14 @@
 /*
- * event_manager.h - PERSON_DETECTED de-duplication, C port of src/events/person_detected.py.
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
+ * event_manager.h - PERSON_DETECTED de-duplication, C port of src/events/person_detected.py (the specification; both run
+ * tests/vectors/event_manager_*.json).
  *
- * A tracker reports the same person on every frame; the manager turns that into ONE event per
- * appearance: an event is emitted when a track ID is seen for the first time, or again after the
- * track was absent for longer than absence_timeout. The Python PersonDetectedEventManager is the
- * specification, and both are run against the same vectors (tests/vectors/event_manager_*.json).
- *
- * Pure C, no DeepStream or GLib, no clock of its own: the caller passes `now` (in ns), which in the
- * engine is stream_start[source_id] + the frame's PTS. One instance per source: track IDs are only
- * unique inside one source. Not thread-safe; an instance is used from one thread (the pad probe).
+ * A tracker reports a person on every frame; this turns it into ONE event per appearance: when a track ID is first seen, or
+ * again after it was absent for longer than absence_timeout. Pure C, no clock: the caller passes `now` in ns (stream start + the
+ * frame's PTS). One instance per source (track IDs are unique only inside one source), used from one thread.
  */
 #ifndef EVENT_MANAGER_H
 #define EVENT_MANAGER_H
@@ -42,17 +42,14 @@ typedef struct {
 } EventManager;
 
 /*
- * Set up an empty manager. absence_timeout_s is in seconds, like the Python constructor argument
- * (10.0 by default in the config); it is rounded to whole nanoseconds. Never fails: the track
- * table is allocated on first use.
+ * Set up an empty manager. absence_timeout_s is in seconds, rounded to whole nanoseconds. Never fails: the track table is
+ * allocated on first use.
  */
 void event_manager_init(EventManager *em, double absence_timeout_s);
 
 /*
- * Change the timeout of a manager that is already in use (a camera whose settings were edited while the
- * engine runs). The tracks it remembers keep their last-seen time and are judged against the new value
- * from the next call on. Same rounding and clamping as event_manager_init(). Like every other call it
- * must not run at the same time as event_manager_process() on the same manager.
+ * Change the timeout of a manager in use (camera settings edited while the engine runs); remembered tracks are judged against
+ * the new value from the next call. Must not run at the same time as event_manager_process() on the same manager.
  */
 void event_manager_set_absence_timeout(EventManager *em, double absence_timeout_s);
 
@@ -61,15 +58,10 @@ void event_manager_set_absence_timeout(EventManager *em, double absence_timeout_
 void event_manager_destroy(EventManager *em);
 
 /*
- * Process the detections of one frame (all from the same source, in the order they should be
- * reported) at time now_ns, and write the events they trigger to out, in the same order. Each
- * detection triggers at most one event, so out needs room for num_dets events; if it has less
- * (out_cap), the remaining events are dropped but the state is still updated. Returns the number
- * of events written, or -1 if memory for the tracks ran out; the call then changed nothing and
- * out is not valid.
- *
- * A track absent longer than the timeout is forgotten at the end of the call. A clock that goes
- * backwards never counts as an absence, as in the Python version.
+ * Process the detections of one frame (same source, in report order) at now_ns and write the events they trigger to out, in the
+ * same order. Each detection triggers at most one event, so out needs num_dets places; with fewer (out_cap) the rest are dropped
+ * but the state is still updated. Returns the number written, or -1 if memory ran out (nothing changed). A track absent longer
+ * than the timeout is forgotten at the end of the call; a clock that goes backwards never counts as an absence.
  */
 int event_manager_process(EventManager *em, const Detection *dets, size_t num_dets,
                           int64_t now_ns, PersonDetectedEvent *out, size_t out_cap);

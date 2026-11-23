@@ -1,4 +1,7 @@
-"""Notifications package.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Notifications package.
 
 Exposes the Telegram notifier implementation.
 """

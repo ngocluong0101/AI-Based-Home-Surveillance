@@ -1,18 +1,20 @@
-"""Skeleton windows for the ST-GCN (V2-5): what goes into the network, in one place, written so that the C++ in the engine can do exactly the same.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-A window is the last T frames of one track. Input tensor (3, T, 17): channel 0/1 = x, y of every keypoint relative to the window's origin
-and divided by the window's scale, channel 2 = 1 if the keypoint is usable in that frame, else 0 (and x, y are 0 there).
+Skeleton windows for the ST-GCN (V2-5): what goes into the network, in one place, written so the C++ in the engine can do exactly the same.
 
-    origin  hip centre (mean of the visible hips, else of the visible shoulders) in the FIRST frame of the window that has one. Fixed for the
-            whole window, so the hips falling down during the window show up as motion (the per-frame normalisation of core/pose.c would erase it)
-    scale   median over the window of the torso length (shoulder centre -> hip centre) of the frames that have both; none: 0.3 * the median
-            larger side of the person's box; none of that: the window is rejected
-    start   fewer than MIN_FRAMES frames with a skeleton: no window. Frames before the track began are missing frames (valid 0), so a person who
-            falls soon after appearing is still scored
-    gaps    a keypoint missing for at most MAX_GAP frames with a visible value on both sides is filled by a straight line; the rest stays 0, valid 0
-    speed   a window of T * speed frames is subsampled to T (nearest frame) - training augmentation only; the deployed model uses speed 1
+A window is the last T frames of one track: a tensor (3, T, 17), channel 0/1 = x, y of every keypoint relative to the origin and divided
+by the scale, channel 2 = 1 if the keypoint is usable in that frame, else 0 (and x, y are 0).
 
-Coordinates are the pixels of the nvstreammux frame (y down), exactly what the dump of `ds_engine --dump-detections` and the engine's PoseHistory hold.
+    origin  hip centre (visible hips, else shoulders) in the FIRST frame of the window that has one; fixed for the whole window, so the hips
+            falling show up as motion (per-frame normalisation would erase it)
+    scale   median torso length over the window; none: 0.3 * the median larger side of the box; none of that: the window is rejected
+    start   fewer than MIN_FRAMES frames with a skeleton: no window. Frames before the track began are missing, so a person who falls
+            soon after appearing is still scored
+    gaps    a keypoint missing for at most MAX_GAP frames with a visible value on both sides is filled by a straight line; the rest is 0
+    speed   a window of T * speed frames is subsampled to T (training augmentation only; the deployed model uses speed 1)
+
+Coordinates are pixels of the nvstreammux frame (y down), as in the dump of `ds_engine --dump-detections` and the engine's PoseHistory.
 """
 from dataclasses import dataclass
 

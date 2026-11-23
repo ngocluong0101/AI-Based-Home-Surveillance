@@ -1,8 +1,10 @@
-"""how sure the skeleton network has to be, and for how long, before it calls a fall (per camera)
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-`cameras.fall_net_thr`: a score at or above this counts (0-1, the engine's own default 0.9; 0.95 gave fewer false alarms on the lab
-data). `cameras.fall_net_k`: this many scores in a row make a fall (1-100, default 3). Both only matter on a camera whose `fall_net`
-is 1 or 2.
+how sure the skeleton network has to be, and for how long, before it calls a fall (per camera)
+
+`cameras.fall_net_thr`: a score at or above it counts (0-1, default 0.9). `cameras.fall_net_k`: this many scores in a row make a fall
+(1-100, default 3). Both only matter when `fall_net` is 1 or 2.
 
 Revision ID: 0007
 Revises: 0006

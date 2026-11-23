@@ -1,4 +1,8 @@
-"""The skeleton window the ST-GCN is trained on (eval/train/skeleton.py), by hand: expected values worked out from the definition, not read back."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+The skeleton window the ST-GCN is trained on (eval/train/skeleton.py), by hand: expected values worked out from the definition, not read back.
+"""
 import json
 import subprocess
 import sys

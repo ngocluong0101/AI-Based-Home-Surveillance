@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 #include "backoff.h"
 
 uint32_t backoff_next_ms(uint32_t current_ms)

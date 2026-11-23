@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
-"""Fake backend for testing the engine's publisher (ROADMAP 2.6).
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-Accepts POST /internal/events like the real backend will, appends the body of every request it
+Fake backend for testing the engine's publisher (ROADMAP 2.6): accepts POST /internal/events, appends the body of every request it
 answers with 2xx to --log (one JSON event per line), and can misbehave on purpose:
 
   --delay SEC         wait SEC before answering (a slow backend)
   --status CODE       answer with this HTTP status instead of 200 ...
-  --status-for SEC    ... but only for the first SEC seconds after start, then answer 200
+  --status-for SEC    ... but only for the first SEC seconds, then answer 200
   --token TOKEN       answer 401 unless the request carries the header X-Internal-Token: TOKEN
   --heartbeat-log F   also accept POST /internal/heartbeat and append each body to F
 
-Not part of the product: an offline test tool.
+An offline test tool.
 """
 import argparse
 import json
@@ -21,7 +22,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n", 1)[1], formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--port", type=int, default=8000)
     ap.add_argument("--delay", type=float, default=0.0)
     ap.add_argument("--status", type=int, default=200)

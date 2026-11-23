@@ -1,4 +1,7 @@
-"""Simple Telegram notifier using Bot API and environment variables.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Simple Telegram notifier using Bot API and environment variables.
 
 This module keeps failures non-fatal and logs errors to the terminal.
 """
@@ -14,11 +17,7 @@ from src.config import TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, ENABLE_TELEGRAM
 
 
 class TelegramNotifier:
-    """Notifier that sends plain text messages via Telegram Bot API.
-
-    It reads `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` from the environment.
-    If they're not present the notifier is disabled but safe to instantiate.
-    """
+    """Sends text and photo messages via the Telegram Bot API; disabled (but safe to create) without a token."""
 
     def __init__(self, token: str | None = None, chat_id: str | None = None) -> None:
         # Prefer explicit constructor values, then config module values.
@@ -67,11 +66,7 @@ class TelegramNotifier:
         return True
 
     def _build_caption(self, event: Any) -> str:
-        """Build a caption string for person-detected events.
-
-        Centralizing caption formatting avoids duplication between
-        text-only and photo notifications.
-        """
+        """Caption for person-detected events."""
         return (
             "⚠️ PERSON DETECTED\n"
             f"Person ID: {event.track_id}\n"
@@ -80,11 +75,7 @@ class TelegramNotifier:
         )
 
     def send_person_detected_photo(self, event: Any, photo_path: str) -> bool:
-        """Send a photo with a caption for a PERSON_DETECTED event.
-
-        Uses the `sendPhoto` endpoint. Returns True on success, False otherwise.
-        Exceptions are caught and logged; callers should not expect raises.
-        """
+        """Send a photo with a caption for a PERSON_DETECTED event. Returns True on success; never raises."""
         if not self.enabled:
             return False
 
@@ -109,11 +100,7 @@ class TelegramNotifier:
         return True
 
     def send_alert(self, caption: str, photo_path: str | None = None) -> bool:
-        """Send an alert whose text the caller wrote (falls, fights, restricted areas), with a photo when there is one.
-
-        Returns True on success, False otherwise; never raises. The text-only and the photo calls are the same two
-        endpoints the PERSON_DETECTED messages use.
-        """
+        """Send an alert whose text the caller wrote, with a photo when there is one. Returns True on success; never raises."""
         if not self.enabled:
             return False
         try:

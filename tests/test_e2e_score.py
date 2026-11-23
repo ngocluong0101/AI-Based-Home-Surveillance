@@ -1,6 +1,10 @@
-"""Hand-written cases for the V2-4 scoring (eval/e2e): what counts as a hit, a duplicate, a false alarm, an ambiguous event;
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Hand-written cases for the V2-4 scoring (eval/e2e): what counts as a hit, a duplicate, a false alarm, an ambiguous event;
 the Wilson interval; the leak check on splits. Expected values are worked out by hand from eval/DEFINITIONS.md sections 3-4,
-not read back from the code."""
+not read back from the code.
+"""
 import pytest
 
 from eval.e2e import labels, score

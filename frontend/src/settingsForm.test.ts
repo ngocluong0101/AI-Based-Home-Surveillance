@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { describe, expect, it } from "vitest";
 import type { AppSettings } from "./types";
 import { describeQuietHours, formatBytes, formFromSettings, isDirty, toSettingsUpdate, validateSettings } from "./utils/settingsForm";

@@ -1,13 +1,15 @@
-"""Stage 1 of the cross-dataset evaluation: run the real engine (pose model, NvDCF) over the clips of a public dataset and keep one dump per clip.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-Four clips go through ONE engine run (four file sources, batch 4: the TensorRT engine of that batch exists), and the dump is split by source_id
-afterwards, so a dataset of 350 clips takes a quarter of the time of one engine start per clip. A clip that already has a dump is skipped.
+Stage 1 of the cross-dataset evaluation: run the real engine (pose model, NvDCF) over the clips of a public dataset, one dump per clip.
+Four clips go through ONE engine run (batch 4) and the dump is split by source_id, so 350 clips take a quarter of the time. A clip
+that already has a dump is skipped.
 
     eval/.venv/bin/python eval/crossset/make_dumps.py --set airtlab
     eval/.venv/bin/python eval/crossset/make_dumps.py --set airtlab --limit 8        # a quick try
 
 Needs eval/work/pgie_pose_b4.txt: `python eval/tools/make_pgie_config.py --base pgie_yolov8n_pose.txt --batch 4 --out eval/work/pgie_pose_b4.txt`.
-Output: eval/work/crossset/<set>/<clip name>.csv, in the format of eval/common/ds_dump.py (source_id column kept at 0).
+Output: eval/work/crossset/<set>/<clip name>.csv (format of eval/common/ds_dump.py, source_id kept at 0).
 """
 import argparse
 import subprocess

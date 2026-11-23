@@ -1,18 +1,17 @@
 /*
- * heartbeat_record.h - the heartbeat the engine POSTs to the backend every few seconds (ROADMAP 3.6):
- * one per process, with the state of every camera in it.
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
+ * heartbeat_record.h - the heartbeat the engine POSTs to the backend every few seconds (ROADMAP 3.6): one per process, with
+ * the state of every camera.
  *
  * {"schema_version":1,"run_id":"<uuid>","cameras":[
- *   {"camera_id":1,"state":"RUNNING","fps":28.4,"last_frame_age":0.030,"people":2},
- *   {"camera_id":2,"state":"RECONNECTING","fps":0.0,"last_frame_age":12.500}]}
+ * {"camera_id":1,"state":"RUNNING","fps":28.4,"last_frame_age":0.030,"people":2},
+ * {"camera_id":2,"state":"RECONNECTING","fps":0.0,"last_frame_age":12.500}]}
  *
- * "people" is how many tracked persons the latest frame of that camera held (the same people the events
- * are made from). It is left out when the engine does not know (no frame yet, or none for a while: then
- * 0 would claim an empty room), and an older engine never sends it.
- *
- * Pure C like event_record.h: written by hand, numbers printed by integer arithmetic so the locale
- * cannot turn "28.4" into "28,4". run_id is the pipeline_run_id of the events, so the backend can tell
- * the heartbeats of a new run from those of the one before.
+ * "people" = tracked persons in the camera's latest frame; left out when unknown (no recent frame: 0 would claim an empty room).
+ * Pure C like event_record.h (hand-written JSON, integer-arithmetic numbers). run_id is the events' pipeline_run_id.
  */
 #ifndef HEARTBEAT_RECORD_H
 #define HEARTBEAT_RECORD_H
@@ -43,10 +42,9 @@ static inline size_t heartbeat_json_capacity(size_t cameras)
 }
 
 /*
- * Write the JSON object to out as one line without a trailing newline, NUL terminated. Returns its
- * length (without the NUL), or -1 if it does not fit in cap bytes; heartbeat_json_capacity(n) always
- * suffices. fps is printed with 1 decimal and last_frame_age with 3; NaN and negative values become
- * 0, and values above 1e9 are clamped, so the output is always a valid JSON number.
+ * Write the JSON object to out as one line, NUL terminated. Returns its length, or -1 if it does not fit in cap bytes
+ * (heartbeat_json_capacity(n) always suffices). fps has 1 decimal, last_frame_age 3; NaN and negatives become 0 and values above
+ * 1e9 are clamped, so the output is always a valid JSON number.
  */
 int heartbeat_to_json(const char *run_id, const HeartbeatCamera *cameras, size_t count, char *out,
                       size_t cap);

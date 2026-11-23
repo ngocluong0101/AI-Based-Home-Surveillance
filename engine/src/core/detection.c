@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 #include "detection.h"
 
 int detection_bbox_normalize(float left, float top, float width, float height,

@@ -1,7 +1,10 @@
 /*
- * report.h - what the engine says about itself: the source table at start, the statistics at the end, the
- * frame rate every few seconds, and the heartbeat (the state of every camera, handed to the publisher thread).
- * All of it runs on the main thread, where the source states live.
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
+ * report.h - what the engine says about itself: the source table at start, statistics at the end, the frame rate every few
+ * seconds, and the heartbeat. All on the main thread, where the source states live.
  */
 #ifndef DS_REPORT_H
 #define DS_REPORT_H

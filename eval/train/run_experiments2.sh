@@ -1,4 +1,6 @@
 #!/bin/bash
+# @author: Ngoc Luong <ngocluongg0101@gmail.com>
+
 # V2-5 second round: the same, after windows were allowed to start 16 frames into a track (partial windows; see skeleton.py MIN_FRAMES).
 set -e
 cd "$(dirname "$0")/../.."

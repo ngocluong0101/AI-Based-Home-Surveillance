@@ -129,3 +129,7 @@ The fall network is optional: without it every camera uses the rules ([how to tr
 | [`eval/`](eval/) | how every number was measured, and how to measure it again |
 | [`backend/`](backend/), [`frontend/`](frontend/), [`vlm_service/`](vlm_service/), [`deploy/`](deploy/) | the rest of the system |
 | [`docs/posts/`](docs/posts/) | three short articles: a detector that found 10% fewer people, a fall rule that scored 0 then 5 of 5, a VLM that said yes to everyone |
+
+---
+
+@author: Ngoc Luong <ngocluongg0101@gmail.com>

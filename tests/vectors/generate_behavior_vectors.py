@@ -1,14 +1,13 @@
-"""Generate tests/vectors/behavior_*.json from BehaviorEngine (src/events/behavior.py).
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-The Python engine is the specification. Each scenario below only describes what the cameras see: a skeleton and a box per
-person per frame (made by the small body model at the top of this file, a rigid stick figure that stands, falls, lies, waves
-and punches). The events the engine raises are recorded by running it. The C port (engine/src/core/behavior.c) must give the
-same events for the same files (`make test-core`), and so must the engine itself (tests/test_behavior_vectors.py), plus
-hand-written assertions for the scenarios in tests/test_behavior.py, so a vector can never silently disagree with the rules.
+Generate tests/vectors/behavior_*.json from BehaviorEngine (src/events/behavior.py), the specification. Each scenario only
+describes what the cameras see (a skeleton and a box per person per frame, from a small rigid stick-figure model that stands,
+falls, lies, waves and punches); the events are recorded by running the engine. The C port (behavior.c) and the engine itself
+(tests/test_behavior_vectors.py) must give the same events, and tests/test_behavior.py adds hand-written assertions.
 
-Regenerate after a deliberate change of the rules:
+Regenerate after a deliberate change of the rules, and review the diff of the JSON:
     PYTHONPATH=. python tests/vectors/generate_behavior_vectors.py
-and review the diff of the JSON files.
 
 File format:
     name, description
@@ -20,7 +19,7 @@ File format:
       people[]           {track_id, box: [x, y, w, h], keypoints: [[x, y, visibility] x 17] or null}
       expected_events[]  {type, track_ids, zone_id, occurred_ns, score}, each emitted at now_ns
       tracks_after       number of tracks the engine still remembers
-Coordinates are rounded to 0.001 px before the engine sees them, so both languages read exactly the same numbers.
+Coordinates are rounded to 0.001 px before the engine sees them, so both languages read the same numbers.
 """
 
 from __future__ import annotations

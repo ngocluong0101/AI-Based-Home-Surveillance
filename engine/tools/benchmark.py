@@ -1,33 +1,28 @@
 #!/usr/bin/env python3
-"""benchmark.py - ROADMAP 6.4/6.5: how many cameras does one GPU carry, and is "1 process = N cameras"
-better than "N processes = 1 camera each"?
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-An offline test tool, not part of the product. Run it INSIDE the DeepStream container (it needs
-ds_engine, nvidia-smi, and for --source rtsp the fake camera from `make rtsp-test-server`):
+benchmark.py - ROADMAP 6.4/6.5: how many cameras does one GPU carry, and is "1 process = N cameras" better than "N processes = 1 camera"?
+
+An offline tool. Run it INSIDE the DeepStream container (needs ds_engine, nvidia-smi, and for --source rtsp the fake camera from
+`make rtsp-test-server`):
 
     docker run --rm --gpus all -u 1000:1000 -v $PWD:/repo -e HOME=/tmp --entrypoint /usr/bin/python3 \\
         nvcr.io/nvidia/deepstream:7.1-triton-multiarch /repo/engine/tools/benchmark.py \\
         --video /repo/data/videos/sample_1080p_h264.mp4 --source rtsp --layout single --cameras 1 2 3 4
 
-Each case starts the engine(s), waits until every camera reports frames, measures for --duration
-seconds (rtsp) or until the files end (files), then stops and reports:
-  fps/cam   median of the per-interval FPS of each camera (the worst camera is shown)
-  GPU       nvidia-smi utilization.gpu / .encoder / .decoder (mean over the window, max for GPU)
-  VRAM      memory.used of the whole GPU (other apps included), max over the window; the JSON also
-            has vram_mib = that minus what was in use before the case (noisy: a previous case may
-            not have released its memory yet)
-  CPU, RSS  of the engine process(es): % of ONE core, summed, and resident memory
---source rtsp serves the same file as N RTSP cameras in real time (30 fps each, every camera has its
-own NVDEC session, like real cameras); the case passes when every camera holds --target-fps and no
-camera reconnects. --source files reads the file as fast as possible, so fps/cam shows the headroom.
-The fake camera serves the file once, so keep warm-up + --duration below the length of the video.
+Each case starts the engine(s), waits until every camera reports frames, measures for --duration seconds (rtsp) or until the
+files end, then reports: fps/cam (median per interval, the worst camera is shown), GPU / encoder / decoder utilization from
+nvidia-smi, VRAM (whole GPU, max over the window; the JSON also has vram_mib = minus what was in use before), and CPU (% of one
+core) and RSS of the engine process(es).
 
-A TensorRT engine is needed per batch size (one per N for --layout single, batch 1 for multi); a
-missing one is built the first time (~150 s) and kept in engine/models/. Latency is not measured here.
+--source rtsp serves the file as N RTSP cameras in real time (30 fps, one NVDEC session each); the case passes when every camera
+holds --target-fps and none reconnects. --source files reads as fast as possible, so fps/cam shows the headroom. The fake camera
+serves the file once, so keep warm-up + --duration below the video length. A TensorRT engine is needed per batch size; a missing
+one is built the first time (~150 s) and kept in engine/models/. Latency is not measured.
 
---stream-url BASE adds the video: every camera is also encoded (H.264 on NVENC, boxes drawn) and published to
-BASE/cam<ID>, which is what the product does for the web app. Without it only detection and tracking are measured.
-With it the enc% column shows the load on NVENC; the case passes under the same rule (30 fps per camera, no reconnect).
+--stream-url BASE also encodes every camera (H.264 on NVENC, boxes drawn) and publishes it to BASE/cam<ID>; the enc% column then
+shows NVENC load and the pass rule is the same.
 """
 import argparse
 import json
@@ -300,7 +295,7 @@ def ensure_engine(batch: int, args, workdir: Path, tracker: Path) -> None:
 
 def main() -> int:
     global PGIE_NAME
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n", 1)[1], formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--video", required=True, help="absolute path of the 1080p test video")
     ap.add_argument("--source", choices=["rtsp", "files"], default="rtsp")
     ap.add_argument("--layout", choices=["single", "multi", "both"], default="single",

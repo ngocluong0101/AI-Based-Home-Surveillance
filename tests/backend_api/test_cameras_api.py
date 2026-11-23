@@ -1,3 +1,7 @@
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+"""
+
 from sqlalchemy import text
 
 from backend.schemas import mask_uri

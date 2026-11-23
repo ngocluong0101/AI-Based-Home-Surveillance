@@ -1,4 +1,8 @@
-"""Client of the engine manager's HTTP API (engine_manager/service.py)."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Client of the engine manager's HTTP API (engine_manager/service.py).
+"""
 
 from __future__ import annotations
 

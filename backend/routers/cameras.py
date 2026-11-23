@@ -1,4 +1,8 @@
-"""Camera API (ROADMAP 3.3, 3.5)."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Camera API (ROADMAP 3.3, 3.5).
+"""
 
 from __future__ import annotations
 

@@ -1,5 +1,9 @@
-"""The replay (eval/e2e/replay.py) turns a dump of the engine into events on the clip's timeline. Built from a hand-made dump of
-a person who stands, drops to the floor in 0.2 s and stays there: nothing is read back from the engine."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+The replay (eval/e2e/replay.py) turns a dump of the engine into events on the clip's timeline. Built from a hand-made dump of
+a person who stands, drops to the floor in 0.2 s and stays there: nothing is read back from the engine.
+"""
 import pytest
 
 pd = pytest.importorskip("pandas")

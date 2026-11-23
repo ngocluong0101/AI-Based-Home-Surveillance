@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { useEffect, useRef } from "react";
 import { clockText, clothesOf, figureOf, FRAME_H, FRAME_W, HORIZON, peopleAt, themeOf } from "./scene";
 

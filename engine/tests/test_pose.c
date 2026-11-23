@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 /* Tests of the skeleton helpers (src/core/pose.c): values in, normalization, history window with hole repair. */
 #include <math.h>
 #include <string.h>

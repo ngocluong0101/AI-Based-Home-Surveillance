@@ -1,10 +1,11 @@
 /*
- * pose.h - a person's skeleton (17 COCO keypoints) and what the behaviour logic needs from it (ROADMAP_V2 V2-2):
- * a scale- and position-free version of one skeleton, and a short history of skeletons per track that
- * can be cut into a fixed-length window (for the rules of V2-3 and the ST-GCN of V2-5).
- *
- * Pure C, no DeepStream types: the probe copies the keypoints out of the metadata into a Pose and feeds it
- * here. Coordinates are pixels of the nvstreammux frame, x to the right, y DOWN.
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
+ * pose.h - a person's skeleton (17 COCO keypoints) and what the behaviour logic needs from it (V2-2): a scale- and position-free
+ * version of one skeleton, and a short history per track that can be cut into a fixed-length window (rules of V2-3, ST-GCN of
+ * V2-5). Pure C: the probe copies keypoints out of the metadata into a Pose. Coordinates are pixels of the nvstreammux frame, y DOWN.
  */
 #ifndef POSE_H
 #define POSE_H
@@ -44,11 +45,9 @@ typedef struct {
 } NormPose;
 
 /*
- * Origin = middle of the visible hips (else of the visible shoulders). Scale = distance from the shoulder centre
- * to the hip centre (the torso); when one of them is not visible the scale is 0.3 * size_hint, where size_hint is
- * the larger side of the person's box (the torso is about 0.3 of a standing person's height, and the larger side
- * also works for a person lying down). A keypoint is valid when its visibility >= vis_min.
- * Returns 0, or -1 when neither hips nor shoulders are visible or the scale is not positive (out is zeroed).
+ * Origin = middle of the visible hips (else shoulders). Scale = shoulder-centre to hip-centre distance (the torso); when one is
+ * not visible, 0.3 * size_hint (the larger side of the person's box). A keypoint is valid when visibility >= vis_min. Returns 0,
+ * or -1 when neither hips nor shoulders are visible or the scale is not positive (out is zeroed).
  */
 int pose_normalize(const Pose *in, float vis_min, float size_hint, NormPose *out);
 
@@ -68,25 +67,22 @@ int pose_history_push(PoseHistory *h, int64_t frame, const Pose *pose, float siz
 int64_t pose_history_last_frame(const PoseHistory *h);
 
 /*
- * The n newest frames (n <= POSE_HISTORY_FRAMES), oldest first, ending at the newest pushed frame, normalized with
- * pose_normalize(). A frame the track had no skeleton in (or a skeleton that cannot be normalized) has no valid
- * keypoints. Then each keypoint is repaired: a stretch of at most max_gap frames in which it was not valid, with a
- * valid value on both sides, is filled by a straight line between them; longer stretches and the two ends stay
- * invalid. present[i] (may be NULL) is 1 when frame i had a usable skeleton before the repair.
- * Returns the number of frames with a usable skeleton, or -1 on bad arguments (n == 0, n too large, empty history).
+ * The n newest frames (n <= POSE_HISTORY_FRAMES), oldest first, normalized with pose_normalize(). A frame with no usable skeleton
+ * has no valid keypoints. Each keypoint is then repaired: a stretch of at most max_gap invalid frames with a valid value on both
+ * sides is filled by a straight line; longer stretches and the two ends stay invalid. present[i] (may be NULL) is 1 when frame i had
+ * a usable skeleton before the repair. Returns the number of such frames, or -1 on bad arguments.
  */
 int pose_history_window(const PoseHistory *h, unsigned n, float vis_min, unsigned max_gap, NormPose *out,
                         unsigned char *present);
 
 /*
- * The input of the skeleton classifier (V2-5; eval/train/skeleton.py is the specification and explains every choice): the last n frames
- * ending at frame `end_frame` (the frame being processed: a track that has no skeleton in it gets no window), as (3, n, 17) floats - channel 0/1 = x, y of each keypoint relative to the window's origin (the hip centre of the first frame that has
- * one, else the shoulder centre) divided by the window's scale (median torso length, else 0.3 x median larger box side), channel 2 = 1 when
- * the keypoint is usable (visibility >= vis_min, or filled by a straight line across a hole of at most 5 frames), else 0 with x, y = 0.
- * Unlike pose_history_window() the origin is fixed for the whole window, so a person falling shows as hips moving down.
- * `out` has room for 3 * n * 17 floats. Returns 0, or -1 when the frame end_frame has no skeleton or the window cannot be scaled
- * (nothing is written), or when fewer than min(n, SKEL_MIN_FRAMES) of its frames have a skeleton, or on bad arguments (n < 2, n > POSE_HISTORY_FRAMES, empty history).
- * A window may reach back at most POSE_HISTORY_FRAMES frames from the newest pushed frame; older frames count as missing.
+ * The input of the skeleton classifier (V2-5; eval/train/skeleton.py is the specification): the last n frames ending at
+ * `end_frame` (a track with no skeleton in it gets no window), as (3, n, 17) floats. Channels 0/1 = x, y of each keypoint relative
+ * to the window's origin (hip centre of the first frame that has one, else shoulder centre) divided by the window's scale (median
+ * torso length, else 0.3 x median larger box side); channel 2 = 1 when the keypoint is usable, else 0 with x, y = 0. The origin is
+ * fixed for the whole window, so a falling person shows as hips moving down. `out` has room for 3 * n * 17 floats. Returns 0, or -1
+ * (nothing written) when end_frame has no skeleton, the window cannot be scaled, fewer than min(n, SKEL_MIN_FRAMES) frames have a
+ * skeleton, or the arguments are bad. A window reaches back at most POSE_HISTORY_FRAMES frames.
  */
 #define SKEL_MAX_GAP 5
 #define SKEL_MIN_FRAMES 16   /* fewer frames with a skeleton in the window: no window */

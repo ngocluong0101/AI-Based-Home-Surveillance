@@ -1,4 +1,8 @@
-"""Start / stop / status of cameras and the reconciler that keeps the engine manager in step."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Start / stop / status of cameras and the reconciler that keeps the engine manager in step.
+"""
 
 import sys
 import time

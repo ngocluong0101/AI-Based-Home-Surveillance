@@ -1,14 +1,12 @@
-"""Turn a fixed random sample of COCO val2017 images into the frames of a 1080p test video.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-Every image is scaled to fit 1920x1080 (aspect ratio kept) and centred on a grey canvas, so the video has one
-frame size, like a camera. The mapping (scale, offsets) is saved so that boxes found in a frame can be moved
-back to the coordinates of the original image, which is where the COCO ground truth lives.
+Turn a fixed random sample of COCO val2017 images into the frames of a 1080p test video. Each image is scaled to fit 1920x1080 (aspect
+kept) and centred on a grey canvas; the mapping is saved so boxes can be moved back to original-image coordinates, where the COCO
+ground truth lives. A video because the engine reads video, and feeding the same file to the Python pipelines gives identical pixels.
 
     python eval/detection/make_coco_video.py --n 1000
     eval/tools/in_container.sh eval/tools/encode_h264.sh png eval/work/coco/frames/%06d.png eval/work/coco/coco1000.mp4
-
-Why a video at all: the engine reads video (NVDEC decode -> nvstreammux -> nvinfer). Feeding it the same file as
-the Python reference pipelines means all of them see the same decoded pixels.
 """
 import argparse
 import json

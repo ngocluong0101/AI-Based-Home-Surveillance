@@ -1,3 +1,5 @@
+# @author: Ngoc Luong <ngocluongg0101@gmail.com>
+
 # YOLOv8 parsers for nvinfer (detection and pose). Build inside the DeepStream container:
 #   make -C engine/parser CUDA_VER=12.6     -> engine/build/libnvds_yolov8_parser.so
 # The decoding of the pose tensor has a host test that needs only g++:

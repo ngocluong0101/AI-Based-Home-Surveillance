@@ -1,9 +1,9 @@
-"""Settings kept in the database and changed from the web app (the Settings page).
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-They are what a person decides at run time (alerts on or off, quiet hours, how long snapshots are kept, what a new
-camera starts with), as opposed to what the installation is made of (addresses, tokens, ports), which stays in `.env`.
-Nothing here is secret. A setting nobody changed has the value the environment gave it (`defaults`), so an existing
-installation behaves as before until the page is used.
+Settings kept in the database and changed from the Settings page (alerts on/off, quiet hours, snapshot retention,
+defaults for new cameras), as opposed to installation settings (addresses, tokens, ports) which stay in `.env`.
+A setting nobody changed has the value the environment gave it.
 """
 
 from __future__ import annotations

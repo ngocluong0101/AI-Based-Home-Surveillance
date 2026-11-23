@@ -1,14 +1,15 @@
-"""The fight rule on real (acted) fights, for the first time: AIRTLab, 350 clips, replayed from the dumps of eval/crossset/make_dumps.py.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+The fight rule on real (acted) fights: AIRTLab, 350 clips, replayed from the dumps of eval/crossset/make_dumps.py.
 
     eval/.venv/bin/python eval/crossset/make_dumps.py --set airtlab
     eval/.venv/bin/python eval/crossset/fight_airtlab.py [--write eval/results/<date>_v2-9_fight_airtlab.json]
 
-Nothing is tuned: the rule runs with the defaults of BehaviorConfig, which were written from the fight definition (eval/DEFINITIONS.md 1.2) and checked
-only on synthetic vectors before. A clip counts as "reported" when the rule raises at least one FIGHT event in it. This is a CLIP-level number
-(the dataset has no start/end times of the action), so it says "did the rule notice a fight somewhere in these 2-14 seconds", not when.
-
-Honest limits, printed with the numbers: one room, 2-4 non-professional actors, staged; the "violent" class includes things a skeleton rule is not made to see
-(gunshots, stabbing with a prop, clubbing); each action is recorded by two cameras that are NOT independent samples (same performance, two views).
+Nothing is tuned: the defaults of BehaviorConfig (written from eval/DEFINITIONS.md 1.2). A clip is "reported" when the rule raises at
+least one FIGHT event in it: a CLIP-level number (no start/end times), not a timing.
+Limits, printed with the numbers: one room, 2-4 staged actors; the "violent" class includes things a skeleton rule is not made to see
+(gunshots, stabbing with a prop, clubbing); the two cameras of one action are not independent samples.
 """
 import argparse
 import json

@@ -1,5 +1,9 @@
-"""Read the cached VLM results and print the trade-off: for each threshold on p_yes, how many false alarms of the detectors the VLM would
-remove and how many real falls it would take away with them.   eval/.venv/bin/python eval/vlm/analyse.py eval/work/vlm/results_options_f6.jsonl"""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Read the cached VLM results and print the trade-off: for each threshold on p_yes, how many false alarms of the detectors the VLM would
+remove and how many real falls it would take away with them.   eval/.venv/bin/python eval/vlm/analyse.py eval/work/vlm/results_options_f6.jsonl
+"""
 import json
 import sys
 

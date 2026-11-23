@@ -1,12 +1,12 @@
-"""VLM verification of behaviour events (V2-6)
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-A FALL or FIGHT can be checked by a vision-language model before anybody is bothered. `verification`:
-  not_required  nothing to check (PERSON_DETECTED, RESTRICTED_AREA, or no VLM configured) - every event stored before this migration
-  pending       waiting for the VLM (the Telegram message waits too, but never longer than VERIFY_TIMEOUT)
-  confirmed     the VLM saw the event
-  rejected      the VLM was sure it was not (no Telegram message; the event is still stored and shown, with the reason)
-  unverified    the VLM was unsure, failed or was too slow: the alert goes out as if there were no VLM
-`verification_score` is the VLM's probability of "yes"; `verification_reason` a sentence of what it saw; `verified_at` when it answered.
+VLM verification of behaviour events (V2-6)
+
+`verification`: not_required (nothing to check, or no VLM; every older event), pending (waiting for the VLM, Telegram waits at most
+VERIFY_TIMEOUT), confirmed, rejected (the VLM was sure it was not: no Telegram message, still stored and shown), unverified (unsure,
+failed or too slow: the alert goes out as without a VLM). `verification_score` = P(yes), `verification_reason` = a sentence of what it
+saw, `verified_at` = when it answered.
 
 Revision ID: 0005
 Revises: 0004

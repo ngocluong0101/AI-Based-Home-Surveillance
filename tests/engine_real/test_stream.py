@@ -1,5 +1,9 @@
-"""The video the engine publishes: every camera arrives at the media server, as H.264, full size, and leaves
-when the camera is taken out."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+The video the engine publishes: every camera arrives at the media server, as H.264, full size, and leaves
+when the camera is taken out.
+"""
 
 import pytest
 

@@ -1,13 +1,16 @@
-"""Does the VLM check remove the false alarms on GMDCSA-24? (V2-9c) The same measurement as eval/vlm/evaluate.py + analyse.py did on UR Fall, on a dataset the system has not seen.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-    eval/.venv/bin/python eval/crossset/alerts_gmdcsa.py                 # the alerts with their times (GPU: retrains the network leaving one actor out)
+Does the VLM check remove the false alarms on GMDCSA-24? (V2-9c) The measurement of eval/vlm/evaluate.py + analyse.py, on a dataset the system
+has not seen.
+
+    eval/.venv/bin/python eval/crossset/alerts_gmdcsa.py                 # the alerts with their times (GPU: retrains leaving one actor out)
     eval/.venv/bin/python eval/crossset/vlm_gmdcsa.py --write eval/results/<date>_v2-9_vlm_gmdcsa24.json
 
-For every alert: 6 frames from 2.5 s before the report to 2.0 s after it (what the deployed verifier shows; a network alert comes DURING the fall, so the VLM must see
-the seconds after it), asked as the multiple-choice question of vlm_service. An alert is TRUE when it is in a fall clip and FALSE when it is in a daily-activity clip:
-the clip-level label, because the dataset has no times, so an alert at the wrong moment inside a fall clip still counts as true (optimistic for the "real falls lost" column).
-The VLM would silence an alert when p_yes is below a threshold (the deployed one is 0.1). Frames are shrunk to 640 px on the long side, like the service does.
-Results are cached in eval/work/crossset/vlm_gmdcsa.jsonl (a rerun costs nothing).
+For every alert: 6 frames from 2.5 s before the report to 2.0 s after it (what the deployed verifier shows), asked as vlm_service's
+multiple-choice question. An alert is TRUE in a fall clip and FALSE in a daily-activity clip (clip-level label, so "real falls lost" is
+optimistic). The VLM would silence an alert when p_yes < 0.1 (the deployed value). Frames are shrunk to 640 px like the service does.
+Results are cached in eval/work/crossset/vlm_gmdcsa.jsonl.
 """
 import argparse
 import json

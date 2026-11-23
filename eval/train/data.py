@@ -1,11 +1,14 @@
-"""UR Fall windows for the ST-GCN: sequences, frame labels, window labels, windowing (see skeleton.py for what a window is).
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-Window label (a window is identified by its LAST frame e; f0 = first frame annotated "falling", f1 = first annotated "lying"; 0-based):
-    fall        f0 + 8 <= e <= f1 + 30      the window holds the drop and the moment of impact
-    ignored     f1 + 30 < e <= f1 + 90      the person is already down: neither "the fall" nor "not a fall" (an event system reports once)
-    normal      everything else of a fall sequence, and every window of an ADL sequence (which includes lying down on a sofa/floor on purpose,
-                crouching, picking things up: the hard negatives)
-Only windows whose last frame has a skeleton are used (same as the engine, which scores a track it sees now).
+UR Fall windows for the ST-GCN: sequences, frame labels, window labels, windowing (skeleton.py defines a window).
+
+Window label (a window is identified by its LAST frame e; f0 = first frame annotated "falling", f1 = first "lying"; 0-based):
+    fall      f0 + 8 <= e <= f1 + 30     the window holds the drop and the impact
+    ignored   f1 + 30 < e <= f1 + 90     already down: neither "the fall" nor "not a fall"
+    normal    everything else of a fall sequence, and every window of an ADL sequence (including lying down on purpose, crouching,
+              picking things up: the hard negatives)
+Only windows whose last frame has a skeleton are used (as in the engine).
 """
 import re
 from pathlib import Path

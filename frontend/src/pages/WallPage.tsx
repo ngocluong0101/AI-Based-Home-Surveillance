@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { ArrowLeft, Camera as CameraIcon, ChevronLeft, ChevronRight, Maximize2, Play } from "lucide-react";
 import { useState } from "react";
 import { CoverImage } from "../components/CoverImage";

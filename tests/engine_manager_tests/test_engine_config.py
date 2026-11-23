@@ -1,5 +1,9 @@
-"""The manager gives the engine an nvinfer config made for the number of cameras (one TensorRT engine
-file per batch size), so that a third camera does not make nvinfer rebuild its engine at every start."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+The manager gives the engine an nvinfer config made for the number of cameras (one TensorRT engine
+file per batch size), so that a third camera does not make nvinfer rebuild its engine at every start.
+"""
 import json
 import logging
 import stat

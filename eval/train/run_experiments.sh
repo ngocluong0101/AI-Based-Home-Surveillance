@@ -1,4 +1,6 @@
 #!/bin/bash
+# @author: Ngoc Luong <ngocluongg0101@gmail.com>
+
 # V2-5 experiments: model ladder, window length, velocity, seeds. Cross-validated on whole UR Fall sequences. One after another (laptop GPU shared).
 #   nice -n 10 eval/train/run_experiments.sh        # ~30 min; results in eval/work/train/cv_*.json, table from eval/train/compare.py
 set -e

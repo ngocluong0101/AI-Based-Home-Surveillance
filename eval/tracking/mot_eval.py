@@ -1,18 +1,17 @@
-"""V2-1: MOTA / IDF1 / ID switches of the engine's tracker on MOT17 sequences.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-Input: one dump per sequence written by `ds_engine --dump-detections` (stage "trk" rows = what nvtracker reports),
-plus the MOT17 ground truth. Protocol = the MOT16/17 one (as TrackEval implements it):
-  * only the class "pedestrian" with flag 1 in gt.txt counts as ground truth;
-  * tracker boxes that match a "distractor" ground-truth box (person on a vehicle, static person, reflection, other
-    distractors) are removed, so that the tracker is neither rewarded nor punished for them;
-  * a match needs IoU >= 0.5.
-These are PRIVATE detections (YOLOv8n of this project), so the numbers are not comparable with the MOT17 leaderboard.
+V2-1: MOTA / IDF1 / ID switches of the engine's tracker on MOT17 sequences.
+
+Input: one dump per sequence from `ds_engine --dump-detections` (stage "trk" rows) plus the MOT17 ground truth, with the MOT16/17
+protocol (as TrackEval): only "pedestrian" with flag 1 is ground truth; tracker boxes matching a "distractor" box are removed; a match
+needs IoU >= 0.5. These are PRIVATE detections (this project's YOLOv8n), so the numbers are not comparable with the MOT17 leaderboard.
 
     python eval/tracking/mot_eval.py --seqs 02 04 09 --tag nvdcf
-(the dumps are eval/work/mot17/MOT17-<seq>.<tag>.csv; see eval/README.md for how they are produced)
+(dumps are eval/work/mot17/MOT17-<seq>.<tag>.csv; see eval/README.md)
 
-motmetrics 1.4.0 still calls np.asfarray, which NumPy 2 removed; it is put back below. The calculation was checked
-against a case with a known answer (20 ground-truth objects, one ID switch -> MOTA 0.95, IDF1 0.75).
+motmetrics 1.4.0 still calls np.asfarray, which NumPy 2 removed; it is put back below. Checked on a known case (20 objects, one ID
+switch -> MOTA 0.95, IDF1 0.75).
 """
 import argparse
 import json

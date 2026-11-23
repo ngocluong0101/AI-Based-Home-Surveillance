@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { expect, type APIRequestContext, type Page } from "@playwright/test";
 
 /** What the Settings page holds on a new installation. */

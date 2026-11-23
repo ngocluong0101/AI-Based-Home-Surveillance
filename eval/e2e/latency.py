@@ -1,22 +1,19 @@
-"""M4 on the real path: a clip plays in real time from a fake RTSP camera -> the real ds_engine (pose, rules) in the DeepStream container ->
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+M4 on the real path: a clip plays in real time from a fake RTSP camera -> the real ds_engine (pose, rules) in the DeepStream container ->
 HTTP -> the real backend -> a throwaway PostgreSQL -> WebSocket. M4 = (time the alert arrives at a WebSocket client) - (time the body
 touches the floor in the video), on one machine's clock.
 
     eval/.venv/bin/python eval/e2e/latency.py --clips fall-01,fall-02,fall-03,fall-04,fall-05 --repeats 3 --set fall_still_s=1.0
 
-What is measured against what (all CLOCK_REALTIME of this host; Docker containers share it):
-  P         the wall time of clip time 0 on the camera: the frame at clip time t leaves at P + t (rtsp_test_server prints wall and PTS of its first
-            RTP buffers; P is fitted on the paced ones, because the first may leave while the media prerolls).
-  t_impact  P + impact_s of the label (a person's, not the rule's).
-  occurred_at / timestamp   the engine's clock = wall time when it processed the frame (stream_start + PTS): the rule's impact and the report.
-  received_at   the backend wrote the event to PostgreSQL.      ws   the client received event.created.
-The delay is cut into pieces that add up to the total:
-  label_vs_rule     rule_impact_clip_time - label impact           not a delay: the rule thinks the impact is a bit earlier/later than the person who labelled it
-  rule              timestamp - occurred_at                        waiting for the person to stay down (fall_still_s + settle), on the engine's clock
-  camera_to_backend received_at - (P + clip time of the report)    RTSP, jitter buffer, decode, mux, pose, rule, snapshot encode, HTTP, DB commit
+All times are CLOCK_REALTIME of this host (containers share it). P = wall time of clip time 0 on the camera (fitted from
+rtsp_test_server's printed wall/PTS pairs, on the paced ones); t_impact = P + impact_s of the label. The delay is cut into pieces:
+  label_vs_rule     rule impact - label impact: not a delay, the rule's idea of the impact differs from the person who labelled it
+  rule              timestamp - occurred_at: waiting for the person to stay down (fall_still_s + settle)
+  camera_to_backend received_at - (P + clip time of the report): RTSP, jitter buffer, decode, mux, pose, rule, snapshot, HTTP, DB commit
   backend_to_ws     ws - received_at
-(`camera_to_backend` cannot be split at the engine's `timestamp`: that clock is anchored on the first frame, whose lag is not the steady one.)
-Not measured: Telegram (needs the real bot; the alert on the WebSocket is the earliest one a person can see), the VLM (V2-6), more than one camera.
+Not measured: Telegram (needs the real bot), the VLM (V2-6), more than one camera.
 """
 import argparse
 import asyncio

@@ -1,4 +1,8 @@
-"""vlm_service/app.py with a stand-in model: the HTTP contract the backend relies on (no GPU, no model download)."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+vlm_service/app.py with a stand-in model: the HTTP contract the backend relies on (no GPU, no model download).
+"""
 import base64
 import io
 

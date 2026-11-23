@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import type { PersonEvent } from "../types";
 import { isAlert, kindOf, verificationNote } from "../utils/eventType";
 import { percent, relativeTime, timeOfDay } from "../utils/format";

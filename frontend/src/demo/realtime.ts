@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 // What the WebSocket does in the demo: every second a camera.status for each camera, now and then a person is detected, and
 // when the person on the living room's picture falls (every 70 s) a fall alert arrives and the pretend VLM confirms it.
 import type { QueryClient } from "@tanstack/react-query";

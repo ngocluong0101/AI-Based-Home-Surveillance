@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 /* See behavior.h. A line-by-line port of src/events/behavior.py; keep the two in step. */
 #include "behavior.h"
 

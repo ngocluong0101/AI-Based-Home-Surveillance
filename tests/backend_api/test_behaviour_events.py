@@ -1,5 +1,9 @@
-"""Behaviour events (falls, fights, restricted areas, ROADMAP_V2 V2-3): schema 2 in, the API out, the Telegram alert, and
-the per-camera rules (behaviors, zones) on their way to the engine."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Behaviour events (falls, fights, restricted areas, ROADMAP_V2 V2-3): schema 2 in, the API out, the Telegram alert, and
+the per-camera rules (behaviors, zones) on their way to the engine.
+"""
 
 import pytest
 from sqlalchemy import text

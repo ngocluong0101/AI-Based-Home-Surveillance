@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 export function formatTime(iso: string): string {
   return new Date(iso).toLocaleString(undefined, {
     year: "numeric",

@@ -1,10 +1,12 @@
-"""The VLM service (V2-6): `POST /verify` with a few frames of an event, answers yes / no / unsure.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+The VLM service (V2-6): `POST /verify` with a few frames of an event answers yes / no / unsure.
 
     uvicorn vlm_service.app:create_app --factory --host 127.0.0.1 --port 8200
 
-Runs on the same machine as the backend (loopback, no auth: LAN deployment, like the engine manager). The model is loaded at start-up and
-requests are served one at a time (one GPU, a few alerts per hour). Configuration by environment: VLM_MODEL (default Qwen/Qwen3-VL-2B-Instruct),
-VLM_YES_THR (0.5) and VLM_NO_THR (0.9): "no" must be much surer than "yes", because "no" silences an alert.
+Loopback, no auth (LAN). The model loads at start-up and requests are served one at a time. Environment: VLM_MODEL (default
+Qwen/Qwen3-VL-2B-Instruct), VLM_YES_THR (0.5), VLM_NO_THR (0.9): "no" must be much surer than "yes" because it silences an alert.
 """
 from __future__ import annotations
 

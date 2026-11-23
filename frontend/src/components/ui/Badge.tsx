@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import type { ReactNode } from "react";
 
 export type BadgeTone = "ok" | "warn" | "bad" | "idle" | "accent";

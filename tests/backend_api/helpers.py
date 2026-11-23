@@ -1,4 +1,8 @@
-"""Shared by the backend tests."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Shared by the backend tests.
+"""
 
 from __future__ import annotations
 

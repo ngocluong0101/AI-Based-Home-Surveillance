@@ -1,3 +1,5 @@
+# @author: Ngoc Luong <ngocluongg0101@gmail.com>
+
 # DeepStream engine (C). Build inside the DeepStream container:
 #   make CUDA_VER=12.6        -> build/ds_engine
 # Tests for the pure-C code (no DeepStream/GPU needed), run on the host with gcc:

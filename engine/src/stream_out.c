@@ -1,4 +1,8 @@
 /*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
  * stream_out.c - the live video of each camera to a media server. See stream_out.h.
  */
 #include "stream_out.h"
@@ -17,9 +21,8 @@
 #define STREAM_PUBLISH_QUEUE_BYTES (4 * 1024 * 1024)
 
 /*
- * appsink callback of the encoding branch (a streaming thread): hand the encoded frame to the publisher of
- * this camera. A publisher starts at a key frame, and its time stamps start at 0, whatever the stream time
- * is when it is built. The copy shares the memory of the original; nothing is encoded twice.
+ * appsink callback of the encoding branch (a streaming thread): hand the encoded frame to this camera's publisher. A publisher
+ * starts at a key frame and its time stamps start at 0. The copy shares the memory of the original.
  */
 static GstFlowReturn stream_new_sample(GstAppSink *sink, gpointer data)
 {
@@ -171,12 +174,10 @@ gboolean stream_retry_tick(gpointer data)
 
 /*
  * The encoding branch of one camera (ROADMAP 4.1), fed by the "src_<source_id>" pad of nvstreamdemux:
- *   queue ! nvvideoconvert ! nvdsosd ! nvvideoconvert ! I420 ! nvv4l2h264enc ! h264parse ! appsink
- * nvdsosd draws the boxes and track IDs from the metadata the demux keeps with each frame. The appsink
- * only passes the frames on (stream_new_sample), so nothing the server does can stop this branch or
- * the pipeline: the publisher (RTMP) is a pipeline of its own, see pub_create(). The queue drops its
- * oldest frames for live sources and the appsink does not wait for the clock; with files the queue
- * blocks and the appsink waits for the clock, which paces a file to real time for the viewer.
+ * queue ! nvvideoconvert ! nvdsosd ! nvvideoconvert ! I420 ! nvv4l2h264enc ! h264parse ! appsink
+ * nvdsosd draws boxes and track IDs from the frame metadata. The appsink only passes frames on, so nothing the server does can
+ * stop this branch (the RTMP publisher is a pipeline of its own, see pub_create()). Live sources: the queue drops the oldest
+ * frames and the appsink does not wait for the clock. Files: the queue blocks and the appsink waits, pacing the file to real time.
  */
 gboolean build_stream_branch(GstElement *pipeline, GstElement *demux, SourceCtx *src, gboolean live)
 {

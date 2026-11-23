@@ -1,4 +1,8 @@
 /*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
  * report.c - source table, statistics, frame rate and heartbeat. See report.h.
  */
 #include "report.h"
@@ -145,10 +149,10 @@ gboolean report_fps(gpointer data)
     return G_SOURCE_CONTINUE;
 }
 
-/* Timer on the main loop (ROADMAP 3.6): the state of every camera, handed to the worker to POST.
- * Everything is read here, on the main thread, because the source states live here. A tick is
- * skipped while the previous heartbeat is still waiting, so a slow backend never gets a pile of
- * stale ones (the frame rate of the next one then covers the longer span). */
+/*
+ * Timer on the main loop (ROADMAP 3.6): the state of every camera, handed to the worker to POST. Read here because the source states
+ * live on the main thread. A tick is skipped while the previous heartbeat is still waiting, so a slow backend gets no pile of stale ones.
+ */
 gboolean heartbeat_tick(gpointer data)
 {
     AppCtx *app = (AppCtx *)data;

@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 /* Tests for heartbeat_record.c: the JSON of the heartbeat (ROADMAP 3.6). */
 #include <math.h>
 #include <stdlib.h>

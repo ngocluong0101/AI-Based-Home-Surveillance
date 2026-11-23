@@ -1,4 +1,8 @@
 /*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
  * pose_history_skeleton_window() (src/core/pose.c) against the vectors of tests/vectors/skeleton_windows.json, which come from the Python
  * specification eval/train/skeleton.py (the code the network was trained with). If these differ the model is fed something else at run time.
  */

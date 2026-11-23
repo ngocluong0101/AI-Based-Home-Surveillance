@@ -1,4 +1,8 @@
-"""The engine names a snapshot after its event type; the cleaner and the usage count must know all the names."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+The engine names a snapshot after its event type; the cleaner and the usage count must know all the names.
+"""
 import os
 import time
 

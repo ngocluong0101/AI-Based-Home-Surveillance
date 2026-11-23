@@ -1,9 +1,12 @@
-"""Start a label file for a clip you recorded: fills in fps / size / duration from the video, leaves the events for you.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Start a label file for a clip you recorded: fills in fps / size / duration from the video and leaves the events to you.
 
     eval/.venv/bin/python eval/e2e/new_label.py datasets/own/clips/livingroom_ann_03.mp4 --scene livingroom --person ann --split train
 
-Then open eval/labels/<clip>.json and write the events (times in seconds on the clip's own timeline: step the video frame by
-frame in mpv/VLC; `impact_s` is the first frame the body touches the floor). `eval/e2e/check_labels.py` validates the result.
+Then write the events into eval/labels/<clip>.json (seconds on the clip's own timeline; step the video frame by frame in mpv/VLC;
+`impact_s` is the first frame the body touches the floor). eval/e2e/check_labels.py validates the result.
 """
 import argparse
 import json

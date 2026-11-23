@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { Cctv, Cpu, Pencil, Play, Plus, PlugZap, Square, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";

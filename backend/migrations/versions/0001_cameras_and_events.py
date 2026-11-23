@@ -1,4 +1,7 @@
-"""cameras and events
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+cameras and events
 
 Revision ID: 0001
 Revises:

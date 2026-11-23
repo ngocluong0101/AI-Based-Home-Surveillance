@@ -1,4 +1,7 @@
-"""Match predicted events to labels and compute M1, M2 (and the rule-side part of M4). Definitions: eval/DEFINITIONS.md sections 3-4.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Match predicted events to labels and compute M1, M2 (and the rule-side part of M4). Definitions: eval/DEFINITIONS.md sections 3-4.
 
 Pure functions, no I/O. A predicted event is (type, t_pred_s, t_reported_s): t_pred is when the behaviour began by the system's
 reckoning (a fall: the impact), t_reported when the event came out. Times are seconds on the clip's own timeline.

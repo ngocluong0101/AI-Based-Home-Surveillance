@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 /* Tests for event_record.c: the JSON of event schema v1 (ROADMAP 2.3). */
 #include <stdio.h>
 #include <string.h>

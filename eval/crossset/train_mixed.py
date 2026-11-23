@@ -1,17 +1,18 @@
-"""Train the ST-GCN on UR Fall + GMDCSA-24 and ask whether it generalises better (V2-9b).
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-UR Fall has the time of every fall (frame-level labels). GMDCSA-24 only says "this clip has a fall" / "this clip is daily life". So:
+Train the ST-GCN on UR Fall + GMDCSA-24 and ask whether it generalises better (V2-9b).
+
+UR Fall has frame-level fall times; GMDCSA-24 only says "this clip has a fall" / "daily life". So:
   * ADL clips: every window is a negative.
-  * fall clips: multiple-instance learning. Of the windows that look like a fall in the skeleton (the person goes from upright to lying and the hips come down:
-    `candidates`), the one the CURRENT network scores highest, and its neighbours within +-6 frames, are this epoch's positives; the other windows of a fall clip are left
-    out (they are before or after the fall, and nobody knows which). The first `warm` epochs use UR Fall only, so the selection starts from a network that already
-    knows what a fall looks like. A fall clip with no candidate window (e.g. a fall from lying in bed, or no usable skeleton) is skipped and counted.
+  * fall clips: multiple-instance learning. Of the windows that look like a fall (upright to lying, hips coming down: `candidates`), the
+    one the CURRENT network scores highest and its neighbours within +-6 frames are this epoch's positives; the other windows are left
+    out. The first `warm` epochs use UR Fall only. A fall clip with no candidate window is skipped and counted.
 
-Two questions, each with a control run through the SAME code (so the comparison is fair):
-  E1  leave one actor out: train on UR Fall + three actors of GMDCSA-24, test on the fourth (clip level, the numbers of eval/crossset/fall_gmdcsa.py).
-      Control: the network trained on UR Fall only.
-  E2  does UR Fall get worse? 5-fold cross-validation by sequence on UR Fall with GMDCSA-24 added to every training part (event level, eval/train/compare.py's rules).
-      Control: the same folds and seeds with UR Fall only.
+Two questions, each with a control run through the SAME code:
+  E1  leave one actor out: train on UR Fall + three GMDCSA-24 actors, test on the fourth (clip level). Control: UR Fall only.
+  E2  does UR Fall get worse? 5-fold CV by sequence with GMDCSA-24 added to every training part (event level, eval/train/compare.py's
+      rules). Control: the same folds and seeds with UR Fall only.
 
     eval/.venv/bin/python eval/crossset/train_mixed.py --write eval/results/<date>_v2-9_fall_mixed_training.json [--final eval/work/train/stgcn_T48_mixed.pt]
 """

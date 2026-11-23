@@ -1,18 +1,18 @@
-"""Export YOLOv8 pose weights (.pt) to ONNX with a dynamic batch dimension, for DeepStream's nvinfer.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-Offline tool: run it once on the dev machine. It is not part of the frame-processing path.
+Export YOLOv8 pose weights (.pt) to ONNX with a dynamic batch dimension, for DeepStream's nvinfer.
+
+Offline tool, run once on the dev machine:
 
     python engine/tools/export_yolov8_pose_onnx.py                        # yolov8n-pose.pt, 640x384 (16:9)
     python engine/tools/export_yolov8_pose_onnx.py --height 640 --width 640
 
-The exported network takes `images` [batch, 3, H, W] (RGB, 0..1) and returns `output0` [batch, 56, anchors]:
-for each anchor cx, cy, w, h (input pixels), the person score, then 17 keypoints as x, y, visibility
-(x and y in input pixels, visibility a probability). For 640x384 that is [batch, 56, 5040]. NMS is not part
-of the model: the custom parser in engine/parser/ reads this tensor and does the NMS itself.
+The network takes `images` [batch, 3, H, W] (RGB, 0..1) and returns `output0` [batch, 56, anchors]: cx, cy, w, h, person score,
+then 17 keypoints x, y, visibility (640x384: [batch, 56, 5040]). NMS is not in the model; the parser in engine/parser/ does it.
 
-The default input is rectangular (640 wide, 384 high) because V2-1 measured that a 16:9 camera loses people
-when it is squeezed into a 640x640 square with black bars (see ROADMAP_V2_NHAT_KY.md, 2.4). Use --height 640
-for a square network. The weights are downloaded by Ultralytics on first use if the file is missing.
+The default input is rectangular because V2-1 measured that a 16:9 camera loses people squeezed into a 640x640 square with black
+bars (ROADMAP_V2_NHAT_KY.md, 2.4). Use --height 640 for a square network. Ultralytics downloads missing weights on first use.
 """
 import argparse
 import shutil
@@ -23,7 +23,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser = argparse.ArgumentParser(description=__doc__.split("\n\n", 1)[1].splitlines()[0])
     parser.add_argument("--weights", type=Path, default=REPO_ROOT / "yolov8n-pose.pt")
     parser.add_argument("--output", type=Path, default=REPO_ROOT / "engine" / "models" / "yolov8n-pose.onnx")
     parser.add_argument("--height", type=int, default=384, help="network input height (default 384)")

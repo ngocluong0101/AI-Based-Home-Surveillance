@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { Ban, Siren, Swords, TriangleAlert, UserRound, type LucideIcon } from "lucide-react";
 import type { BadgeTone } from "../components/ui/Badge";
 import type { EventType, PersonEvent, Severity, Verification } from "../types";

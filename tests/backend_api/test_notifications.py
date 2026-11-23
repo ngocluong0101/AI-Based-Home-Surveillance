@@ -1,4 +1,8 @@
-"""Telegram alerts from the background notifier, snapshot cleanup, PATCH /api/events (ROADMAP 3.8)."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Telegram alerts from the background notifier, snapshot cleanup, PATCH /api/events (ROADMAP 3.8).
+"""
 
 import os
 import time

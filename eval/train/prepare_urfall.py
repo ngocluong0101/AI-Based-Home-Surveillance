@@ -1,13 +1,15 @@
-"""V2-5 data: UR Fall (cam0 RGB, all 30 fall + 40 ADL sequences) -> mp4 -> pose dump of the DEPLOYED pipeline (YOLOv8n-pose in ds_engine + NvDCF).
-Training on skeletons the real engine produced (not on the dataset's own Kinect joints, and not on a PyTorch re-run) keeps the model's inputs
-the same as at run time, errors and track switches included (ROADMAP_V2 V2-5.1).
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-    eval/.venv/bin/python eval/train/prepare_urfall.py            # every zip that is in datasets/urfall/_zips and has no dump yet
+V2-5 data: UR Fall (cam0 RGB, all 30 fall + 40 ADL sequences) -> mp4 -> pose dump of the DEPLOYED pipeline (YOLOv8n-pose in ds_engine + NvDCF).
+Training on skeletons the real engine produced (not the dataset's Kinect joints) keeps the model's inputs the same as at run time,
+errors and track switches included.
+
+    eval/.venv/bin/python eval/train/prepare_urfall.py            # every zip in datasets/urfall/_zips with no dump yet
     eval/.venv/bin/python eval/train/prepare_urfall.py --only fall-07
 
-Per sequence it unzips the PNGs, encodes eval/work/urfall/<seq>.mp4 (NVENC, in the DeepStream container), deletes the PNGs, runs the engine to
-write eval/work/urfall/<seq>.csv. Sequences are 640x480; the engine stretches them to 16:9 like everywhere else in this project.
-Needs eval/work/pgie_pose_b1.txt (see eval/e2e/make_dumps.py) and the engine built.
+Per sequence: unzip the PNGs, encode eval/work/urfall/<seq>.mp4 (NVENC, in the container), delete the PNGs, run the engine to write
+eval/work/urfall/<seq>.csv. Sequences are 640x480 and are padded to 16:9. Needs eval/work/pgie_pose_b1.txt and the engine built.
 """
 import argparse
 import re

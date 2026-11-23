@@ -1,12 +1,15 @@
-"""V2-3: look inside the fall rule on a clip. Reads the dump of `ds_engine --dump-detections` made with the pose model, feeds
-the skeletons of each frame to the Python specification (src/events/behavior.py) and prints, for every Nth frame, the torso
-angle of the tracked people, where the hips are and what state the fall rule is in, plus the events.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+V2-3: look inside the fall rule on a clip. Reads the dump of `ds_engine --dump-detections` made with the pose model, feeds the
+skeletons to the Python specification (src/events/behavior.py) and prints, for every Nth frame, the torso angle, the hips and the
+state of the fall rule, plus the events.
 
     eval/tools/in_container.sh engine/build/ds_engine --config /work/eval/work/pgie_pose_b1.txt --tracker-config /work/engine/configs/tracker_nvdcf.yml \
         --camera 1=file:///work/eval/work/urfall/fall-01.mp4 --dump-detections /work/eval/work/urfall/fall-01.csv --fps-interval 0
     eval/.venv/bin/python eval/behavior/trace_fall.py eval/work/urfall/fall-01.csv --every 5
 
-The dump is in the 1920x1080 frame the engine works in (a 640x480 camera is stretched to it), at the camera's frame rate.
+The dump is in the 1920x1080 frame the engine works in, at the camera's frame rate.
 """
 import argparse
 import math

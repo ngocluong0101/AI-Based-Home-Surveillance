@@ -1,9 +1,10 @@
 /*
- * detection.h - one tracked person in one frame, as plain values.
- *
- * Pure C, no DeepStream or GLib: probes.c copies the values out of NvDs*Meta into this struct
- * inside the pad probe (never keep NvDs*Meta pointers), and everything downstream (the
- * EventManager of Phase 2) works on Detection only. That also lets `make test-core` test it.
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
+ * detection.h - one tracked person in one frame, as plain values. Pure C: probes.c copies the values out of NvDs*Meta into this
+ * struct inside the pad probe, and everything downstream works on Detection only (so `make test-core` can test it).
  */
 #ifndef DETECTION_H
 #define DETECTION_H
@@ -19,9 +20,8 @@ typedef struct {
 } Detection;
 
 /*
- * Convert a box in pixels (left, top, width, height) of a frame_w x frame_h frame to the relative
- * x, y, w, h of Detection.bbox, clipped to the frame. Returns 1 on success, 0 when the frame size
- * is not positive or nothing of the box is left inside the frame (out is then untouched).
+ * Convert a pixel box of a frame_w x frame_h frame to the relative x, y, w, h of Detection.bbox, clipped to the frame. Returns
+ * 1 on success, 0 when the frame size is not positive or nothing of the box is inside the frame (out untouched).
  */
 int detection_bbox_normalize(float left, float top, float width, float height,
                              float frame_w, float frame_h, float out[4]);

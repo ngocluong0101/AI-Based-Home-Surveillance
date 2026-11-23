@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { AnimatePresence, motion } from "motion/react";
 import { Bell, Cctv, Grid2x2, Info, LayoutDashboard, PanelLeftClose, PanelLeftOpen, Settings, ShieldCheck, Video, WifiOff } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";

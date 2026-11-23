@@ -1,10 +1,12 @@
-"""V2-1: change one NvDCF parameter at a time and see what it does to MOTA / IDF1 / ID switches on MOT17.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+V2-1: change one NvDCF parameter at a time and see what it does to MOTA / IDF1 / ID switches on MOT17.
 
     python eval/tracking/sweep_nvdcf.py maxShadowTrackingAge=15 maxShadowTrackingAge=60 probationAge=5
-Each argument KEY=VALUE makes a copy of engine/configs/tracker_nvdcf.yml with that one line changed, runs the engine on
-the sequences (inside the container, with the 640x384 detector config eval/work/pgie_b1_384.txt so the detector is the
-same for every run) and evaluates it. The repo's config is not touched: values found on a street scene must not become
-the defaults of a hallway camera; V2-4 (labelled indoor clips) decides.
+Each KEY=VALUE makes a copy of engine/configs/tracker_nvdcf.yml with that line changed, runs the engine on the sequences (in the
+container, with the 640x384 detector config eval/work/pgie_b1_384.txt so the detector is the same every run) and evaluates it. The
+repo's config is not touched: values found on a street scene must not become the defaults of a hallway camera (V2-4 decides).
 """
 import argparse
 import json

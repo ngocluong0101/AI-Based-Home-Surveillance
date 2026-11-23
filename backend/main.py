@@ -1,4 +1,7 @@
-"""FastAPI application.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+FastAPI application.
 
 Run it (from the repository root, after `alembic -c backend/alembic.ini upgrade head`):
 

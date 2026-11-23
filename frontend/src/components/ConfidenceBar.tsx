@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { percent } from "../utils/format";
 
 export function ConfidenceBar({ value }: { value: number }) {

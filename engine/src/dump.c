@@ -1,17 +1,15 @@
 /*
- * dump.c - the CSV writer behind --dump-detections (see dump.h).
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
+ * dump.c - the CSV writer behind --dump-detections.
  *
  * Columns: stage,source_id,frame_num,pts_ns,object_id,class_id,left,top,width,height,confidence,tracker_confidence,kpts
- *   stage   "fdet" / "ftrk" = a frame went through nvinfer / nvtracker (all columns after pts_ns are empty; it is
- *           how an offline script knows about frames that had no object), "det" = an object from nvinfer,
- *           "trk" = an object from nvtracker.
- *   boxes   pixels of the nvstreammux frame (MUXER_WIDTH x MUXER_HEIGHT); a source of another size is scaled
- *           to it, so the script must scale back.
- *   object_id  the track ID (trk); empty for det.
- *   kpts    pose model only: 17 keypoints as "x y visibility" triples (51 numbers separated by spaces), x and y in pixels of
- *           the nvstreammux frame (pose_probe made them absolute, before the tracker moved any box); empty when the object
- *           has none.
- * Numbers are printed with fixed-point formats on purpose (no locale surprises, easy to parse).
+ * stage: "fdet"/"ftrk" = a frame went through nvinfer/nvtracker (rest empty, so frames without objects are known); "det"/"trk" =
+ * an object from nvinfer/nvtracker. Boxes are in pixels of the nvstreammux frame (a source of another size is scaled to it).
+ * object_id is the track ID (trk only). kpts (pose only) = 17 "x y visibility" triples in the same pixels.
+ * Numbers use fixed-point formats on purpose (no locale surprises).
  */
 #include "dump.h"
 

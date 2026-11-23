@@ -1,11 +1,11 @@
-"""Looks at a camera source the way a player would, without decoding any video (ROADMAP 6.2).
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-For RTSP: connect, ask the camera to DESCRIBE its stream (answering a Basic or Digest login when asked), read the
-stream description (SDP) for the codec, and for H.264 decode the announced SPS for the resolution. For a file: check
-that the backend can read it. Nothing here logs or returns the URL: it may hold a password.
+Looks at a camera source the way a player would, without decoding video (ROADMAP 6.2).
 
-The checks are a list in the order they ran; the check that failed is the last one, so the later ones are
-missing when an earlier one failed.
+RTSP: connect, DESCRIBE (answering a Basic or Digest login), read the SDP for the codec and, for H.264, decode the SPS for the
+resolution. File: check that the backend can read it. Nothing here logs or returns the URL (it may hold a password).
+The checks are listed in the order they ran; the one that failed is the last.
 """
 
 from __future__ import annotations

@@ -1,10 +1,9 @@
-"""Removes old snapshot files (ROADMAP 3.8), with `SnapshotCleaner` from src/snapshot_management.py.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-A pass runs once at start-up and then whenever `every_n` snapshots were stored since the last one
-(SNAPSHOT_CLEANUP_INTERVAL: it avoids scanning the disk after every event), or `max_idle` seconds have
-passed, so a quiet system is cleaned too. After the files are gone the events stop pointing at them:
-`snapshot_file` is cleared for events older than the retention, and `snapshot_url` disappears from the
-API instead of leading to a 404.
+Removes old snapshot files (ROADMAP 3.8) with `SnapshotCleaner`: at start-up, after every `every_n` new snapshots, and at
+least every `max_idle` seconds. Events older than the retention get `snapshot_file` cleared, so `snapshot_url` disappears
+instead of leading to a 404.
 """
 
 from __future__ import annotations

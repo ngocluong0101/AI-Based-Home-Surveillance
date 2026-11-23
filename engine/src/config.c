@@ -1,4 +1,8 @@
 /*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
  * config.c - the command line and the cameras file (--cameras-file): option parsing and checking, and the
  * per-camera settings (conf_threshold, absence_timeout, ai_enabled).
  */

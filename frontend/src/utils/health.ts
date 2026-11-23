@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import type { CameraStatus, StreamInfo } from "../types";
 
 export type Tone = "ok" | "warn" | "bad" | "idle";

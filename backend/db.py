@@ -1,4 +1,8 @@
-"""Database engine and session handling (SQLAlchemy 2, PostgreSQL through psycopg 3)."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Database engine and session handling (SQLAlchemy 2, PostgreSQL through psycopg 3).
+"""
 
 from __future__ import annotations
 

@@ -1,4 +1,8 @@
-"""Backend settings, taken from src.config (environment / .env)."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Backend settings, taken from src.config (environment / .env).
+"""
 
 from __future__ import annotations
 

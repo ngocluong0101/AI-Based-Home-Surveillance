@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { beforeEach, describe, expect, it } from "vitest";
 import type { AppSettings, Camera, CameraStatus, ConnectionCheckResult, EventPage, NotificationCheck, PersonEvent } from "../types";
 import { FALL_ALERT_AFTER_S, fallerAt, FRAME_H, FRAME_W, jointsOf, lyingPersonAt, nextFallAlertMs, peopleAt } from "./scene";

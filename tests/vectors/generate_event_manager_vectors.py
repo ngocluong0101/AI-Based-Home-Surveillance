@@ -1,21 +1,18 @@
-"""Generate tests/vectors/event_manager_*.json from PersonDetectedEventManager.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-The Python manager is the specification: each scenario below only lists the inputs (a clock value and
-the detections of one frame per step); the expected events and the number of tracks still held after
-the step are recorded by running the manager. The C port (engine/src/core/event_manager.c) must give
-the same answers for the same files (`make test-core`), and so must the manager itself
-(tests/test_event_manager_vectors.py), so a vector can never silently disagree with the spec.
+Generate tests/vectors/event_manager_*.json from PersonDetectedEventManager, the specification. Each scenario only lists the
+inputs (a clock value and the detections of one frame per step); the expected events and the tracks still held are recorded by
+running the manager. The C port (event_manager.c) and the manager itself (tests/test_event_manager_vectors.py) must match them.
 
-Regenerate after a deliberate change of the specification:
+Regenerate after a deliberate change of the specification, and review the diff of the JSON:
     PYTHONPATH=. python tests/vectors/generate_event_manager_vectors.py
-and review the diff of the JSON files.
 
 File format:
     name, description         free text
     absence_timeout_s          constructor argument of the manager
     steps[]                    processed in order, on one manager instance
-      now_ns                   clock passed to process(), integer nanoseconds, a multiple of 1000
-                               (Python datetime has microsecond resolution)
+      now_ns                   clock passed to process(), integer ns, a multiple of 1000 (Python datetime has microseconds)
       detections[]             {track_id, conf}, in the order given to process()
       expected_events[]        {track_id, confidence}; each event carries timestamp == now_ns
       tracks_after             number of tracks the manager still remembers after the step

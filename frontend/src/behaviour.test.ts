@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { beforeEach, describe, expect, it } from "vitest";
 import { eventsQuery } from "./api";
 import type { Camera, EventPage, PersonEvent } from "./types";

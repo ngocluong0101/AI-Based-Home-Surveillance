@@ -1,4 +1,7 @@
-"""Validate every label file and print what the data set holds, split by split (so you see what is still missing).
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Validate every label file and print what the data set holds, split by split (so you see what is still missing).
 
     eval/.venv/bin/python eval/e2e/check_labels.py
 """

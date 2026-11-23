@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
-"""soak.py - ROADMAP Phase 8 "Soak test": run the whole Docker stack for hours with fake cameras and check that
-nothing grows or breaks over time (RAM, VRAM, process count, disk, FPS, restarts).
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-An offline test tool, run from the repository root on the Docker host (needs Docker, the NVIDIA toolkit, the
-DeepStream image and engine/models/yolov8n.onnx; the DeepStream image is also used for the fake camera):
+soak.py - ROADMAP Phase 8 "Soak test": run the whole Docker stack for hours with fake cameras and check that nothing grows or
+breaks (RAM, VRAM, process count, disk, FPS, restarts).
+
+An offline tool, run from the repository root on the Docker host (needs Docker, the NVIDIA toolkit, the DeepStream image and
+engine/models/yolov8n.onnx):
 
     python3 deploy/soak.py video  --hours 3                  # once: a long video, the sample repeated (no re-encoding)
-    python3 deploy/soak.py run    --hours 3 --cameras 4      # starts a stack of its own, writes soak-<time>/, tears it down
+    python3 deploy/soak.py run    --hours 3 --cameras 4      # starts its own stack, writes soak-<time>/, tears it down
     python3 deploy/soak.py report soak-<time>                # the verdict again, from the CSV
 
-`run` uses its own compose project (surveillance-soak), its own web port (18081) and Telegram off, so it does not
-touch a stack you run for real; start it with `setsid nohup ... &` to keep it running after the terminal closes.
-Every --sample seconds it writes a row to samples.csv; it stops early when the host disk or memory gets too low. The
-files in the output directory: samples.csv, events.log (anything unusual, with times), report.txt, logs-*.txt.
+`run` uses its own compose project (surveillance-soak), web port (18081) and Telegram off, so it does not touch a real stack. Every
+--sample seconds it writes a row to samples.csv and it stops early when host disk or memory gets too low. Output: samples.csv,
+events.log, report.txt, logs-*.txt.
 """
 import argparse
 import csv
@@ -96,10 +98,9 @@ class Stack:
             hf = Path.home() / ".cache" / "huggingface"
             if hf.exists():   # reuse a model that is already downloaded instead of 4 GB again
                 f.write(f"VLM_HF_CACHE={hf}\n")
-        # the fake camera: the repository's rtsp_test_server (built by `make rtsp-test-server`), reachable from the
-        # engine container as rtsp://fakecam:8554/cam; every client gets its own copy of the video from the start
-        # restart "no" everywhere: after a reboot the soak run is dead (it is a process on the host), and a stack that
-        # Docker brought back by itself would run on with nobody watching the disk
+        # the fake camera: the repository's rtsp_test_server (`make rtsp-test-server`), reachable as rtsp://fakecam:8554/cam, every client
+        # gets its own copy of the video. restart "no" everywhere: after a reboot the soak run is dead, and a stack Docker brought back by
+        # itself would run on with nobody watching the disk
         no_restart = "".join(f"  {svc}:\n    restart: 'no'\n" for svc in ("db", "mediamtx", "backend", "frontend"))
         no_restart += "  engine:\n    restart: 'no'\n"
         if self.engine_env:
@@ -428,7 +429,7 @@ def run(args) -> int:
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n", 1)[1], formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
     v = sub.add_parser("video", help="build the long test video")
     v.add_argument("--hours", type=float, default=3.0)

@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 /* Tests of the spool file (src/core/event_spool.c) and of the retry delays (src/core/backoff.c). */
 #include <stdio.h>
 #include <stdlib.h>

@@ -1,4 +1,8 @@
-"""Cameras are added to and taken out of the running engine; the others do not notice."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Cameras are added to and taken out of the running engine; the others do not notice.
+"""
 
 import pytest
 

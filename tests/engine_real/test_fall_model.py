@@ -1,6 +1,10 @@
-"""The skeleton network (V2-5) inside the real engine: scores come back from the TensorRT worker and become FALL events, a camera whose model
-is missing falls back to the rules, and an ordinary clip raises nothing. Needs, besides the GPU: eval/work/pgie_pose_b1.txt, a UR Fall clip
-in eval/work/urfall/ and engine/models/stgcn_fall.onnx (see eval/train/README in ROADMAP_V2_NHAT_KY.md section 9); skipped when they are missing."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+The skeleton network (V2-5) inside the real engine: scores come back from the TensorRT worker and become FALL events, a camera
+without the model falls back to the rules, and an ordinary clip raises nothing. Needs the GPU plus eval/work/pgie_pose_b1.txt,
+a UR Fall clip in eval/work/urfall/ and engine/models/stgcn_fall.onnx; skipped when they are missing.
+"""
 import json
 import subprocess
 

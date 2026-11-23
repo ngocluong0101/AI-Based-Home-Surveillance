@@ -1,4 +1,8 @@
 /*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
  * delivery.c - the publisher thread. See delivery.h.
  */
 #include "delivery.h"
@@ -146,10 +150,10 @@ static void backend_ok(AppCtx *app)
     app->retry_at_us = 0;
 }
 
-/* POST one event. Errors are logged without the URL (it may carry a secret). Only the answers that
- * say "this event is bad" (400/413/422) are final; anything else, including 404/401/403 from a
- * misconfigured backend, is retried so that no event is lost to a setup mistake. 409 means the
- * backend already has this event_id, which is what we wanted. */
+/*
+ * POST one event. Errors are logged without the URL (it may carry a secret). Only 400/413/422 ("this event is bad") are final; anything
+ * else, even 404/401/403 from a misconfigured backend, is retried so no event is lost to a setup mistake. 409 = already stored.
+ */
 static SendResult http_post(AppCtx *app, const char *json)
 {
     curl_easy_setopt(app->curl, CURLOPT_POSTFIELDS, json);
@@ -239,10 +243,10 @@ static void deliver_event(AppCtx *app, const char *json)
     spool_event(app, json);
 }
 
-/* POST one heartbeat. Unlike an event it is never spooled or retried (a late one is worthless; the
- * next comes in a few seconds) and it does not touch the backoff of the event path: the backend can
- * answer heartbeats while its database refuses events. Only the first failure after a success is
- * logged. */
+/*
+ * POST one heartbeat. Never spooled or retried (a late one is worthless) and it does not touch the event path's backoff (the backend
+ * can answer heartbeats while its database refuses events). Only the first failure after a success is logged.
+ */
 static void send_heartbeat(AppCtx *app, const char *json)
 {
     gint64 deadline = atomic_load_explicit(&app->shutdown_deadline_us, memory_order_relaxed);

@@ -1,11 +1,14 @@
-"""Event-level comparison on UR Fall: the rules (replay of src/events/behavior.py on the same dumps) against the cross-validated skeleton model.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Event-level comparison on UR Fall: the rules (replay of src/events/behavior.py on the same dumps) against the cross-validated skeleton model.
 
     eval/.venv/bin/python eval/train/compare.py eval/work/train/cv_stgcn_T48.json --k 3 --thr 0.5,0.7,0.9
 
-Same footing for both: an event is a TIME at which the system reports (the ST-GCN: the frame at which its score has been >= thr for k evaluations;
-the rule: the frame of its report, i.e. after the person stayed down). A fall sequence is detected if a report falls in [f0, f1 + 150] frames
-(f0/f1: UR Fall annotation of the start of the fall / of lying); any other report in a fall sequence, and any report in an ADL sequence, is a false alarm.
-Reports closer than 3 s to the previous one are one report. 30 fps.
+Same footing for both: an event is a TIME at which the system reports (ST-GCN: the frame where its score has been >= thr for k
+evaluations; rule: the frame of its report). A fall sequence is detected if a report falls in [f0, f1 + 150] frames (f0/f1: UR Fall
+start of the fall / of lying); any other report in a fall sequence, and any report in an ADL sequence, is a false alarm. Reports
+closer than 3 s are one report. 30 fps.
 """
 import argparse
 import json

@@ -1,6 +1,10 @@
-"""Small skeleton classifiers for V2-5. Input (N, 3, T, 17) as built by skeleton.py; output (N, classes) logits.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Small skeleton classifiers for V2-5. Input (N, 3, T, 17) as built by skeleton.py; output (N, classes) logits.
 STGCN: three spatial-temporal graph blocks (Yan et al. 2018, simplified: one adjacency, a learnable edge weight per block), ~0.1 M parameters,
-so it fits the edge budget (ROADMAP_V2 V2-5.2). TCN and MLP are the baselines the ladder starts with: if they do as well, the graph buys nothing."""
+so it fits the edge budget (ROADMAP_V2 V2-5.2). TCN and MLP are the baselines the ladder starts with: if they do as well, the graph buys nothing.
+"""
 import numpy as np
 import torch
 from torch import nn

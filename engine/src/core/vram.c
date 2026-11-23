@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 #include "vram.h"
 
 int64_t vram_needed_mib(unsigned slots, int with_stream)

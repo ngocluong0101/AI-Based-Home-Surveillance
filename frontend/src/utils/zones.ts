@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import type { Zone, ZoneKind } from "../types";
 
 /** A zone as the editor holds it: the number is given by the server when it is left out. */

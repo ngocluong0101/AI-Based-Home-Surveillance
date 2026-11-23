@@ -1,13 +1,13 @@
 #!/bin/bash
-# Run a command inside the DeepStream container with the repo mounted at /work (same layout the engine
-# was built in). Used for everything in eval/ that needs GStreamer/NVENC or the engine itself, because the
-# host has neither x264 nor DeepStream.
+# @author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+# Run a command inside the DeepStream container with the repo mounted at /work (the layout the engine was built in), for everything in
+# eval/ that needs GStreamer/NVENC or the engine (the host has neither x264 nor DeepStream).
 #
 #   eval/tools/in_container.sh eval/tools/encode_h264.sh png 'eval/work/frames/%06d.png' eval/work/out.mp4
 #   eval/tools/in_container.sh engine/build/ds_engine --config ...
 #
-# The first argument is the program (a path under the repo, relative to the repo root, or a command on the
-# container's PATH); the rest are its arguments. Run from anywhere; paths are relative to the repo root.
+# The first argument is the program (a path relative to the repo root, or a command on the container's PATH); the rest are its arguments.
 set -e
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 PROG="$1"; shift

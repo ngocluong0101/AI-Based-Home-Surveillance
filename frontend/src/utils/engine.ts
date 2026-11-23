@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import type { EngineSummary } from "../types";
 import type { Tone } from "./health";
 

@@ -1,4 +1,7 @@
-"""Keeps the VLM service busy while something else is measured (V2-7: M3 "with the VLM working").
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Keeps the VLM service busy while something else is measured (V2-7: M3 "with the VLM working").
 
     python eval/vlm/load.py --url http://127.0.0.1:18200 --frames DIR_WITH_JPEGS --every 2 --seconds 120 --out load.json
 
@@ -19,7 +22,7 @@ from pathlib import Path
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description=__doc__)
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n", 1)[1])
     ap.add_argument("--url", default="http://127.0.0.1:18200")
     ap.add_argument("--frames", required=True, help="directory with at least 6 JPEGs")
     ap.add_argument("--every", type=float, default=2.0, help="seconds between the starts of two requests")

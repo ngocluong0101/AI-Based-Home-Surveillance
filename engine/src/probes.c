@@ -1,4 +1,8 @@
 /*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
  * probes.c - the pad probes (see probes.h) and everything they need to turn a frame into queue items: the
  * Detection[] of a frame, the events it raised, the snapshot JPEG, and the push to the publisher's queue.
  */
@@ -18,10 +22,10 @@
  * stream, see maxTargetsPerStream in the tracker config). */
 #define MAX_DETECTIONS_PER_FRAME 256
 
-/* Events waiting for the publisher thread. A dead backend does not fill it: the worker moves
- * events to the spool file at once. It fills only if the worker is stuck in one slow request
- * (HTTP_TIMEOUT_MS at most); then new events are dropped and counted rather than letting memory
- * grow. */
+/*
+ * Events waiting for the publisher thread. A dead backend does not fill it (the worker spools at once); it fills only if the worker is
+ * stuck in one slow request (HTTP_TIMEOUT_MS at most), and then new events are dropped and counted instead of growing memory.
+ */
 #define EVENT_QUEUE_MAX 1024
 
 /* Scores of the skeleton network taken per frame (one per tracked person per frame is the most it can produce for one camera; older
@@ -36,11 +40,9 @@
 #define PERSON_CLASS_ID 0
 
 /*
- * Copy the tracked persons of one frame into out[] (at most `max`). This is the only place that
- * reads NvDsObjectMeta; it keeps no pointer to it. Boxes are normalised to the muxer frame
- * (MUXER_WIDTH x MUXER_HEIGHT): nvstreammux scales every source to that size and rect_params is
- * expressed in it. *total is the number of objects in the frame, *untracked the number of them
- * that have no track ID yet (those are not copied). Returns the number of Detection written.
+ * Copy the tracked persons of one frame into out[] (at most `max`). The only place that reads NvDsObjectMeta; keeps no pointer
+ * to it. Boxes are normalised to the muxer frame. *total = objects in the frame, *untracked = those without a track ID yet
+ * (not copied). Returns the number of Detection written.
  */
 static size_t extract_person_detections(const NvDsFrameMeta *frame_meta, Detection *out,
                                         size_t max, guint *total, guint *untracked)
@@ -326,15 +328,12 @@ typedef struct {
 } RingJob;
 
 /*
- * Ask the object encoder for a JPEG of the whole frame of group->frame_meta; the events of the
- * group share it and carry the name derived from the first one. nvds_obj_enc_process() only
- * enqueues, and the encoder reads the NVMM surface of this buffer, so the caller must call
- * nvds_obj_enc_finish() before the buffer leaves the probe. `map` holds the mapping of `buf`
- * (made on first use, unmapped by the caller): its data is the NvBufSurface of the whole batch.
+ * Ask the object encoder for a JPEG of the whole frame; the events of the group share it. nvds_obj_enc_process() only
+ * enqueues, so the caller must call nvds_obj_enc_finish() before the buffer leaves the probe. `map` holds the mapping of `buf`
+ * (made on first use, unmapped by the caller).
  *
- * The encoder is told not to save a file (saveImg = FALSE) but to attach the JPEG to the frame as
- * user meta: the library's own file writer does not check fopen() and crashes the process when the
- * directory is not writable, and writing files does not belong in the probe anyway.
+ * The JPEG is attached to the frame as user meta (saveImg = FALSE): the library's own file writer does not check fopen() and
+ * crashes when the directory is not writable, and file writing does not belong in the probe anyway.
  */
 static void submit_snapshot(AppCtx *app, GstBuffer *buf, GstMapInfo *map, gboolean *mapped,
                             FrameGroup *group, QueueItem **items)
@@ -456,11 +455,9 @@ GstPadProbeReturn pose_probe(GstPad *pad, GstPadProbeInfo *info, gpointer user_d
 }
 
 /*
- * Pad probe on the src pad of nvinfer, i.e. before the tracker: applies the settings of each camera
- * to what the detector found. A camera with AI off loses every object; one with a confidence
- * threshold loses the objects below it. The tracker, the events, the people count and the picture
- * (the boxes of the OSD) then all see the same, smaller set. Installed only when some camera has
- * such a setting, and does nothing for the cameras that do not.
+ * Pad probe on the src pad of nvinfer (before the tracker): applies each camera's settings to what the detector found. AI off
+ * removes every object; a confidence threshold removes the objects below it. Tracker, events, people count and OSD then all see
+ * the same set. Installed only when some camera has such a setting.
  */
 GstPadProbeReturn settings_probe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
 {
@@ -495,11 +492,8 @@ GstPadProbeReturn settings_probe(GstPad *pad, GstPadProbeInfo *info, gpointer us
 }
 
 /*
- * Pad probe on the src pad of nvtracker, before any tiler/demux so the batch is still whole:
- * NvDsBatchMeta -> one NvDsFrameMeta per source -> Detection[] for that source. For now the
- * Detection values only feed statistics per source_id (frames, objects, and for how many frames
- * each track ID was seen; object_id is unique only inside one source, hence one table per
- * SourceCtx). It does no I/O and returns at once.
+ * Pad probe on the src pad of nvtracker, before any tiler/demux so the batch is whole: NvDsBatchMeta -> one NvDsFrameMeta per
+ * source -> Detection[] for that source. No I/O; returns at once.
  */
 GstPadProbeReturn detection_probe(GstPad *pad, GstPadProbeInfo *info, gpointer user_data)
 {
@@ -551,10 +545,11 @@ GstPadProbeReturn detection_probe(GstPad *pad, GstPadProbeInfo *info, gpointer u
             g_hash_table_insert(src->track_frames, key, GSIZE_TO_POINTER(seen + 1));
         }
 
-        /* Event clock = stream_start + PTS of the frame, never the wall clock at processing time,
-         * so a file read faster than real time behaves like the same stream played live. Called
-         * for every frame, also with n == 0: that is how absent tracks time out. After a reconnect
-         * the PTS may start again from 0, so the anchor is taken anew from the wall clock. */
+        /*
+         * Event clock = stream_start + frame PTS, never the wall clock, so a file read faster than real time behaves like the same stream live.
+         * Called for every frame, also with n == 0 (that is how absent tracks time out). After a reconnect the PTS may restart from 0, so the
+         * anchor is taken anew from the wall clock.
+         */
         if (!src->have_stream_start || atomic_exchange(&src->reanchor, FALSE)) {
             src->stream_start_ns = g_get_real_time() * 1000 - (gint64)frame_meta->buf_pts;
             src->have_stream_start = TRUE;

@@ -1,8 +1,9 @@
-"""The system the end-to-end tests talk to: a REAL backend on a REAL (throwaway) PostgreSQL, and a REAL engine
-manager that runs a stand-in for ds_engine (the one of the manager tests) with room for 3 cameras.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-Started by Playwright (see playwright.config.ts) from the repository root, stopped by SIGTERM. Nothing here touches
-the developer's database, the real .env settings that send Telegram messages, or the GPU.
+The system the end-to-end tests talk to: a REAL backend on a throwaway PostgreSQL and a REAL engine manager running a stand-in for
+ds_engine (the one of the manager tests) with room for 3 cameras. Started by Playwright (playwright.config.ts) from the repository
+root, stopped by SIGTERM; it touches neither the developer's database, the real Telegram settings nor the GPU.
 
     python3 frontend/e2e/stack.py        # backend on 127.0.0.1:18765, engine manager on 127.0.0.1:18766
 """

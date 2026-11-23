@@ -1,4 +1,7 @@
-"""Stage 2: replay the rules over the dumps and print the M1 / M2 tables (writes eval/results/<date>_v2-4_<tag>.json).
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Stage 2: replay the rules over the dumps and print the M1 / M2 tables (writes eval/results/<date>_v2-4_<tag>.json).
 
     eval/.venv/bin/python eval/e2e/run_eval.py --splits val --tag baseline
     eval/.venv/bin/python eval/e2e/run_eval.py --splits val --set fall_still_s=1.5 --tag still1.5

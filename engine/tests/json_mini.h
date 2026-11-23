@@ -1,9 +1,11 @@
 /*
- * json_mini.h - a small JSON reader for the tests, so `make test-core` needs no library: the shared
- * test vectors (the tests/vectors directory) are plain JSON and the host may have no json-glib. It parses
- * what json.dumps writes (objects, arrays, strings, numbers, true/false/null), keeps integers exact
- * in int64 (nanosecond clocks do not fit a double), and does not check for every kind of invalid
- * input - it is for files we generate, not for untrusted data.
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
+ * json_mini.h - a small JSON reader for the tests, so `make test-core` needs no library (the shared vectors are plain JSON).
+ * Parses what json.dumps writes, keeps integers exact in int64 (ns clocks do not fit a double), and does not validate: it is for
+ * files we generate, not untrusted data.
  */
 #ifndef JSON_MINI_H
 #define JSON_MINI_H

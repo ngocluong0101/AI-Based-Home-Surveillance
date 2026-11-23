@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { Loader2, PlugZap } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";

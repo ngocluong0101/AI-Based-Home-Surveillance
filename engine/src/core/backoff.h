@@ -1,8 +1,10 @@
 /*
- * backoff.h - how long the publisher waits before it tries a dead backend again (ROADMAP 2.6).
- *
- * Pure C. Exponential: 1 s after the first failure, doubling after every further one, never more
- * than 60 s, so a backend that comes back is found again within a minute.
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
+ * backoff.h - how long the publisher waits before retrying a dead backend (ROADMAP 2.6). Pure C. 1 s after the first failure,
+ * doubling, never more than 60 s.
  */
 #ifndef BACKOFF_H
 #define BACKOFF_H

@@ -1,11 +1,14 @@
-"""Train and cross-validate the skeleton classifiers on the UR Fall windows (V2-5). Groups = sequences (never frames of one sequence on both sides).
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Train and cross-validate the skeleton classifiers on the UR Fall windows (V2-5). Groups = sequences (never frames of one sequence on both sides).
 
     eval/.venv/bin/python eval/train/train.py --model stgcn --folds 5 --seeds 3
     eval/.venv/bin/python eval/train/train.py --model stgcn --final --out eval/work/train/stgcn_T48.pt      # all sequences, for the ONNX export
 
-Output of a cross-validation: per window AUC/accuracy and, per sequence, the score curve over time, which eval/train/events.py turns into events.
-UR Fall has one room and a handful of people and no per-sequence person id, so a fold can contain a person the training part also had:
-the numbers are an upper bound, said so wherever they are used.
+A cross-validation outputs per-window AUC/accuracy and, per sequence, the score curve over time (eval/train/events.py turns it into
+events). UR Fall has one room, few people and no person id, so a fold can contain a person the training part also had: the numbers are
+an upper bound.
 """
 import argparse
 import json

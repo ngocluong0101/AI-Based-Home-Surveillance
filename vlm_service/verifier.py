@@ -1,10 +1,11 @@
-"""The VLM that checks an alert (V2-6). Qwen3-VL-2B-Instruct (Apache 2.0) on the GPU in half precision (~4.3 GB), loaded once.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-verify() makes ONE forward pass over the frames + the question and reads the probabilities of the first answer token; it does not generate
-text, so it costs about one prefill (the frames), not a decode loop. `p_yes` / `p_no` / `p_unsure` are normalised over those three words.
-The verdict is `yes` when p_yes >= yes_thr, `no` when p_no >= no_thr, else `unsure` - two thresholds, because "no" is the dangerous answer (it
-silences a real fall) and so needs more confidence than "yes".
-Imports of torch / transformers are inside the class: the backend and the tests of the orchestration never need them.
+The VLM that checks an alert (V2-6): Qwen3-VL-2B-Instruct (Apache 2.0) on the GPU in half precision (~4.3 GB), loaded once.
+
+verify() does ONE forward pass over the frames and the question and reads the probabilities of the first answer token (no
+decoding). The verdict is `yes` when p_yes >= yes_thr, `no` when p_no >= no_thr, else `unsure`: two thresholds because "no" is
+the dangerous answer (it silences a real fall). torch / transformers are imported inside the class.
 """
 from __future__ import annotations
 

@@ -1,4 +1,8 @@
-"""Endpoints for the engine, not for browsers (ROADMAP 3.5)."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Endpoints for the engine, not for browsers (ROADMAP 3.5).
+"""
 
 from __future__ import annotations
 
@@ -32,10 +36,9 @@ def require_token(request: Request, x_internal_token: str | None = Header(defaul
 
 @router.post("/events", status_code=201, dependencies=[Depends(require_token)])
 def post_event(body: EventIn, request: Request, response: Response, db: Session = Depends(get_db)) -> dict[str, object]:
-    """Store an event of the engine. Idempotent on event_id: the engine resends what it is not sure
-    arrived (after a timeout, or from its spool file after a restart), so a repeat answers 200
-    "duplicate" and changes nothing. Answers 422 for an event that can never be stored (unknown
-    camera, bad values), which tells the engine to drop it rather than retry."""
+    """Store an event of the engine. Idempotent on event_id (the engine resends what it is not sure arrived): a repeat answers 200
+    "duplicate". 422 means the event can never be stored (unknown camera, bad values), so the engine drops it instead of retrying.
+    """
     stmt = (
         insert(Event)
         .values(

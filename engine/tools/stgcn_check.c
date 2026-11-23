@@ -1,10 +1,13 @@
 /*
- * stgcn_check.c - check and time the TensorRT model against reference probabilities (V2-5.4).
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
+ * stgcn_check.c - check and time the TensorRT model against reference probabilities (V2-5.4). Not part of the engine.
  *
- *   stgcn_check MODEL.onnx T WINDOWS.f32 PROBS.f32 [BATCH]
- *
- * WINDOWS.f32: N x (3 x T x 17) float32; PROBS.f32: N float32 = the PyTorch probabilities of the same windows.
- * Prints the largest |TensorRT FP16 - reference| and the time per batch. Not part of the engine.
+ * stgcn_check MODEL.onnx T WINDOWS.f32 PROBS.f32 [BATCH]
+ * WINDOWS.f32: N x (3 x T x 17) float32; PROBS.f32: the PyTorch probabilities of the same windows. Prints the largest
+ * |TensorRT FP16 - reference| and the time per batch.
  */
 #include <math.h>
 #include <stdio.h>

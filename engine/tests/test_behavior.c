@@ -1,7 +1,11 @@
 /*
- * Tests for behavior.c: the shared vectors (tests/vectors/behavior_*.json, the same files tests/test_behavior_vectors.py replays
- * on the Python specification), plus the few things that exist only in the C version (output capacity, set_zones limits,
- * changing the config of a running instance, memory freed twice).
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
+ * Tests for behavior.c: the shared vectors (tests/vectors/behavior_*.json, replayed on the Python specification by
+ * tests/test_behavior_vectors.py) plus what exists only in C (output capacity, set_zones limits, config change of a running
+ * instance, memory freed twice).
  */
 #include <dirent.h>
 #include <math.h>

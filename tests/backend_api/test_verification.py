@@ -1,5 +1,9 @@
-"""The VLM check of falls and fights (V2-6): stored as pending, settled by the verifier, Telegram held back meanwhile - and above all
-FAIL-OPEN: a VLM that errs, is unsure, is slow or is absent never keeps an alert from going out."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+The VLM check of falls and fights (V2-6): stored as pending, settled by the verifier, Telegram held back meanwhile - and above all
+FAIL-OPEN: a VLM that errs, is unsure, is slow or is absent never keeps an alert from going out.
+"""
 import base64
 import json
 import time

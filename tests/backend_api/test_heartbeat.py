@@ -1,4 +1,8 @@
-"""POST /internal/heartbeat and the `stream` part of GET /api/cameras/{id}/status (ROADMAP 3.6)."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+POST /internal/heartbeat and the `stream` part of GET /api/cameras/{id}/status (ROADMAP 3.6).
+"""
 
 import json
 import time

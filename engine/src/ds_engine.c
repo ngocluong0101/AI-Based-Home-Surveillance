@@ -1,24 +1,17 @@
 /*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
  * ds_engine.c - DeepStream engine: N video sources in one batched pipeline.
  *
- * Pipeline: N sources -> nvstreammux -> nvinfer (YOLOv8n) -> nvtracker (NvDCF) -> fakesink, or with --output
- * -> tiler -> OSD -> H.264 -> MP4, or with --stream-url -> nvstreamdemux -> one encoding branch per camera.
- * This file builds that pipeline, handles the bus and the signals, and runs main(). The rest is in modules:
+ * N sources -> nvstreammux -> nvinfer (YOLOv8) -> nvtracker (NvDCF) -> fakesink; with --output -> tiler -> OSD -> H.264 -> MP4;
+ * with --stream-url -> nvstreamdemux -> one encoding branch per camera. This file builds the pipeline, handles the bus and
+ * signals, and runs main(). The rest: app.h (shared types), config.c, sources.c (slots, SIGHUP reload, RTSP loss), probes.c,
+ * dump.c (--dump-detections), delivery.c (publisher thread), stream_out.c, report.c, core/ (pure C, tested on the host).
  *
- *   app.h         SourceCtx / AppCtx, the types everything shares
- *   config.c      command line, cameras file, per-camera settings
- *   sources.c     camera slots, add / remove while running (SIGHUP), RTSP loss detection
- *   probes.c      the pad probes: detections, events, snapshots, per-camera filters
- *   dump.c        --dump-detections: detections and tracks to a CSV file, for measuring
- *   delivery.c    the publisher thread: snapshot files, HTTP to the backend, the spool file
- *   stream_out.c  live video of each camera to a media server (RTMP)
- *   report.c      statistics, frame rate, heartbeat
- *   core/         pure C without DeepStream (EventManager, event JSON, spool...), tested on the host
- *
- * Conventions (see CLAUDE.md / ROADMAP.md):
- *  - All per-source state lives in SourceCtx[N]; no single global per-source variables.
- *  - Never keep NvDs*Meta pointers outside a probe callback; a probe returns GST_PAD_PROBE_OK fast.
- *  - Never log a full URI (an RTSP URL may contain a password); log only the scheme.
+ * Rules: all per-source state lives in SourceCtx[N]; never keep NvDs*Meta pointers outside a probe, and probes return fast;
+ * never log a full URI (an RTSP URL may hold a password).
  */
 #include <cuda_runtime_api.h>
 #include <execinfo.h>
@@ -92,10 +85,11 @@ static gboolean vram_is_sufficient(const AppCtx *app)
     return FALSE;
 }
 
-/* A crash prints where it happened (the stack of the crashing thread) before the process dies, so that a segfault of a long
- * run leaves something to look at without a debugger or a core dump (containers cannot count on either). Only async-signal-safe
- * calls after the first backtrace(), which loads libgcc and is therefore called once at start-up. Symbol names need -rdynamic
- * (Makefile); for the rest use addr2line on the offsets. The signal is then raised again with its default action. */
+/*
+ * A crash prints the stack of the crashing thread before the process dies, so a segfault of a long run leaves something to look at
+ * (containers cannot count on a debugger or core dump). Only async-signal-safe calls after the first backtrace(), which is called once
+ * at start-up because it loads libgcc. Symbol names need -rdynamic; otherwise use addr2line. The signal is then raised again.
+ */
 static void on_crash(int sig)
 {
     static const char head[] = "\nds_engine: crashed (signal ";
@@ -123,10 +117,11 @@ static void install_crash_handler(void)
     sigaction(SIGFPE, &sa, NULL);
 }
 
-/* Stop on SIGINT/SIGTERM like on EOS: leave the loop, then the pipeline is stopped in order and the
- * publisher flushes. (RTSP sources never end by themselves, so this is how the engine is stopped.)
- * With --output the loop is left only after the pipeline posted EOS (bus_call), because an MP4 that
- * never saw EOS has no moov atom and cannot be played. A second signal stops at once. */
+/*
+ * Stop on SIGINT/SIGTERM like on EOS: leave the loop, stop the pipeline in order, let the publisher flush (RTSP sources never end by
+ * themselves). With --output the loop is left only after the pipeline posted EOS (bus_call), since an MP4 without EOS has no moov
+ * atom. A second signal stops at once.
+ */
 static gboolean on_signal(gpointer data)
 {
     AppCtx *app = (AppCtx *)data;
@@ -151,10 +146,10 @@ static gboolean on_signal(gpointer data)
     return G_SOURCE_CONTINUE;
 }
 
-/* Bus: EOS -> stop (exit 0). ERROR of an RTSP source -> that source reconnects, the rest goes on; of
- * anything else (a file that cannot be read, inference, tracker, sink) -> exit_code=1 and stop.
- * (A file source that fails in a pipeline with live sources leaves nvstreammux starving the others,
- * so it is not tried to keep going; files are for tests, a camera is what disappears.) WARNING -> log. */
+/*
+ * Bus: EOS -> stop (exit 0). ERROR of an RTSP source -> that source reconnects, the rest goes on; anything else (an unreadable file,
+ * inference, tracker, sink) -> exit_code=1 and stop (a failing file source starves nvstreammux, so it is not kept going). WARNING -> log.
+ */
 static gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data)
 {
     (void)bus;
@@ -204,11 +199,8 @@ static gboolean bus_call(GstBus *bus, GstMessage *msg, gpointer data)
 }
 
 /*
- * Build the pipeline N sources -> nvstreammux -> nvinfer -> nvtracker -> fakesink, the same path
- * for any N >= 1. With --output the fakesink is replaced by the debug branch
- * nvmultistreamtiler -> nvvideoconvert -> nvdsosd -> nvvideoconvert -> H.264 -> MP4 file; the
- * probe stays on nvtracker, before the tiler. batch-size of nvstreammux and nvinfer = N.
- * Returns NULL (after printing why) on error.
+ * Build the pipeline N sources -> nvstreammux -> nvinfer -> nvtracker -> fakesink (same path for any N >= 1). With --output the
+ * fakesink becomes tiler -> OSD -> H.264 -> MP4; the probe stays on nvtracker, before the tiler. Returns NULL on error.
  */
 static GstElement *build_pipeline(AppCtx *app)
 {

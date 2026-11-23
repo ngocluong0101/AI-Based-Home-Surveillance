@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { QueryClient } from "@tanstack/react-query";
 import type { EventPage, LiveStatus, PersonEvent } from "../types";
 import { markCreated } from "./recentEvents";

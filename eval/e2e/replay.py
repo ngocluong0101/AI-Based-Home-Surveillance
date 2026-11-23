@@ -1,8 +1,9 @@
-"""Run the behaviour rules (the Python specification, bit-for-bit what the C port does, proven by the shared vectors) over the dump that
-`ds_engine --dump-detections` wrote for a clip. The slow part (decode + pose on the GPU) happens once per clip; replaying the rules takes
-seconds, so thresholds can be tried on train/val without touching the engine again.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-Events come out in the clip's own time (PTS), which is what the labels use; there is no wall clock to line up.
+Run the behaviour rules (the Python specification, same as the C port by the shared vectors) over the dump that `ds_engine
+--dump-detections` wrote for a clip. Decode + pose on the GPU happen once per clip; replaying the rules takes seconds, so thresholds
+can be tried on train/val without touching the engine. Events come out in the clip's own time (PTS), like the labels.
 """
 from pathlib import Path
 

@@ -1,9 +1,12 @@
-"""Where the public datasets of the cross-dataset evaluation are, and what is in them. Nothing here downloads anything: the files
-live in datasets/_downloads/<name>/ (never committed; read the licence of each before using it, see datasets/README.md).
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-AIRTLab (Bianculli et al., Data in Brief 33, 2020, doi:10.1016/j.dib.2020.106587): 350 clips of 2-4 non-professional actors in ONE room, filmed
-by two cameras at once (cam1 = a phone's front camera, cam2 = a fisheye action camera); 230 violent clips and 120 non-violent ones that are
-made to look like fights to a detector (hugs, high fives, claps, exulting, gesticulating). Released "for research and educational purposes".
+Where the public datasets of the cross-dataset evaluation are. Nothing here downloads anything: files live in
+datasets/_downloads/<name>/ (never committed; read each licence first, see datasets/README.md).
+
+AIRTLab (Bianculli et al., Data in Brief 33, 2020, doi:10.1016/j.dib.2020.106587): 350 clips of 2-4 actors in ONE room, filmed by two
+cameras at once; 230 violent clips and 120 non-violent ones that look like fights to a detector (hugs, high fives, claps...).
+Released "for research and educational purposes".
 """
 import csv
 from dataclasses import dataclass

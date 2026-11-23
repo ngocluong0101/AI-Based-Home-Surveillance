@@ -1,13 +1,14 @@
 /*
- * fallnet.h - the skeleton classifier as the engine uses it (ROADMAP_V2 V2-5): a worker thread that scores windows in batches so that the
- * pad probe never waits for the GPU.
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
+ * fallnet.h - the skeleton classifier as the engine uses it (V2-5): a worker thread scores windows in batches so the pad probe
+ * never waits for the GPU. fallnet_submit() (probe) queues one window per tracked person and never blocks (a full queue drops its
+ * OLDEST job); the worker runs stgcn_run() on up to max_batch jobs; fallnet_take() (probe) returns the scores for one source.
  *
- *   probe thread:  fallnet_submit()  one window per tracked person per frame        -> never blocks (a full queue drops its OLDEST job)
- *   worker thread: takes up to max_batch jobs, stgcn_run(), keeps the scores
- *   probe thread:  fallnet_take()    the scores that arrived for one source        -> BehaviorScore for behavior_process_scored()
- *
- * Fail-open: when a batch fails the jobs are counted as `errors` and dropped; the behaviour logic then has no scores, and with fall_net = 2
- * the rules still report falls (with fall_net = 1 the engine refuses to start the model at all if it cannot load, see ds_engine.c).
+ * Fail-open: a failed batch is counted in `errors` and dropped. With fall_net = 2 the rules still report falls; with fall_net = 1
+ * the engine refuses to start if the model cannot load (see ds_engine.c).
  */
 #ifndef FALLNET_H
 #define FALLNET_H

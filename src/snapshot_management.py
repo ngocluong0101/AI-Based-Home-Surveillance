@@ -1,4 +1,8 @@
-"""Snapshot storage management (cleanup old files to prevent disk exhaustion)."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+Snapshot storage management (cleanup old files to prevent disk exhaustion).
+"""
 
 from __future__ import annotations
 
@@ -15,25 +19,12 @@ class SnapshotCleaner:
     """Clean up old snapshot files from a directory."""
 
     def __init__(self, retention_days: int) -> None:
-        """
-        Initialize the cleaner.
-
-        Args:
-            retention_days: Keep snapshots newer than this many days; delete older ones.
-        """
+        """Keep snapshots newer than `retention_days`."""
         self.retention_days = max(1, retention_days)
         self.retention_seconds = self.retention_days * 86400
 
     def list_expired_files(self, snapshot_dir: Path) -> list[Path]:
-        """
-        Return list of snapshot files older than retention period.
-
-        Args:
-            snapshot_dir: Directory to scan.
-
-        Returns:
-            List of Path objects for files to delete (sorted oldest first).
-        """
+        """Snapshot files older than the retention period, oldest first."""
         if not snapshot_dir.exists():
             return []
 
@@ -57,15 +48,7 @@ class SnapshotCleaner:
         return [p for _, p in expired]
 
     def cleanup(self, snapshot_dir: Path) -> tuple[int, int]:
-        """
-        Delete expired snapshot files.
-
-        Args:
-            snapshot_dir: Directory to clean.
-
-        Returns:
-            Tuple of (deleted_count, error_count).
-        """
+        """Delete expired snapshots. Returns (deleted_count, error_count)."""
         expired = self.list_expired_files(snapshot_dir)
         if not expired:
             return 0, 0

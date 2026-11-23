@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { AppLayout } from "./layouts/AppLayout";
 import { useHashRoute } from "./hooks/useHashRoute";
 import { CamerasPage } from "./pages/CamerasPage";

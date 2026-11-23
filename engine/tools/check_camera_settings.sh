@@ -1,18 +1,16 @@
 #!/bin/bash
+# @author: Ngoc Luong <ngocluongg0101@gmail.com>
+
 # check_camera_settings.sh - does the engine apply the per-camera settings of the cameras file?
 #
-# An offline test tool, not part of the product. It runs the real engine (DeepStream container, GPU) on four
-# cameras that all play the same video, each with one setting of its own:
-#
+# Offline test tool. Runs the real engine (DeepStream container, GPU) on four cameras playing the same video:
 #   camera 1  nothing set            the reference
 #   camera 2  conf_threshold=0.6     fewer objects, tracks and events than camera 1
 #   camera 3  ai_enabled=false       no object, no event, no "people" in the heartbeat
-#   camera 4  absence_timeout=0.2    more events than camera 1 (the same people count as new sooner)
+#   camera 4  absence_timeout=0.2    more events than camera 1
 #
-# Usage, from anywhere:  engine/tools/check_camera_settings.sh [VIDEO]
-# The default video is data/videos/sample_1080p_h264.mp4. Needs engine/build/ds_engine (make CUDA_VER=12.6 in the
-# container), the TensorRT engine for 4 cameras (built on the first start, ~150 s) and a free GPU: do not run it
-# next to the soak test. Output goes to a temporary directory that is printed at the end.
+# Usage: engine/tools/check_camera_settings.sh [VIDEO]   (default data/videos/sample_1080p_h264.mp4). Needs engine/build/ds_engine,
+# the TensorRT engine for 4 cameras (~150 s on first start) and a free GPU (not next to the soak test).
 set -u
 REPO=$(cd "$(dirname "$0")/../.." && pwd)
 VIDEO=$(readlink -f "${1:-$REPO/data/videos/sample_1080p_h264.mp4}")

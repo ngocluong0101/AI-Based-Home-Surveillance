@@ -1,12 +1,13 @@
 /*
- * stgcn.h - runs the skeleton classifier of V2-5 (eval/train/) with the TensorRT C++ API. C interface, C++ implementation (stgcn.cpp).
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
+ * stgcn.h - runs the skeleton classifier of V2-5 (eval/train/) with the TensorRT C++ API. C interface, C++ implementation.
  *
- * The model takes windows of (3, T, 17) floats - what core/skel_window.h builds - and returns the probability that the window ends
- * in a fall. It does not touch GStreamer or DeepStream: the engine's probe builds windows, a worker thread (stgcn_worker.c) calls
- * stgcn_run() on batches, and the result goes back to the behaviour logic as a score.
- *
- * The first call for an ONNX file builds a TensorRT FP16 engine for batch sizes 1..max_batch (~10-20 s) and caches it next to the ONNX
- * (`<onnx>.T<T>.b<max_batch>.fp16.engine`; rebuilt when the ONNX is newer). Not thread-safe: one thread (the worker) owns a model.
+ * Input: windows of (3, T, 17) floats (core/skel_window.h); output: probability that the window ends in a fall. The first call
+ * for an ONNX file builds a TensorRT FP16 engine for batch 1..max_batch (~10-20 s) and caches it next to the ONNX
+ * (`<onnx>.T<T>.b<max_batch>.fp16.engine`, rebuilt when the ONNX is newer). Not thread-safe: one thread owns a model.
  */
 #ifndef STGCN_H
 #define STGCN_H

@@ -1,35 +1,23 @@
-"""Behaviour rules of this project (ROADMAP_V2 V2-3): falls, fights and people in restricted areas, from the skeletons and
-boxes of the people a tracker follows.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-This module is the SPECIFICATION. engine/src/core/behavior.c is its C port, and both are run against the same files
-(tests/vectors/behavior_*.json, see tests/vectors/generate_behavior_vectors.py), exactly like PersonDetectedEventManager
-and event_manager.c. It has no I/O and no clock of its own: the caller passes `now_ns` (in the engine
-stream_start + the PTS of the frame). One BehaviorEngine per camera: track IDs are unique only inside one camera.
+Behaviour rules (V2-3): falls, fights and people in restricted areas, from the skeletons and boxes of tracked people.
 
-What a rule means (the definitions of eval/DEFINITIONS.md, turned into numbers; every number is in BehaviorConfig and can
-be changed per camera):
+This module is the SPECIFICATION; engine/src/core/behavior.c is its C port and both run the same vectors
+(tests/vectors/behavior_*.json). No I/O and no clock: the caller passes `now_ns`. One BehaviorEngine per camera.
+Every threshold lives in BehaviorConfig and can be changed per camera.
 
-FALL   A person who was upright becomes "down" (torso at least fall_down_deg from the vertical) within
-       fall_drop_window_s; during the first fall_settle_s of being down the hips move at least fall_hip_drop_min torso lengths
-       from where they were while the person was upright (the hips go on falling after the torso has turned) and they must have
-       done so within fall_hip_window_s of the last upright frame (a fall is fast); the person then
-       stays down until fall_still_s after the impact without moving more than fall_move_max torso lengths from where they
-       settled. The event is emitted at the end of that stillness, and occurred_ns is the first frame the person was down
-       (the impact, which is what the latency M4 is measured from). While the pose model gives no skeleton (a person lying
-       on the floor is often missed) the last known hips are used, as long as the box is still wide (lying), not tall. Not a fall: sitting down (the torso stays upright), bending over (the
-       hips stay), lying down slowly (the transition is longer than the window), standing up again within
-       fall_stand_back_s, a person who is already lying when first seen, and anyone whose hips are in a "lie_ok" zone (bed,
-       sofa). After an event the same person raises no new one until they have stood up and fall_cooldown_s has passed.
-FIGHT  A hand or a foot of one person moves fast (at least fight_speed torso lengths per second) while it is inside the
-       box of another person is "contact". Contact time is summed in a leaky bucket (it loses fight_decay_s of memory); a
-       pair whose bucket reaches fight_threshold_s raises one event until the bucket has emptied and fight_cooldown_s has
-       passed. A hug or a handshake is slow, so it is no contact; walking side by side puts no hand in the other's box.
-RESTRICTED_AREA   The feet (middle of the ankles, else the bottom middle of the box) of a person stay inside a "restricted"
-       zone for zone_dwell_s. occurred_ns is the moment of entry. A person who leaves for zone_exit_s starts the count
-       again; the same person can raise a new event after being outside for zone_rearm_s.
-Zones are polygons in coordinates relative to the frame (0..1). A person whose feet are in an "ignore" zone (a TV, a
-mirror, a poster with people on it) is not looked at by any rule.
-
+FALL   An upright person becomes "down" (torso >= fall_down_deg from vertical) within fall_drop_window_s, the hips drop
+       fast, and the person then stays down and still for fall_still_s. The event is emitted after that stillness;
+       occurred_ns is the first frame the person was down (M4 latency is measured from it). Not a fall: sitting, bending
+       over, lying down slowly, standing back up quickly, someone already lying when first seen, hips in a "lie_ok" zone
+       (bed, sofa). One event per fall until the person stands up and fall_cooldown_s passes.
+FIGHT  A hand or foot moving fast (>= fight_speed torso lengths/s) inside another person's box counts as contact. Contact
+       time fills a leaky bucket per pair; reaching fight_threshold_s raises one event, then fight_cooldown_s. Hugs and
+       handshakes are slow, so they are no contact.
+RESTRICTED_AREA   The feet stay inside a "restricted" zone for zone_dwell_s (occurred_ns = moment of entry). Leaving for
+       zone_exit_s restarts the count; a new event needs zone_rearm_s outside.
+Zones are polygons in relative coordinates (0..1); someone standing in an "ignore" zone (TV, mirror) is skipped by all rules.
 Skeletons use the COCO order of YOLOv8-pose, x and y in pixels (y down).
 """
 

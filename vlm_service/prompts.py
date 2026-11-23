@@ -1,7 +1,9 @@
-"""What the VLM is asked, per kind of event. One place, so the service, the evaluation and the tests use the same words.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-The model answers with ONE word. We do not parse free text: the verdict comes from the probabilities of the first token (yes / no / unsure),
-which also gives a number to calibrate a threshold on. A reason, when wanted, is a second, short generation that never decides anything.
+What the VLM is asked, per kind of event, in one place so the service, the evaluation and the tests use the same words.
+The model answers with ONE word; the verdict comes from the probabilities of the first token, which also gives a number to
+calibrate a threshold on. A reason, when wanted, is a second short generation that decides nothing.
 """
 
 SYSTEM = ("You are an assistant that checks alerts from a home safety camera. You see a few frames in time order from a fixed camera. "

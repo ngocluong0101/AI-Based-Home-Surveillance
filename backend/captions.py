@@ -1,7 +1,8 @@
-"""The text of the Telegram alert of a behaviour event (a fall, a fight, someone in a restricted area).
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-PERSON_DETECTED keeps the caption of TelegramNotifier (src/notifications); this is for the events of ROADMAP_V2 V2-3, whose
-alert has to say what happened, where, and when it began (a fall is reported two seconds after the impact).
+Telegram caption of a behaviour event (fall, fight, restricted area): what happened, where, and when it began.
+PERSON_DETECTED keeps the caption of TelegramNotifier.
 """
 
 from __future__ import annotations

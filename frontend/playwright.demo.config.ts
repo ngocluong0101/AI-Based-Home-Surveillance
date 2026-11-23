@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { defineConfig } from "@playwright/test";
 
 // End-to-end tests of the DEMO build (the app with made-up cameras, as on GitHub Pages): no backend, no engine, no database.

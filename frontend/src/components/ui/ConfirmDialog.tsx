@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { AnimatePresence, motion } from "motion/react";
 import { TriangleAlert } from "lucide-react";
 import { useId, useRef, type ReactNode } from "react";

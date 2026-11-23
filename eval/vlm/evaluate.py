@@ -1,15 +1,18 @@
-"""How good is the VLM at telling a real fall from a false alarm? (V2-6.5) On UR Fall (30 falls, 40 daily-activity sequences, 640x480, one room).
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-Two kinds of window, each made of N frames spread over a few seconds of the sequence:
-  annotated   falls: [f0 - 0.5 s, f1 + 1.5 s] (the fall itself), label yes. ADL: three 3-second windows per sequence (start, middle, end), label no.
-              This is the VLM's accuracy on the question, independent of any detector.
-  alerts      what the detectors really reported: the rules (fall_still_s = 1.0) and the skeleton network (CV scores, thr 0.95, k 3, seed 0).
-              Frames [t - 2.5 s, t + 0.5 s] around the report time t. Label = whether the report was a true detection. This is the number the
-              system cares about: of the false alarms, how many does the VLM remove, and how many real falls does it take away with them.
+How good is the VLM at telling a real fall from a false alarm? (V2-6.5) On UR Fall (30 falls, 40 daily-activity sequences, 640x480, one room).
 
-    nice -n 10 eval/.venv/bin/python eval/vlm/evaluate.py --frames 6                 # results are cached in eval/work/vlm/, a rerun costs nothing
+Two kinds of window, each of N frames spread over a few seconds:
+  annotated   falls: [f0 - 0.5 s, f1 + 1.5 s], label yes. ADL: three 3-second windows per sequence, label no. The VLM's accuracy on the
+              question, independent of any detector.
+  alerts      what the detectors reported: the rules (fall_still_s = 1.0) and the skeleton network (CV scores, thr 0.95, k 3, seed 0), frames
+              [t - 2.5 s, t + 0.5 s] around the report time t, label = whether the report was a true detection. This is the number the system
+              cares about: how many false alarms the VLM removes and how many real falls it takes away.
+
+    nice -n 10 eval/.venv/bin/python eval/vlm/evaluate.py --frames 6                 # cached in eval/work/vlm/, a rerun costs nothing
     nice -n 10 eval/.venv/bin/python eval/vlm/evaluate.py --frames 6 --summary-only
-Only 40 daily-activity sequences (~5 minutes): this cannot say anything per hour, and one room is one room.
+Only 40 daily-activity sequences (~5 minutes): this says nothing per hour, and one room is one room.
 """
 import argparse
 import json

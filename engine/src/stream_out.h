@@ -1,7 +1,10 @@
 /*
- * stream_out.h - the live video of each camera to a media server (--stream-url, ROADMAP 4.1): the encoding
- * branch inside the main pipeline, and one small publisher pipeline per camera (appsrc ! h264parse ! flvmux !
- * rtmp2sink) that is thrown away and built again when the server fails.
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
+ * stream_out.h - live video of each camera to a media server (--stream-url, ROADMAP 4.1): the encoding branch in the main
+ * pipeline and one small publisher pipeline per camera (appsrc ! h264parse ! flvmux ! rtmp2sink), rebuilt when the server fails.
  */
 #ifndef DS_STREAM_OUT_H
 #define DS_STREAM_OUT_H

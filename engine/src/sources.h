@@ -1,7 +1,10 @@
 /*
- * sources.h - the camera slots and their life in the running pipeline: filling and emptying a slot, putting a
- * camera's nvurisrcbin into the pipeline or taking it out, RTSP loss detection, and the SIGHUP reload that
- * adds and removes cameras without stopping the others. Main thread only (except where a comment says so).
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
+ * sources.h - the camera slots and their life in the running pipeline: fill/empty a slot, add or remove a camera's nvurisrcbin,
+ * RTSP loss detection, and the SIGHUP reload. Main thread only unless a comment says otherwise.
  */
 #ifndef DS_SOURCES_H
 #define DS_SOURCES_H

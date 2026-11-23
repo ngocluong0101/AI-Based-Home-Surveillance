@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import type { AppSettings, AppSettingsUpdate } from "../types";
 
 /** The editable settings as the form holds them. The numbers stay text while they are typed; validateSettings checks them. */

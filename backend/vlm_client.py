@@ -1,5 +1,9 @@
-"""Talks to the VLM service (vlm_service/app.py) over HTTP. One call per event; any failure is an exception the verifier turns into
-`unverified` (the alert then goes out as if there were no VLM). Frames travel as base64 JPEG in the JSON body."""
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
+
+HTTP client of the VLM service (vlm_service/app.py), one call per event. Any failure is an exception the verifier turns into
+`unverified`. Frames travel as base64 JPEG in the JSON body.
+"""
 
 from __future__ import annotations
 

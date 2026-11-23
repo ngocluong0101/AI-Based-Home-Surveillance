@@ -1,8 +1,7 @@
-"""What the engine last said about its cameras (ROADMAP 3.6).
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-The engine POSTs one heartbeat per process every few seconds. Only the latest one matters and it is
-useless after a restart of the backend (the engine sends the next within seconds), so it is kept in
-memory, not in the database.
+What the engine last said about its cameras (ROADMAP 3.6). Only the latest heartbeat matters, so it is kept in memory.
 """
 
 from __future__ import annotations

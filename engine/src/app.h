@@ -1,11 +1,12 @@
 /*
- * app.h - the types every part of the engine shares: SourceCtx (one camera slot), AppCtx (the whole
- * application), and the few constants more than one file needs.
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
+ * app.h - the types every part of the engine shares (SourceCtx = one camera slot, AppCtx = the application) and shared constants.
  *
- * Which thread touches what (each field below says it again where it matters):
- *  - main thread (GLib main loop): sources.c, stream_out.c (publishers), report.c, ds_engine.c
- *  - GStreamer streaming threads:  probes.c, stream_out.c (stream_new_sample), mux_eos_probe in sources.c
- *  - publisher thread:             delivery.c
+ * Threads: main (GLib loop): sources.c, stream_out.c publishers, report.c, ds_engine.c. GStreamer streaming threads: probes.c,
+ * stream_new_sample, mux_eos_probe. Publisher thread: delivery.c.
  */
 #ifndef DS_APP_H
 #define DS_APP_H
@@ -40,11 +41,11 @@
 #define MUXER_HEIGHT 1080
 #define MUXER_BATCH_TIMEOUT_USEC 20000
 
-/* Frames the stream branch may hold while the stream cannot keep up (live pipelines drop the oldest
- * instead of stalling detection). Every one of them is a whole batch buffer of nvstreammux, taken from
- * its small fixed pool (STREAM_POOL_EXTRA + one per camera, at most 16): a branch that holds more
- * than its share while it is stuck, e.g. just after it reconnected, starves the pool and stops
- * the detection of every camera. */
+/*
+ * Frames the stream branch may hold while the stream is stuck (live pipelines drop the oldest instead of stalling detection).
+ * Each is a whole nvstreammux batch buffer from a small fixed pool, so holding more than its share starves the pool and stops
+ * detection for every camera.
+ */
 #define STREAM_QUEUE_BUFFERS 1
 #define STREAM_POOL_EXTRA 4
 #define MUXER_POOL_MAX 16
@@ -69,10 +70,11 @@ typedef struct {
     _Atomic gboolean ai_enabled;      /* FALSE: the picture goes on, but nobody is detected, tracked or reported */
     gdouble em_timeout;               /* probe only: the timeout the EventManager was last given */
     gboolean from_file;               /* the camera came from --cameras-file, so SIGHUP may change its settings */
-    /* A slot holds one camera. There are as many slots as the muxer has batch places (num_sources); a slot
-     * with uri == NULL is free. source_id is the slot number, which is also the muxer pad index and the
-     * frame_meta->source_id the probes see. active = the camera is in the running pipeline: the probes, the
-     * heartbeat and the timers look at active slots only. */
+    /*
+     * A slot holds one camera. There are num_sources slots (the muxer's batch places); uri == NULL means free. source_id is the slot number,
+     * also the muxer pad index and the frame_meta->source_id the probes see. active = in the running pipeline: probes, heartbeat and timers
+     * look at active slots only.
+     */
     _Atomic gboolean active;
     gint64 freed_us;                  /* monotonic time the slot was emptied; the longest-free slot is reused first */
     /* Reconnect (RTSP only). The reconnecting itself is done by nvurisrcbin (rtsp-reconnect-interval);
@@ -131,11 +133,11 @@ typedef struct {
     gboolean fall_net_on;   /* the skeleton network scores this camera's people (fall_net != 0 and the model is loaded); probe thread only */
     guint64 event_count;   /* PERSON_DETECTED events emitted */
     guint64 event_errors;  /* frames dropped from event processing because memory ran out */
-    /* Stream (--stream-url). Two parts that never touch each other's state: the encoding branch inside the
-     * main pipeline (nvstreamdemux ! queue ! ... ! H.264 ! appsink; it never fails, so the encoder is never
-     * restarted) and, per camera, a small publisher pipeline of its own (appsrc ! h264parse ! flvmux !
-     * rtmp2sink) that is thrown away and built again when the server fails. The appsink callback (a
-     * streaming thread) hands the encoded frames to the publisher under pub_lock; the rest is main thread. */
+    /*
+     * Stream (--stream-url): the encoding branch inside the main pipeline (never fails, so the encoder is never restarted) and, per
+     * camera, a small publisher pipeline (appsrc ! h264parse ! flvmux ! rtmp2sink) rebuilt when the server fails. The appsink
+     * callback hands encoded frames to the publisher under pub_lock; the rest is main thread.
+     */
     GstElement *stream_bin;   /* the encoding branch, owned by the main pipeline; NULL without --stream-url */
     GMutex pub_lock;
     GstElement *pub_appsrc;   /* NULL while no publisher takes frames; guarded by pub_lock */

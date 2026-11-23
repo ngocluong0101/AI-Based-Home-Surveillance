@@ -1,14 +1,15 @@
-"""Make a copy of an nvinfer config of engine/configs (pgie_yolov8n.txt, or --base pgie_yolov8n_pose.txt) for an evaluation run inside the container.
+"""
+@author: Ngoc Luong <ngocluongg0101@gmail.com>
 
-The copy has absolute container paths (/work/...) so it can live anywhere, the engine file of the right batch
-size (N), and the detection settings you ask for. The original is never changed.
+Make a copy of an nvinfer config of engine/configs (pgie_yolov8n.txt, or --base pgie_yolov8n_pose.txt) for an evaluation run inside the
+container: absolute container paths (/work/..., where in_container.sh mounts the repo), the engine file of batch size N, and the
+detection settings you ask for. The original is never changed.
 
     python eval/tools/make_pgie_config.py --batch 1 --threshold 0.001 --out eval/work/pgie_b1_t0001.txt
     python eval/tools/make_pgie_config.py --batch 1 --nms-iou 0.7 --out eval/work/pgie_b1_iou07.txt
 
---set KEY=VALUE changes (or adds to [property]) any other key, e.g. --set scaling-filter=1.
---threshold = pre-cluster-threshold (detections under it are dropped before NMS), --nms-iou = nms-iou-threshold.
-The paths use /work (where eval/tools/in_container.sh mounts the repo), not the host path.
+--threshold = pre-cluster-threshold (dropped before NMS), --nms-iou = nms-iou-threshold, --set KEY=VALUE changes or adds any other
+[property] key, e.g. --set scaling-filter=1.
 """
 import argparse
 import re

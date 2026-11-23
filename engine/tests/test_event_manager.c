@@ -1,7 +1,10 @@
 /*
- * Tests for event_manager.c: the shared vectors (tests/vectors/event_manager_*.json, the same files
- * tests/test_event_manager_vectors.py replays on the Python specification), plus the few things that
- * exist only in the C version (capacity of the output array, destroy, several instances).
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
+/*
+ * Tests for event_manager.c: the shared vectors (tests/vectors/event_manager_*.json, replayed on the Python specification by
+ * tests/test_event_manager_vectors.py) plus what exists only in C (output capacity, destroy, several instances).
  */
 #include <dirent.h>
 #include <stdio.h>

@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import type { PersonEvent } from "../types";
 import { describeEvent, isAlert, kindOf, SEVERITY_LABEL, SEVERITY_TONE, verificationNote } from "../utils/eventType";
 import { percent, relativeTime } from "../utils/format";

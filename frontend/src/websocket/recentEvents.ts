@@ -1,3 +1,7 @@
+/*
+ * @author: Ngoc Luong <ngocluongg0101@gmail.com>
+ */
+
 import { useSyncExternalStore } from "react";
 
 // Which events arrived over the WebSocket: used to drop duplicates and to highlight new rows for a moment.
